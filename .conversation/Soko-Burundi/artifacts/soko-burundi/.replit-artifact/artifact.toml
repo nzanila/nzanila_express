@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Nzanila Express"
+description = "A mobile-first multilingual marketplace for buying and selling locally in Burundi, with product discovery, category browsing, seller listings, cart checkout, delivery details, and cash-on-delivery ordering."
+version = "1.0.0"
+id = "artifacts/soko-burundi"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25342
+
+[services.development]
+run = "pnpm --filter @workspace/soko-burundi run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/soko-burundi", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/soko-burundi/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25342"
+BASE_PATH = "/"

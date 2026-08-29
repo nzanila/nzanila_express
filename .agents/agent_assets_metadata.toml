@@ -1,0 +1,17 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "0b_ggn9OOPb8MYspn4sDj"
+uri = "file://.local/conversation-workspace/files/Soko-Burundi-amazon-style.zip"
+type = "unspecified"
+title = "Soko-Burundi — Amazon-inspired update"
+description = "Updated source project with a compact Amazon-inspired marketplace header, navy/yellow palette, simpler navigation and footer, and cash-on-delivery messaging."
+logical_id = "72ebd3f5-4069-48e7-ab11-01f5737ec317"
+content_hash = "sha256:91a63723cd06881959098c17a2681867f6d70b71491c097ef7d0a1a3aa0cb8b8"
+size = 891628
+mtime_ms = 1787984937998
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/conversation:6ef39d2e-994e-4a7b-a25d-874e53b36fba/72ebd3f5-4069-48e7-ab11-01f5737ec317/6c3c284b-1c73-4d4c-8595-332209301633"
+storage_version_token = "1787984941372016"
+content_type = "application/octet-stream"
+source_uri = "file://Soko-Burundi-amazon-style.zip"
