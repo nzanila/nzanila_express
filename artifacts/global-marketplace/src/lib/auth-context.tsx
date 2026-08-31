@@ -109,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       const data = await res.json() as any;
       if (!res.ok) return { error: data.error || 'Signup failed' };
-      return { phone: data.phone };
+      return { phone: data.phone, otp: data.otp, whatsappUrl: data.whatsappUrl };
     } catch {
       return { error: 'Network error' };
     }
@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       const data = await res.json() as any;
       if (!res.ok) return { error: data.error || 'Login failed' };
-      return {};
+      return { otp: data.otp, whatsappUrl: data.whatsappUrl };
     } catch {
       return { error: 'Network error' };
     }

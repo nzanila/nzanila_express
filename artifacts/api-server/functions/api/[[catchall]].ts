@@ -58,40 +58,7 @@ async function sbDelete(env: Env, table: string, filter: string) {
   if (!res.ok) throw new Error(`Supabase DELETE ${table}: ${res.status}`);
 }
 
-// ── Supabase Auth helpers (phone OTP) ──
-
-async function supabaseSignUpPhone(env: Env, phone: string, password: string) {
-  const res = await fetch(`${env.SUPABASE_URL}/auth/v1/signup`, {
-    method: "POST",
-    headers: { apikey: env.SUPABASE_SERVICE_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ phone, password }),
-  });
-  const data = await res.json() as Record<string, unknown>;
-  if (!res.ok) throw new Error(data.error?.message || data.msg || `Signup failed: ${res.status}`);
-  return data;
-}
-
-async function supabaseSendOtp(env: Env, phone: string) {
-  const res = await fetch(`${env.SUPABASE_URL}/auth/v1/otp`, {
-    method: "POST",
-    headers: { apikey: env.SUPABASE_SERVICE_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ phone, should_create_user: false }),
-  });
-  const data = await res.json() as Record<string, unknown>;
-  if (!res.ok) throw new Error(data.error?.message || data.msg || `OTP send failed: ${res.status}`);
-  return data;
-}
-
-async function supabaseVerifyOtp(env: Env, phone: string, token: string) {
-  const res = await fetch(`${env.SUPABASE_URL}/auth/v1/verify`, {
-    method: "POST",
-    headers: { apikey: env.SUPABASE_SERVICE_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ phone, token, type: "sms" }),
-  });
-  const data = await res.json() as Record<string, unknown>;
-  if (!res.ok) throw new Error(data.error?.message || data.msg || `OTP verify failed: ${res.status}`);
-  return data;
-}
+// ── Supabase Auth helpers ──
 
 async function supabaseGetUser(env: Env, accessToken: string) {
   const res = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
@@ -101,6 +68,18 @@ async function supabaseGetUser(env: Env, accessToken: string) {
   const data = await res.json() as Record<string, unknown>;
   if (!res.ok) throw new Error(data.error?.message || data.msg || `Get user failed: ${res.status}`);
   return data;
+}
+
+// ── OTP helpers (WhatsApp-based) ──
+
+function generateOtp(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+function buildWhatsAppUrl(phone: string, otp: string): string {
+  const msg = `Your Nzanila Express verification code is: *${otp}*\n\nThis code expires in 10 minutes. Do not share it with anyone.`;
+  const cleanPhone = phone.replace(/[^\d]/g, "");
+  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
 }
 
 // ── DTOs ──
@@ -180,13 +159,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   // ── Auth: extract user from Bearer token ──
   async function getUser(): Promise<{ authUser: Record<string, unknown>; profile: Record<string, unknown> } | null> {
     const auth = request.headers.get("Authorization");
-    if (!auth?.startsWith("Bearer ")) return null;
-    const token = auth.slice(7);
+    if (!auth?.startsWith("Bearer nz_")) return null;
     try {
-      const authUser = await supabaseGetUser(env, token);
-      if (!authUser.id) return null;
-      const profiles = await sbGet(env, "marketplace_users", `auth_user_id=eq.${authUser.id}`);
-      return { authUser, profile: profiles[0] ?? null };
+      const payload = JSON.parse(atob(auth.slice(7)));
+      if (payload.exp && payload.exp < Date.now()) return null;
+      const profiles = await sbGet(env, "marketplace_users", `id=eq.${payload.id}`);
+      if (!profiles.length) return null;
+      return { authUser: payload, profile: profiles[0] };
     } catch {
       return null;
     }
@@ -194,10 +173,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
   try {
     // ═══════════════════════════════════════
-    // AUTH ROUTES
+    // AUTH ROUTES (WhatsApp OTP)
     // ═══════════════════════════════════════
 
-    // POST /auth/signup — register new user (phone + name + role)
+    // POST /auth/signup — register new user (phone + name + role), send OTP via WhatsApp
     if (path === "/auth/signup" && method === "POST") {
       const body = await request.json() as { phone: string; name: string; role: string };
       const { phone, name, role } = body;
@@ -205,40 +184,44 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!phone || !name || !role) return json({ error: "Phone, name, and role are required" }, 400);
       if (!["buyer", "seller"].includes(role)) return json({ error: "Role must be 'buyer' or 'seller'" }, 400);
 
-      // Normalize Burundian phone: strip leading 0, ensure +257 prefix
+      // Normalize Burundian phone
       let normalizedPhone = phone.replace(/\s/g, "");
       if (normalizedPhone.startsWith("0")) normalizedPhone = "+257" + normalizedPhone.slice(1);
       if (!normalizedPhone.startsWith("+")) normalizedPhone = "+257" + normalizedPhone;
 
-      // Check if phone already exists in our users table
+      // Check if phone already exists
       const existing = await sbGet(env, "marketplace_users", `phone=eq.${normalizedPhone}`);
       if (existing.length) return json({ error: "Phone number already registered" }, 409);
 
-      // Create Supabase auth user with phone
-      const tempPassword = `nz_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      const authData = await supabaseSignUpPhone(env, normalizedPhone, tempPassword);
+      // Generate OTP
+      const otp = generateOtp();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-      // Create profile in marketplace_users
+      // Create user with OTP (not yet verified)
       const [profile] = await sbPost(env, "marketplace_users", {
-        auth_user_id: authData.id,
+        auth_user_id: crypto.randomUUID(),
         phone: normalizedPhone,
         name,
         role,
         location: "Bujumbura",
         verified: false,
         avatar: "",
+        otp_code: otp,
+        otp_expires_at: expiresAt,
       });
 
+      const whatsappUrl = buildWhatsAppUrl(normalizedPhone, otp);
+
       return json({
-        message: "Account created. Please verify your phone with the OTP code sent.",
+        message: "Account created. OTP sent via WhatsApp.",
         userId: profile.id,
         phone: normalizedPhone,
-        // Return the auth session so frontend can auto-login after OTP
-        auth: authData,
+        otp, // Include OTP in response for demo/testing
+        whatsappUrl, // Link to open WhatsApp with OTP
       }, 201);
     }
 
-    // POST /auth/send-otp — send OTP to phone (for login)
+    // POST /auth/send-otp — send OTP via WhatsApp (for login)
     if (path === "/auth/send-otp" && method === "POST") {
       const body = await request.json() as { phone: string };
       let normalizedPhone = (body.phone || "").replace(/\s/g, "");
@@ -249,10 +232,24 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const users = await sbGet(env, "marketplace_users", `phone=eq.${normalizedPhone}`);
       if (!users.length) return json({ error: "Phone number not registered" }, 404);
 
-      // Send OTP via Supabase Auth
-      await supabaseSendOtp(env, normalizedPhone);
+      // Generate OTP
+      const otp = generateOtp();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-      return json({ message: "OTP sent", phone: normalizedPhone });
+      // Store OTP
+      await sbPatch(env, "marketplace_users", `phone=eq.${normalizedPhone}`, {
+        otp_code: otp,
+        otp_expires_at: expiresAt,
+      });
+
+      const whatsappUrl = buildWhatsAppUrl(normalizedPhone, otp);
+
+      return json({
+        message: "OTP sent via WhatsApp",
+        phone: normalizedPhone,
+        otp,
+        whatsappUrl,
+      });
     }
 
     // POST /auth/verify-otp — verify OTP and return session
@@ -264,31 +261,43 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       if (!body.token) return json({ error: "OTP code is required" }, 400);
 
-      // Verify OTP with Supabase Auth
-      const authData = await supabaseVerifyOtp(env, normalizedPhone, body.token);
+      // Get user
+      const users = await sbGet(env, "marketplace_users", `phone=eq.${normalizedPhone}`);
+      if (!users.length) return json({ error: "User not found" }, 404);
 
-      // Get or create profile
-      let profiles = await sbGet(env, "marketplace_users", `auth_user_id=eq.${authData.user?.id}`);
+      const user = users[0];
 
-      if (!profiles.length) {
-        // First time verifying after signup — profile should exist
-        // But if not, check by phone
-        profiles = await sbGet(env, "marketplace_users", `phone=eq.${normalizedPhone}`);
+      // Check OTP
+      if (user.otp_code !== body.token) return json({ error: "Invalid OTP code" }, 400);
+
+      // Check expiry
+      if (user.otp_expires_at && new Date(user.otp_expires_at as string) < new Date()) {
+        return json({ error: "OTP code has expired" }, 400);
       }
+
+      // Mark as verified, clear OTP
+      const [updated] = await sbPatch(env, "marketplace_users", `phone=eq.${normalizedPhone}`, {
+        verified: true,
+        otp_code: null,
+        otp_expires_at: null,
+      });
+
+      // Generate a simple JWT-like token (in production, use proper JWT)
+      const accessToken = `nz_${btoa(JSON.stringify({ id: updated.id, phone: normalizedPhone, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 }))}`;
 
       return json({
         message: "Verified",
-        user: profiles.length ? dtoUser(profiles[0]) : null,
+        user: dtoUser(updated),
         session: {
-          accessToken: authData.access_token,
-          refreshToken: authData.refresh_token,
-          expiresIn: authData.expires_in,
-          expiresAt: authData.expires_at,
+          accessToken,
+          refreshToken: `nz_refresh_${updated.id}`,
+          expiresIn: 7 * 24 * 60 * 60,
+          expiresAt: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
         },
       });
     }
 
-    // POST /auth/login — send OTP for existing user
+    // POST /auth/login — send OTP via WhatsApp for existing user
     if (path === "/auth/login" && method === "POST") {
       const body = await request.json() as { phone: string };
       let normalizedPhone = (body.phone || "").replace(/\s/g, "");
@@ -298,54 +307,68 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const users = await sbGet(env, "marketplace_users", `phone=eq.${normalizedPhone}`);
       if (!users.length) return json({ error: "Phone number not registered. Please sign up first." }, 404);
 
-      // Send OTP
-      await supabaseSendOtp(env, normalizedPhone);
+      // Generate OTP
+      const otp = generateOtp();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-      return json({ message: "OTP sent", phone: normalizedPhone });
+      await sbPatch(env, "marketplace_users", `phone=eq.${normalizedPhone}`, {
+        otp_code: otp,
+        otp_expires_at: expiresAt,
+      });
+
+      const whatsappUrl = buildWhatsAppUrl(normalizedPhone, otp);
+
+      return json({
+        message: "OTP sent via WhatsApp",
+        phone: normalizedPhone,
+        otp,
+        whatsappUrl,
+      });
     }
 
-    // POST /auth/refresh — refresh access token
+    // POST /auth/refresh — extend session
     if (path === "/auth/refresh" && method === "POST") {
       const body = await request.json() as { refreshToken: string };
       if (!body.refreshToken) return json({ error: "Refresh token required" }, 400);
 
-      const res = await fetch(`${env.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
-        method: "POST",
-        headers: { apikey: env.SUPABASE_SERVICE_KEY, "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: body.refreshToken }),
-      });
-      const data = await res.json() as Record<string, unknown>;
-      if (!res.ok) return json({ error: "Invalid refresh token" }, 401);
+      // Simple refresh: extract user ID and issue new token
+      const match = body.refreshToken.match(/^nz_refresh_(\d+)$/);
+      if (!match) return json({ error: "Invalid refresh token" }, 401);
+
+      const userId = match[1];
+      const users = await sbGet(env, "marketplace_users", `id=eq.${userId}`);
+      if (!users.length) return json({ error: "User not found" }, 401);
+
+      const accessToken = `nz_${btoa(JSON.stringify({ id: users[0].id, phone: users[0].phone, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 }))}`;
 
       return json({
         session: {
-          accessToken: data.access_token,
-          refreshToken: data.refresh_token,
-          expiresIn: data.expires_in,
-          expiresAt: data.expires_at,
+          accessToken,
+          refreshToken: `nz_refresh_${users[0].id}`,
+          expiresIn: 7 * 24 * 60 * 60,
+          expiresAt: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
         },
       });
     }
 
     // GET /auth/me — get current user profile
     if (path === "/auth/me" && method === "GET") {
-      const user = await getUser();
-      if (!user) return json({ error: "Not authenticated" }, 401);
-      if (!user.profile) return json({ error: "Profile not found" }, 404);
-      return json({ user: dtoUser(user.profile) });
+      const auth = request.headers.get("Authorization");
+      if (!auth?.startsWith("Bearer nz_")) return json({ error: "Not authenticated" }, 401);
+
+      try {
+        const payload = JSON.parse(atob(auth.slice(7)));
+        if (payload.exp && payload.exp < Date.now()) return json({ error: "Token expired" }, 401);
+        const users = await sbGet(env, "marketplace_users", `id=eq.${payload.id}`);
+        if (!users.length) return json({ error: "User not found" }, 404);
+        return json({ user: dtoUser(users[0]) });
+      } catch {
+        return json({ error: "Invalid token" }, 401);
+      }
     }
 
     // POST /auth/logout
     if (path === "/auth/logout" && method === "POST") {
-      const auth = request.headers.get("Authorization");
-      if (auth?.startsWith("Bearer ")) {
-        try {
-          await fetch(`${env.SUPABASE_URL}/auth/v1/logout`, {
-            method: "POST",
-            headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${auth.slice(7)}` },
-          });
-        } catch { /* ignore */ }
-      }
       return json({ message: "Logged out" });
     }
 

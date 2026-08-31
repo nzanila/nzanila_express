@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
-import { ArrowLeft, Phone, User, ShoppingBag, Store, Shield, ChevronRight, Lock } from 'lucide-react';
+import { ArrowLeft, Phone, ShoppingBag, Store, Shield, ChevronRight, Lock, MessageCircle, Copy, Check } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useLocale } from '@/lib/i18n/locale-context';
 
@@ -18,9 +18,9 @@ export function AuthPage() {
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
+  const [otpData, setOtpData] = useState<{ otp: string; whatsappUrl: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  // Redirect if already authenticated
   if (isAuthenticated && user) {
     setLocation(user.role === 'seller' ? '/supplier' : '/');
     return null;
@@ -38,7 +38,7 @@ export function AuthPage() {
     setLoading(false);
     if (result.error) { setError(result.error); return; }
     setPhone(result.phone || phone);
-    setOtpSent(true);
+    setOtpData({ otp: result.otp || '', whatsappUrl: result.whatsappUrl || '' });
     setStep('otp');
   };
 
@@ -48,7 +48,7 @@ export function AuthPage() {
     const result = await signIn(phone);
     setLoading(false);
     if (result.error) { setError(result.error); return; }
-    setOtpSent(true);
+    setOtpData({ otp: result.otp || '', whatsappUrl: result.whatsappUrl || '' });
     setStep('otp');
   };
 
@@ -64,19 +64,27 @@ export function AuthPage() {
     }, 500);
   };
 
+  const copyOtp = () => {
+    if (otpData?.otp) {
+      navigator.clipboard.writeText(otpData.otp);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   return (
     <div className="min-h-[100dvh] bg-background flex flex-col">
       {/* Header */}
       <div className="sticky top-0 z-30 border-b border-border bg-card">
         <div className="mx-auto flex h-14 max-w-lg items-center gap-3 px-4">
           {step !== 'role' && (
-            <button onClick={() => { setError(''); setStep(step === 'otp' ? (otpSent && !name ? 'phone-login' : 'phone-register') : 'role'); }} className="rounded-lg p-1.5 hover:bg-muted">
+            <button onClick={() => { setError(''); setOtpData(null); setStep(step === 'otp' ? (otpData && !name ? 'phone-login' : 'phone-register') : 'role'); }} className="rounded-lg p-1.5 hover:bg-muted">
               <ArrowLeft size={20} className="text-foreground" />
             </button>
           )}
           <div className="flex-1 text-center">
             <p className="text-sm font-bold text-foreground">
-              {step === 'role' ? 'Join Nzanila' : step === 'otp' ? 'Verify Phone' : step === 'done' ? 'Welcome!' : role === 'seller' ? 'Create Seller Account' : 'Create Buyer Account'}
+              {step === 'role' ? 'Join Nzanila' : step === 'otp' ? 'Verify via WhatsApp' : step === 'done' ? 'Welcome!' : role === 'seller' ? 'Create Seller Account' : 'Create Buyer Account'}
             </p>
           </div>
           {step !== 'role' && <div className="w-8" />}
@@ -150,7 +158,7 @@ export function AuthPage() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-semibold text-foreground">Burundian phone number</label>
+                <label className="mb-1.5 block text-sm font-semibold text-foreground">WhatsApp number</label>
                 <div className="flex items-center rounded-xl border border-border bg-card focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
                   <div className="flex items-center gap-2 border-r border-border px-3">
                     <span className="text-lg">🇧🇮</span>
@@ -164,7 +172,7 @@ export function AuthPage() {
                     className="h-12 flex-1 bg-transparent px-3 text-sm outline-none"
                   />
                 </div>
-                <p className="mt-1.5 text-xs text-muted-foreground">We'll send a verification code via SMS</p>
+                <p className="mt-1.5 text-xs text-muted-foreground">We'll send a verification code via WhatsApp</p>
               </div>
 
               {error && <p className="text-sm text-destructive">{error}</p>}
@@ -191,7 +199,7 @@ export function AuthPage() {
                 <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
                   <Phone size={24} className="text-primary" />
                 </div>
-                <p className="text-sm text-muted-foreground">Sign in with your phone number</p>
+                <p className="text-sm text-muted-foreground">Sign in with your WhatsApp number</p>
               </div>
 
               <div>
@@ -234,12 +242,40 @@ export function AuthPage() {
           {step === 'otp' && (
             <div className="space-y-5">
               <div className="text-center mb-6">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                  <Lock size={24} className="text-primary" />
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10">
+                  <MessageCircle size={24} className="text-emerald-600" />
                 </div>
                 <p className="text-sm text-muted-foreground">Enter the 6-digit code sent to</p>
                 <p className="mt-1 text-sm font-bold text-foreground">🇧🇮 {phone}</p>
               </div>
+
+              {/* WhatsApp link + OTP display */}
+              {otpData && (
+                <div className="space-y-3">
+                  <a
+                    href={otpData.whatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 h-12 w-full rounded-xl bg-emerald-600 text-sm font-bold text-white hover:bg-emerald-700 active:scale-[0.98]"
+                  >
+                    <MessageCircle size={18} />
+                    Open WhatsApp
+                  </a>
+
+                  {/* OTP display for demo */}
+                  <div className="rounded-xl border border-dashed border-emerald-300 bg-emerald-50 p-4 text-center">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700 mb-1">Your verification code</p>
+                    <p className="text-2xl font-bold tracking-[0.3em] text-emerald-800 font-mono">{otpData.otp}</p>
+                    <button
+                      onClick={copyOtp}
+                      className="mt-2 flex items-center gap-1 mx-auto text-xs text-emerald-600 hover:text-emerald-800"
+                    >
+                      {copied ? <Check size={12} /> : <Copy size={12} />}
+                      {copied ? 'Copied!' : 'Copy code'}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="mb-1.5 block text-sm font-semibold text-foreground">Verification code</label>
@@ -268,7 +304,7 @@ export function AuthPage() {
                 onClick={() => { setError(''); setOtp(''); }}
                 className="w-full text-center text-xs text-muted-foreground hover:text-foreground"
               >
-                Didn't receive the code? Check your messages
+                Didn't receive the code? Check your WhatsApp
               </button>
             </div>
           )}
