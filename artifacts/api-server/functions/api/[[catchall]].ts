@@ -36,7 +36,10 @@ async function sbPost(env: Env, table: string, body: unknown) {
     headers: { ...headers(env), Prefer: "return=representation" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`Supabase POST ${table}: ${res.status}`);
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Supabase POST ${table}: ${res.status} - ${errText}`);
+  }
   return res.json() as Promise<Record<string, unknown>[]>;
 }
 
@@ -161,7 +164,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const auth = request.headers.get("Authorization");
     if (!auth?.startsWith("Bearer nz_")) return null;
     try {
-      const payload = JSON.parse(atob(auth.slice(7)));
+      const payload = JSON.parse(atob(auth.slice(10))); // skip "Bearer nz_"
       if (payload.exp && payload.exp < Date.now()) return null;
       const profiles = await sbGet(env, "marketplace_users", `id=eq.${payload.id}`);
       if (!profiles.length) return null;
@@ -184,10 +187,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!phone || !name || !role) return json({ error: "Phone, name, and role are required" }, 400);
       if (!["buyer", "seller"].includes(role)) return json({ error: "Role must be 'buyer' or 'seller'" }, 400);
 
-      // Normalize Burundian phone
+      // Normalize Burundian phone (store without leading +)
       let normalizedPhone = phone.replace(/\s/g, "");
-      if (normalizedPhone.startsWith("0")) normalizedPhone = "+257" + normalizedPhone.slice(1);
-      if (!normalizedPhone.startsWith("+")) normalizedPhone = "+257" + normalizedPhone;
+      if (normalizedPhone.startsWith("0")) normalizedPhone = "257" + normalizedPhone.slice(1);
+      if (normalizedPhone.startsWith("+")) normalizedPhone = normalizedPhone.slice(1);
+      if (!normalizedPhone.startsWith("257")) normalizedPhone = "257" + normalizedPhone;
 
       // Check if phone already exists
       const existing = await sbGet(env, "marketplace_users", `phone=eq.${normalizedPhone}`);
@@ -210,14 +214,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         otp_expires_at: expiresAt,
       });
 
-      const whatsappUrl = buildWhatsAppUrl(normalizedPhone, otp);
+const whatsappUrl = buildWhatsAppUrl("+" + normalizedPhone, otp);
 
       return json({
         message: "Account created. OTP sent via WhatsApp.",
         userId: profile.id,
         phone: normalizedPhone,
-        otp, // Include OTP in response for demo/testing
-        whatsappUrl, // Link to open WhatsApp with OTP
+        otp,
+        whatsappUrl,
       }, 201);
     }
 
@@ -225,8 +229,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (path === "/auth/send-otp" && method === "POST") {
       const body = await request.json() as { phone: string };
       let normalizedPhone = (body.phone || "").replace(/\s/g, "");
-      if (normalizedPhone.startsWith("0")) normalizedPhone = "+257" + normalizedPhone.slice(1);
-      if (!normalizedPhone.startsWith("+")) normalizedPhone = "+257" + normalizedPhone;
+      if (normalizedPhone.startsWith("0")) normalizedPhone = "257" + normalizedPhone.slice(1);
+      if (normalizedPhone.startsWith("+")) normalizedPhone = normalizedPhone.slice(1);
+      if (!normalizedPhone.startsWith("257")) normalizedPhone = "257" + normalizedPhone;
 
       // Check user exists
       const users = await sbGet(env, "marketplace_users", `phone=eq.${normalizedPhone}`);
@@ -242,7 +247,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         otp_expires_at: expiresAt,
       });
 
-      const whatsappUrl = buildWhatsAppUrl(normalizedPhone, otp);
+      const whatsappUrl = buildWhatsAppUrl("+" + normalizedPhone, otp);
 
       return json({
         message: "OTP sent via WhatsApp",
@@ -256,8 +261,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (path === "/auth/verify-otp" && method === "POST") {
       const body = await request.json() as { phone: string; token: string };
       let normalizedPhone = (body.phone || "").replace(/\s/g, "");
-      if (normalizedPhone.startsWith("0")) normalizedPhone = "+257" + normalizedPhone.slice(1);
-      if (!normalizedPhone.startsWith("+")) normalizedPhone = "+257" + normalizedPhone;
+      if (normalizedPhone.startsWith("0")) normalizedPhone = "257" + normalizedPhone.slice(1);
+      if (normalizedPhone.startsWith("+")) normalizedPhone = normalizedPhone.slice(1);
+      if (!normalizedPhone.startsWith("257")) normalizedPhone = "257" + normalizedPhone;
 
       if (!body.token) return json({ error: "OTP code is required" }, 400);
 
@@ -301,8 +307,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (path === "/auth/login" && method === "POST") {
       const body = await request.json() as { phone: string };
       let normalizedPhone = (body.phone || "").replace(/\s/g, "");
-      if (normalizedPhone.startsWith("0")) normalizedPhone = "+257" + normalizedPhone.slice(1);
-      if (!normalizedPhone.startsWith("+")) normalizedPhone = "+257" + normalizedPhone;
+      if (normalizedPhone.startsWith("0")) normalizedPhone = "257" + normalizedPhone.slice(1);
+      if (normalizedPhone.startsWith("+")) normalizedPhone = normalizedPhone.slice(1);
+      if (!normalizedPhone.startsWith("257")) normalizedPhone = "257" + normalizedPhone;
 
       const users = await sbGet(env, "marketplace_users", `phone=eq.${normalizedPhone}`);
       if (!users.length) return json({ error: "Phone number not registered. Please sign up first." }, 404);
@@ -316,7 +323,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         otp_expires_at: expiresAt,
       });
 
-      const whatsappUrl = buildWhatsAppUrl(normalizedPhone, otp);
+      const whatsappUrl = buildWhatsAppUrl("+" + normalizedPhone, otp);
 
       return json({
         message: "OTP sent via WhatsApp",
@@ -357,7 +364,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!auth?.startsWith("Bearer nz_")) return json({ error: "Not authenticated" }, 401);
 
       try {
-        const payload = JSON.parse(atob(auth.slice(7)));
+        const payload = JSON.parse(atob(auth.slice(10))); // skip "Bearer nz_"
         if (payload.exp && payload.exp < Date.now()) return json({ error: "Token expired" }, 401);
         const users = await sbGet(env, "marketplace_users", `id=eq.${payload.id}`);
         if (!users.length) return json({ error: "User not found" }, 404);
@@ -476,7 +483,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       });
       await sbPost(env, "marketplace_order_items", cart.items.map((i: any) => ({
         order_id: order.id, product_id: i.productId, product_name: i.product.name,
-        quantity: i.quantity, unit_price: i.product.price, supplier_name: i.product.supplierName,
+        quantity: i.quantity, unit_price: i.product.price, supplier_name: i.product.supplier_name,
       })));
       await sbDelete(env, "marketplace_cart_items", uid ? `user_id=eq.${uid}` : "user_id=is.null");
       const all = await buildOrders(env, false, uid);

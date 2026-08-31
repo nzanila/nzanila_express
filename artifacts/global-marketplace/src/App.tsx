@@ -29,7 +29,7 @@ import {
   Router as WouterRouter,
 } from 'wouter';
 
-const apiBase = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-api.pages.dev');
+const apiBase = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://bd75c998.nzanila-api.pages.dev');
 setBaseUrl(apiBase || null);
 
 const queryClient = new QueryClient();
