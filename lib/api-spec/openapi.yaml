@@ -10,6 +10,16 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: marketplace
+    description: Marketplace operations
+  - name: cart
+    description: Cart operations
+  - name: orders
+    description: Order operations
+  - name: categories
+    description: Category operations
+  - name: suppliers
+    description: Supplier operations
 paths:
   /healthz:
     get:
@@ -24,6 +34,412 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /marketplace/summary:
+    get:
+      operationId: getMarketplaceSummary
+      tags: [marketplace]
+      summary: Get marketplace summary
+      description: Returns marketplace summary statistics
+      responses:
+        "200":
+          description: Marketplace summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketplaceSummary"
+
+  /products:
+    get:
+      operationId: listProducts
+      tags: [marketplace]
+      summary: List products
+      description: Returns a paginated list of products
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+          description: Maximum number of results
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+          description: Number of results to skip
+        - in: query
+          name: category
+          schema:
+            type: string
+          description: Filter by category
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search query
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum: [price-low, price-high, rating, featured]
+          description: Sort order
+      responses:
+        "200":
+          description: List of products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+
+  /products/{id}:
+    get:
+      operationId: getProduct
+      tags: [marketplace]
+      summary: Get a product
+      description: Returns a single product by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: A product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /suppliers:
+    get:
+      operationId: listSuppliers
+      tags: [suppliers]
+      summary: List suppliers
+      description: Returns a list of all suppliers
+      responses:
+        "200":
+          description: List of suppliers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Supplier"
+
+  /suppliers/{id}/products:
+    get:
+      operationId: getSupplier
+      tags: [suppliers]
+      summary: Get supplier products
+      description: Returns products from a specific supplier
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: List of products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+
+  /categories:
+    get:
+      operationId: listCategories
+      tags: [categories]
+      summary: List categories
+      description: Returns all product categories
+      responses:
+        "200":
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+
+  /cart:
+    get:
+      operationId: getCart
+      tags: [cart]
+      summary: Get cart
+      description: Returns the current cart contents
+      responses:
+        "200":
+          description: Cart contents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+    post:
+      operationId: addCartItem
+      tags: [cart]
+      summary: Add item to cart
+      description: Adds a product to the cart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CartItemInput"
+      responses:
+        "200":
+          description: Updated cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+
+  /cart/items/{id}:
+    patch:
+      operationId: updateCartItem
+      tags: [cart]
+      summary: Update cart item
+      description: Updates the quantity of a cart item
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CartItemUpdate"
+      responses:
+        "200":
+          description: Updated cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+    delete:
+      operationId: removeCartItem
+      tags: [cart]
+      summary: Remove cart item
+      description: Removes a product from the cart
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Updated cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+
+  /orders:
+    get:
+      operationId: listOrders
+      tags: [orders]
+      summary: List orders
+      description: Returns the current user's orders
+      responses:
+        "200":
+          description: List of orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Create order
+      description: Creates a new order from the cart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderInput"
+      responses:
+        "201":
+          description: Created order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /orders/{id}:
+    get:
+      operationId: getOrder
+      tags: [orders]
+      summary: Get an order
+      description: Returns a single order by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: An order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /orders/{id}/status:
+    patch:
+      operationId: updateOrderStatus
+      tags: [orders]
+      summary: Update order status
+      description: Updates the status of an order
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderStatusUpdate"
+      responses:
+        "200":
+          description: Updated order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /supplier/dashboard:
+    get:
+      operationId: getSupplierDashboard
+      tags: [marketplace]
+      summary: Get supplier dashboard
+      description: Returns supplier dashboard data
+      responses:
+        "200":
+          description: Supplier dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierDashboard"
+
+  /supplier/products:
+    get:
+      operationId: listMySupplierProducts
+      tags: [marketplace]
+      summary: List my supplier products
+      description: Returns the current supplier's products
+      responses:
+        "200":
+          description: List of products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+    post:
+      operationId: createSupplierProduct
+      tags: [marketplace]
+      summary: Create supplier product
+      description: Creates a new product for the current supplier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupplierProductInput"
+      responses:
+        "201":
+          description: Created product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /supplier/products/{id}:
+    patch:
+      operationId: updateSupplierProduct
+      tags: [marketplace]
+      summary: Update supplier product
+      description: Updates a product for the current supplier
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupplierProductUpdate"
+      responses:
+        "200":
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /supplier/orders:
+    get:
+      operationId: listSupplierOrders
+      tags: [marketplace]
+      summary: List supplier orders
+      description: Returns orders for the current supplier
+      responses:
+        "200":
+          description: List of orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+
+  /supplier/orders/{id}/status:
+    patch:
+      operationId: updateSupplierOrderStatus
+      tags: [marketplace]
+      summary: Update supplier order status
+      description: Updates the status of a supplier's order
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderStatusUpdate"
+      responses:
+        "200":
+          description: Updated order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +450,353 @@ components:
       required:
         - status
 
+    Product:
+      type: object
+      properties:
+        id:
+          type: number
+        name:
+          type: string
+        category:
+          type: string
+        price:
+          type: number
+        compareAtPrice:
+          type: number
+          nullable: true
+        moq:
+          type: integer
+        rating:
+          type: number
+        reviews:
+          type: integer
+        stock:
+          type: integer
+        image:
+          type: string
+        supplierId:
+          type: number
+        supplierName:
+          type: string
+        verified:
+          type: boolean
+        unit:
+          type: string
+        description:
+          type: string
+        shipping:
+          type: string
+        featured:
+          type: boolean
+      required:
+        - id
+        - name
+        - category
+        - price
+        - moq
+        - rating
+        - reviews
+        - stock
+        - image
+        - supplierId
+        - supplierName
+        - verified
+        - unit
+        - description
+
+    Supplier:
+      type: object
+      properties:
+        id:
+          type: number
+        name:
+          type: string
+        location:
+          type: string
+        rating:
+          type: number
+        responseRate:
+          type: integer
+        yearsActive:
+          type: integer
+        verified:
+          type: boolean
+        productCount:
+          type: integer
+        image:
+          type: string
+        specialty:
+          type: string
+      required:
+        - id
+        - name
+        - location
+        - rating
+        - responseRate
+        - yearsActive
+        - verified
+        - productCount
+        - image
+        - specialty
+
+    OrderStatus:
+      type: string
+      enum: [processing, shipped, delivered, cancelled]
+      default: processing
+
+    OrderStatusUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [processing, shipped, delivered, cancelled]
+      required:
+        - status
+
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: number
+        orderId:
+          type: number
+        productId:
+          type: number
+        productName:
+          type: string
+        quantity:
+          type: integer
+        unitPrice:
+          type: number
+        supplierName:
+          type: string
+      required:
+        - id
+        - orderId
+        - productId
+        - productName
+        - quantity
+        - unitPrice
+        - supplierName
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: number
+        date:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [processing, shipped, delivered, cancelled]
+        total:
+          type: number
+        itemCount:
+          type: integer
+        buyerName:
+          type: string
+        destination:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItem"
+      required:
+        - id
+        - date
+        - status
+        - total
+        - itemCount
+        - buyerName
+        - destination
+        - items
+
+    OrderInput:
+      type: object
+      properties:
+        destination:
+          type: string
+      required:
+        - destination
+
+    SalesPoint:
+      type: object
+      properties:
+        date:
+          type: string
+        label:
+          type: string
+        value:
+          type: number
+      required:
+        - label
+        - value
+
+    SupplierDashboard:
+      type: object
+      properties:
+        revenue:
+          type: number
+        revenueChange:
+          type: number
+        orders:
+          type: integer
+        ordersChange:
+          type: number
+        products:
+          type: integer
+        lowStock:
+          type: integer
+        recentOrders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Order"
+        sales:
+          type: array
+          items:
+            $ref: "#/components/schemas/SalesPoint"
+      required:
+        - revenue
+        - revenueChange
+        - orders
+        - ordersChange
+        - products
+        - lowStock
+        - recentOrders
+        - sales
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        count:
+          type: integer
+        image:
+          type: string
+      required:
+        - id
+        - name
+        - count
+        - image
+
+    CartItem:
+      type: object
+      properties:
+        productId:
+          type: number
+        product:
+          $ref: "#/components/schemas/Product"
+        quantity:
+          type: integer
+        subtotal:
+          type: number
+      required:
+        - productId
+        - product
+        - quantity
+        - subtotal
+
+    Cart:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartItem"
+        subtotal:
+          type: number
+        shipping:
+          type: number
+        total:
+          type: number
+        itemCount:
+          type: integer
+      required:
+        - items
+        - subtotal
+        - shipping
+        - total
+        - itemCount
+
+    CartItemInput:
+      type: object
+      properties:
+        productId:
+          type: number
+        quantity:
+          type: integer
+          default: 1
+      required:
+        - productId
+
+    CartItemUpdate:
+      type: object
+      properties:
+        quantity:
+          type: integer
+      required:
+        - quantity
+
+    MarketplaceSummary:
+      type: object
+      properties:
+        productCount:
+          type: number
+        supplierCount:
+          type: number
+        countries:
+          type: number
+        dealsToday:
+          type: number
+      required:
+        - productCount
+        - supplierCount
+        - countries
+        - dealsToday
+
+    SupplierProductInput:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        price:
+          type: number
+        moq:
+          type: integer
+        stock:
+          type: integer
+        description:
+          type: string
+        unit:
+          type: string
+        image:
+          type: string
+      required:
+        - name
+        - category
+        - price
+        - moq
+        - description
+        - unit
+
+    SupplierProductUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        price:
+          type: number
+        moq:
+          type: integer
+        stock:
+          type: integer
+        description:
+          type: string
+        unit:
+          type: string

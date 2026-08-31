@@ -1,0 +1,21 @@
+{
+  "name": "Nzanila Express — B2B Wholesale Marketplace",
+  "short_name": "Nzanila",
+  "description": "Buy wholesale from verified Burundian and global suppliers. Compare prices, minimums, and supplier reliability.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#FF6A00",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icon-splash.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "shopping"],
+  "lang": "en"
+}

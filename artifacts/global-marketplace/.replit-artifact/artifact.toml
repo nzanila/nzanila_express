@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Global Marketplace"
+description = "A two-sided marketplace combining fast retail shopping with wholesale supplier sourcing. Buyers can discover products, compare offers, manage a cart, and track orders, while suppliers can manage listings, inventory, and incoming orders."
+version = "1.0.0"
+id = "artifacts/global-marketplace"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21953
+
+[services.development]
+run = "pnpm --filter @workspace/global-marketplace run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/global-marketplace", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/global-marketplace/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21953"
+BASE_PATH = "/"
