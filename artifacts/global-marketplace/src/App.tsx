@@ -4,9 +4,11 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { LocaleProvider } from '@/lib/i18n/locale-context';
+import { AuthProvider } from '@/lib/auth-context';
 import { setBaseUrl } from '@workspace/api-client-react';
 import NotFound from '@/pages/not-found';
 import { AiResearchPage } from '@/pages/ai-research-page';
+import { AuthPage } from '@/pages/auth-page';
 import { CategoriesPage } from '@/pages/categories-page';
 import { MessagesPage } from '@/pages/messages-page';
 import {
@@ -27,7 +29,7 @@ import {
   Router as WouterRouter,
 } from 'wouter';
 
-const apiBase = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://50d9b296.nzanila-api.pages.dev');
+const apiBase = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://87bc41cd.nzanila-api.pages.dev');
 setBaseUrl(apiBase || null);
 
 const queryClient = new QueryClient();
@@ -37,6 +39,7 @@ function Router() {
     <RoutedErrorBoundary>
       <Switch>
         <Route path="/" component={HomePage} />
+        <Route path="/auth" component={AuthPage} />
         <Route path="/ai-research" component={AiResearchPage} />
         <Route path="/categories" component={CategoriesPage} />
         <Route path="/products" component={ProductsPage} />
@@ -62,14 +65,16 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <LocaleProvider>
-        <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-            <Router />
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
-      </LocaleProvider>
+      <AuthProvider>
+        <LocaleProvider>
+          <TooltipProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+              <Router />
+            </WouterRouter>
+            <Toaster />
+          </TooltipProvider>
+        </LocaleProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

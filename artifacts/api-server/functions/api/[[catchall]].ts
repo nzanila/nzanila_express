@@ -13,6 +13,8 @@ const CATEGORY_IMAGES: Record<string, string> = {
   "Bags & Luggage": "https://picsum.photos/seed/bags-luggage/500/500",
 };
 
+// ── Supabase helpers ──
+
 function headers(env: Env) {
   return {
     apikey: env.SUPABASE_SERVICE_KEY,
@@ -56,12 +58,76 @@ async function sbDelete(env: Env, table: string, filter: string) {
   if (!res.ok) throw new Error(`Supabase DELETE ${table}: ${res.status}`);
 }
 
+// ── Supabase Auth helpers (phone OTP) ──
+
+async function supabaseSignUpPhone(env: Env, phone: string, password: string) {
+  const res = await fetch(`${env.SUPABASE_URL}/auth/v1/signup`, {
+    method: "POST",
+    headers: { apikey: env.SUPABASE_SERVICE_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ phone, password }),
+  });
+  const data = await res.json() as Record<string, unknown>;
+  if (!res.ok) throw new Error(data.error?.message || data.msg || `Signup failed: ${res.status}`);
+  return data;
+}
+
+async function supabaseSendOtp(env: Env, phone: string) {
+  const res = await fetch(`${env.SUPABASE_URL}/auth/v1/otp`, {
+    method: "POST",
+    headers: { apikey: env.SUPABASE_SERVICE_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ phone, should_create_user: false }),
+  });
+  const data = await res.json() as Record<string, unknown>;
+  if (!res.ok) throw new Error(data.error?.message || data.msg || `OTP send failed: ${res.status}`);
+  return data;
+}
+
+async function supabaseVerifyOtp(env: Env, phone: string, token: string) {
+  const res = await fetch(`${env.SUPABASE_URL}/auth/v1/verify`, {
+    method: "POST",
+    headers: { apikey: env.SUPABASE_SERVICE_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ phone, token, type: "sms" }),
+  });
+  const data = await res.json() as Record<string, unknown>;
+  if (!res.ok) throw new Error(data.error?.message || data.msg || `OTP verify failed: ${res.status}`);
+  return data;
+}
+
+async function supabaseGetUser(env: Env, accessToken: string) {
+  const res = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+    method: "GET",
+    headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${accessToken}` },
+  });
+  const data = await res.json() as Record<string, unknown>;
+  if (!res.ok) throw new Error(data.error?.message || data.msg || `Get user failed: ${res.status}`);
+  return data;
+}
+
+// ── DTOs ──
+
 function dtoProduct(p: Record<string, unknown>) {
   return { ...p, price: Number(p.price), compareAtPrice: p.compare_at_price != null ? Number(p.compare_at_price) : null, verified: Boolean(p.verified), featured: Boolean(p.featured) };
 }
 
-async function buildCart(env: Env) {
-  const rows = await sbGet(env, "marketplace_cart_items", "order=id.asc");
+function dtoUser(u: Record<string, unknown>) {
+  return {
+    id: u.id,
+    authUserId: u.auth_user_id,
+    phone: u.phone,
+    name: u.name,
+    role: u.role,
+    location: u.location,
+    verified: Boolean(u.verified),
+    avatar: u.avatar,
+    createdAt: u.created_at,
+  };
+}
+
+// ── Cart & Orders ──
+
+async function buildCart(env: Env, userId?: number) {
+  const filter = userId ? `user_id=eq.${userId}` : "user_id=is.null";
+  const rows = await sbGet(env, "marketplace_cart_items", `order=id.asc&${filter}`);
   const products = await sbGet(env, "marketplace_products");
   const pMap = new Map(products.map(p => [p.id, p]));
   const items = rows.map(item => {
@@ -74,8 +140,9 @@ async function buildCart(env: Env) {
   return { items, subtotal: +subtotal.toFixed(2), shipping, total: +(subtotal + shipping).toFixed(2), itemCount: items.reduce((s: number, i: any) => s + i.quantity, 0) };
 }
 
-async function buildOrders(env: Env, supplierOnly = false) {
-  const orders = await sbGet(env, "marketplace_orders", "order=date.desc");
+async function buildOrders(env: Env, supplierOnly = false, userId?: number) {
+  const userFilter = userId ? `&user_id=eq.${userId}` : "";
+  const orders = await sbGet(env, "marketplace_orders", `order=date.desc${userFilter}`);
   const allItems = await sbGet(env, "marketplace_order_items");
   let supplierName: string | undefined;
   if (supplierOnly) {
@@ -90,6 +157,8 @@ async function buildOrders(env: Env, supplierOnly = false) {
   })).filter((o: any) => !supplierOnly || o.items.length > 0);
 }
 
+// ── Main handler ──
+
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -97,16 +166,193 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const method = request.method;
   const sid = Number(env.SUPPLIER_ID || 1);
 
+  const CORS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
   const json = (data: unknown, status = 200) =>
-    new Response(JSON.stringify(data), {
-      status,
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS", "Access-Control-Allow-Headers": "Content-Type" },
-    });
+    new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", ...CORS } });
 
-  if (method === "OPTIONS") return new Response(null, { status: 204, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS", "Access-Control-Allow-Headers": "Content-Type" } });
+  if (method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (path === "/health") return json({ status: "ok" });
 
+  // ── Auth: extract user from Bearer token ──
+  async function getUser(): Promise<{ authUser: Record<string, unknown>; profile: Record<string, unknown> } | null> {
+    const auth = request.headers.get("Authorization");
+    if (!auth?.startsWith("Bearer ")) return null;
+    const token = auth.slice(7);
+    try {
+      const authUser = await supabaseGetUser(env, token);
+      if (!authUser.id) return null;
+      const profiles = await sbGet(env, "marketplace_users", `auth_user_id=eq.${authUser.id}`);
+      return { authUser, profile: profiles[0] ?? null };
+    } catch {
+      return null;
+    }
+  }
+
   try {
+    // ═══════════════════════════════════════
+    // AUTH ROUTES
+    // ═══════════════════════════════════════
+
+    // POST /auth/signup — register new user (phone + name + role)
+    if (path === "/auth/signup" && method === "POST") {
+      const body = await request.json() as { phone: string; name: string; role: string };
+      const { phone, name, role } = body;
+
+      if (!phone || !name || !role) return json({ error: "Phone, name, and role are required" }, 400);
+      if (!["buyer", "seller"].includes(role)) return json({ error: "Role must be 'buyer' or 'seller'" }, 400);
+
+      // Normalize Burundian phone: strip leading 0, ensure +257 prefix
+      let normalizedPhone = phone.replace(/\s/g, "");
+      if (normalizedPhone.startsWith("0")) normalizedPhone = "+257" + normalizedPhone.slice(1);
+      if (!normalizedPhone.startsWith("+")) normalizedPhone = "+257" + normalizedPhone;
+
+      // Check if phone already exists in our users table
+      const existing = await sbGet(env, "marketplace_users", `phone=eq.${normalizedPhone}`);
+      if (existing.length) return json({ error: "Phone number already registered" }, 409);
+
+      // Create Supabase auth user with phone
+      const tempPassword = `nz_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const authData = await supabaseSignUpPhone(env, normalizedPhone, tempPassword);
+
+      // Create profile in marketplace_users
+      const [profile] = await sbPost(env, "marketplace_users", {
+        auth_user_id: authData.id,
+        phone: normalizedPhone,
+        name,
+        role,
+        location: "Bujumbura",
+        verified: false,
+        avatar: "",
+      });
+
+      return json({
+        message: "Account created. Please verify your phone with the OTP code sent.",
+        userId: profile.id,
+        phone: normalizedPhone,
+        // Return the auth session so frontend can auto-login after OTP
+        auth: authData,
+      }, 201);
+    }
+
+    // POST /auth/send-otp — send OTP to phone (for login)
+    if (path === "/auth/send-otp" && method === "POST") {
+      const body = await request.json() as { phone: string };
+      let normalizedPhone = (body.phone || "").replace(/\s/g, "");
+      if (normalizedPhone.startsWith("0")) normalizedPhone = "+257" + normalizedPhone.slice(1);
+      if (!normalizedPhone.startsWith("+")) normalizedPhone = "+257" + normalizedPhone;
+
+      // Check user exists
+      const users = await sbGet(env, "marketplace_users", `phone=eq.${normalizedPhone}`);
+      if (!users.length) return json({ error: "Phone number not registered" }, 404);
+
+      // Send OTP via Supabase Auth
+      await supabaseSendOtp(env, normalizedPhone);
+
+      return json({ message: "OTP sent", phone: normalizedPhone });
+    }
+
+    // POST /auth/verify-otp — verify OTP and return session
+    if (path === "/auth/verify-otp" && method === "POST") {
+      const body = await request.json() as { phone: string; token: string };
+      let normalizedPhone = (body.phone || "").replace(/\s/g, "");
+      if (normalizedPhone.startsWith("0")) normalizedPhone = "+257" + normalizedPhone.slice(1);
+      if (!normalizedPhone.startsWith("+")) normalizedPhone = "+257" + normalizedPhone;
+
+      if (!body.token) return json({ error: "OTP code is required" }, 400);
+
+      // Verify OTP with Supabase Auth
+      const authData = await supabaseVerifyOtp(env, normalizedPhone, body.token);
+
+      // Get or create profile
+      let profiles = await sbGet(env, "marketplace_users", `auth_user_id=eq.${authData.user?.id}`);
+
+      if (!profiles.length) {
+        // First time verifying after signup — profile should exist
+        // But if not, check by phone
+        profiles = await sbGet(env, "marketplace_users", `phone=eq.${normalizedPhone}`);
+      }
+
+      return json({
+        message: "Verified",
+        user: profiles.length ? dtoUser(profiles[0]) : null,
+        session: {
+          accessToken: authData.access_token,
+          refreshToken: authData.refresh_token,
+          expiresIn: authData.expires_in,
+          expiresAt: authData.expires_at,
+        },
+      });
+    }
+
+    // POST /auth/login — send OTP for existing user
+    if (path === "/auth/login" && method === "POST") {
+      const body = await request.json() as { phone: string };
+      let normalizedPhone = (body.phone || "").replace(/\s/g, "");
+      if (normalizedPhone.startsWith("0")) normalizedPhone = "+257" + normalizedPhone.slice(1);
+      if (!normalizedPhone.startsWith("+")) normalizedPhone = "+257" + normalizedPhone;
+
+      const users = await sbGet(env, "marketplace_users", `phone=eq.${normalizedPhone}`);
+      if (!users.length) return json({ error: "Phone number not registered. Please sign up first." }, 404);
+
+      // Send OTP
+      await supabaseSendOtp(env, normalizedPhone);
+
+      return json({ message: "OTP sent", phone: normalizedPhone });
+    }
+
+    // POST /auth/refresh — refresh access token
+    if (path === "/auth/refresh" && method === "POST") {
+      const body = await request.json() as { refreshToken: string };
+      if (!body.refreshToken) return json({ error: "Refresh token required" }, 400);
+
+      const res = await fetch(`${env.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+        method: "POST",
+        headers: { apikey: env.SUPABASE_SERVICE_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: body.refreshToken }),
+      });
+      const data = await res.json() as Record<string, unknown>;
+      if (!res.ok) return json({ error: "Invalid refresh token" }, 401);
+
+      return json({
+        session: {
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token,
+          expiresIn: data.expires_in,
+          expiresAt: data.expires_at,
+        },
+      });
+    }
+
+    // GET /auth/me — get current user profile
+    if (path === "/auth/me" && method === "GET") {
+      const user = await getUser();
+      if (!user) return json({ error: "Not authenticated" }, 401);
+      if (!user.profile) return json({ error: "Profile not found" }, 404);
+      return json({ user: dtoUser(user.profile) });
+    }
+
+    // POST /auth/logout
+    if (path === "/auth/logout" && method === "POST") {
+      const auth = request.headers.get("Authorization");
+      if (auth?.startsWith("Bearer ")) {
+        try {
+          await fetch(`${env.SUPABASE_URL}/auth/v1/logout`, {
+            method: "POST",
+            headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${auth.slice(7)}` },
+          });
+        } catch { /* ignore */ }
+      }
+      return json({ message: "Logged out" });
+    }
+
+    // ═══════════════════════════════════════
+    // PUBLIC ROUTES
+    // ═══════════════════════════════════════
+
     // Products
     if (path === "/products" && method === "GET") {
       const cat = url.searchParams.get("category");
@@ -144,45 +390,91 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (path === "/suppliers" && method === "GET") return json((await sbGet(env, "marketplace_suppliers", "order=rating.desc")).map(s => ({ ...s, verified: Boolean(s.verified) })));
 
-    // Cart
-    if (path === "/cart" && method === "GET") return json(await buildCart(env));
+    // ═══════════════════════════════════════
+    // AUTHENTICATED ROUTES — Cart
+    // ═══════════════════════════════════════
+
+    if (path === "/cart" && method === "GET") {
+      const user = await getUser();
+      return json(await buildCart(env, user?.profile?.id as number | undefined));
+    }
 
     if (path === "/cart/items" && method === "POST") {
+      const user = await getUser();
       const body = await request.json() as { productId: number; quantity?: number };
       const ps = await sbGet(env, "marketplace_products", `id=eq.${body.productId}`);
       if (!ps.length) return json({ error: "Not found" }, 404);
-      const ex = await sbGet(env, "marketplace_cart_items", `product_id=eq.${body.productId}`);
+      const uid = user?.profile?.id as number | undefined;
+      const filter = uid ? `product_id=eq.${body.productId}&user_id=eq.${uid}` : `product_id=eq.${body.productId}&user_id=is.null`;
+      const ex = await sbGet(env, "marketplace_cart_items", filter);
       const qty = body.quantity ?? 1;
-      if (ex.length) await sbPatch(env, "marketplace_cart_items", `product_id=eq.${body.productId}`, { quantity: ex[0].quantity + qty });
-      else await sbPost(env, "marketplace_cart_items", { product_id: body.productId, quantity: qty });
-      return json(await buildCart(env));
+      const updateFilter = ex.length ? `id=eq.${ex[0].id}` : "";
+      if (ex.length) await sbPatch(env, "marketplace_cart_items", updateFilter, { quantity: (ex[0].quantity as number) + qty });
+      else await sbPost(env, "marketplace_cart_items", { product_id: body.productId, quantity: qty, user_id: uid ?? null });
+      return json(await buildCart(env, uid));
     }
 
     const cim = path.match(/^\/cart\/items\/(\d+)$/);
-    if (cim && method === "PATCH") { const b = await request.json() as { quantity: number }; await sbPatch(env, "marketplace_cart_items", `product_id=eq.${cim[1]}`, { quantity: b.quantity }); return json(await buildCart(env)); }
-    if (cim && method === "DELETE") { await sbDelete(env, "marketplace_cart_items", `product_id=eq.${cim[1]}`); return json(await buildCart(env)); }
+    if (cim && method === "PATCH") {
+      const user = await getUser();
+      const uid = user?.profile?.id as number | undefined;
+      const b = await request.json() as { quantity: number };
+      const filter = uid ? `id=eq.${cim[1]}&user_id=eq.${uid}` : `id=eq.${cim[1]}&user_id=is.null`;
+      await sbPatch(env, "marketplace_cart_items", filter, { quantity: b.quantity });
+      return json(await buildCart(env, uid));
+    }
+    if (cim && method === "DELETE") {
+      const user = await getUser();
+      const uid = user?.profile?.id as number | undefined;
+      const filter = uid ? `id=eq.${cim[1]}&user_id=eq.${uid}` : `id=eq.${cim[1]}&user_id=is.null`;
+      await sbDelete(env, "marketplace_cart_items", filter);
+      return json(await buildCart(env, uid));
+    }
 
-    // Orders
-    if (path === "/orders" && method === "GET") return json(await buildOrders(env));
+    // ═══════════════════════════════════════
+    // AUTHENTICATED ROUTES — Orders
+    // ═══════════════════════════════════════
+
+    if (path === "/orders" && method === "GET") {
+      const user = await getUser();
+      return json(await buildOrders(env, false, user?.profile?.id as number | undefined));
+    }
 
     if (path === "/orders" && method === "POST") {
+      const user = await getUser();
       const body = await request.json() as { destination: string };
-      const cart = await buildCart(env);
+      const uid = user?.profile?.id as number | undefined;
+      const cart = await buildCart(env, uid);
       if (!cart.items.length) return json({ error: "Cart is empty" }, 400);
-      const [order] = await sbPost(env, "marketplace_orders", { total: cart.total, item_count: cart.itemCount, destination: body.destination, status: "processing", buyer_name: "Demo buyer" });
-      await sbPost(env, "marketplace_order_items", cart.items.map((i: any) => ({ order_id: order.id, product_id: i.productId, product_name: i.product.name, quantity: i.quantity, unit_price: i.product.price, supplier_name: i.product.supplierName })));
-      await sbDelete(env, "marketplace_cart_items", "id=not.is.null");
-      const all = await buildOrders(env);
+      const buyerName = user?.profile?.name || "Demo buyer";
+      const [order] = await sbPost(env, "marketplace_orders", {
+        total: cart.total, item_count: cart.itemCount, destination: body.destination,
+        status: "processing", buyer_name: buyerName, user_id: uid ?? null,
+      });
+      await sbPost(env, "marketplace_order_items", cart.items.map((i: any) => ({
+        order_id: order.id, product_id: i.productId, product_name: i.product.name,
+        quantity: i.quantity, unit_price: i.product.price, supplier_name: i.product.supplierName,
+      })));
+      await sbDelete(env, "marketplace_cart_items", uid ? `user_id=eq.${uid}` : "user_id=is.null");
+      const all = await buildOrders(env, false, uid);
       return json(all.find((o: any) => o.id === order.id), 201);
     }
 
     const om = path.match(/^\/orders\/(\d+)$/);
-    if (om && method === "GET") { const os = await sbGet(env, "marketplace_orders", `id=eq.${om[1]}`); if (!os.length) return json({ error: "Not found" }, 404); const items = await sbGet(env, "marketplace_order_items", `order_id=eq.${om[1]}`); return json({ ...os[0], total: Number(os[0].total), items: items.map(i => ({ id: i.id, orderId: i.order_id, productId: i.product_id, productName: i.product_name, quantity: i.quantity, unitPrice: Number(i.unit_price), supplierName: i.supplier_name })) }); }
+    if (om && method === "GET") {
+      const os = await sbGet(env, "marketplace_orders", `id=eq.${om[1]}`);
+      if (!os.length) return json({ error: "Not found" }, 404);
+      const items = await sbGet(env, "marketplace_order_items", `order_id=eq.${om[1]}`);
+      return json({ ...os[0], total: Number(os[0].total), items: items.map(i => ({ id: i.id, orderId: i.order_id, productId: i.product_id, productName: i.product_name, quantity: i.quantity, unitPrice: Number(i.unit_price), supplierName: i.supplier_name })) });
+    }
 
     const osm = path.match(/^\/orders\/(\d+)\/status$/);
     if (osm && method === "PATCH") { const b = await request.json() as { status: string }; await sbPatch(env, "marketplace_orders", `id=eq.${osm[1]}`, { status: b.status }); const os = await buildOrders(env); return json(os.find((o: any) => o.id === Number(osm[1]))); }
 
-    // Supplier
+    // ═══════════════════════════════════════
+    // SUPPLIER ROUTES
+    // ═══════════════════════════════════════
+
     if (path === "/supplier/dashboard" && method === "GET") {
       const products = await sbGet(env, "marketplace_products", `supplier_id=eq.${sid}`);
       const orders = await buildOrders(env, true);
@@ -233,8 +525,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (som && method === "PATCH") { const b = await request.json() as { status: string }; await sbPatch(env, "marketplace_orders", `id=eq.${som[1]}`, { status: b.status }); const os = await buildOrders(env, true); return json(os.find((o: any) => o.id === Number(som[1]))); }
 
     return json({ error: "Not found" }, 404);
-  } catch (err) {
+  } catch (err: any) {
     console.error("API error:", err);
-    return json({ error: "Internal server error" }, 500);
+    return json({ error: err.message || "Internal server error" }, 500);
   }
 };

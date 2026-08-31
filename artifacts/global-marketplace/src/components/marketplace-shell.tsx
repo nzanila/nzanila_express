@@ -9,6 +9,7 @@ import {
   Globe2,
   Home,
   LayoutGrid,
+  LogOut,
   MapPin,
   Menu,
   MessageSquare,
@@ -22,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useGetCart } from '@workspace/api-client-react';
 import { useLocale } from '@/lib/i18n/locale-context';
+import { useAuth } from '@/lib/auth-context';
 import { locales } from '@/lib/i18n/translations';
 import { CategoriesModal } from '@/components/categories-modal';
 
@@ -162,6 +164,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
   const { data: cart } = useGetCart({ query: { queryKey: ['cart'], staleTime: 30_000 } });
   const isSupplier = mode === 'supplier';
   const { tr } = useLocale();
+  const { user, isAuthenticated, logout } = useAuth();
 
   useEffect(() => {
     setPwa(isPwaMode());
@@ -217,9 +220,27 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
               </>
             )}
             <LanguageSelector />
-            <button className="hidden rounded px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 sm:block">Sign in</button>
-            <button className="hidden rounded bg-[#ff6a00] px-4 py-2 text-xs font-bold text-white hover:bg-[#e55f00] sm:block">Create account</button>
-            <button className="rounded p-2 sm:hidden"><CircleUserRound size={20} /></button>
+            {isAuthenticated ? (
+              <>
+                <Link href={user?.role === 'seller' ? '/supplier' : '/'} className="hidden items-center gap-1.5 rounded px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 sm:flex">
+                  <CircleUserRound size={16} />
+                  <span className="max-w-[80px] truncate">{user?.name || 'Account'}</span>
+                </Link>
+                <button onClick={logout} className="hidden rounded px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 sm:flex items-center gap-1">
+                  <LogOut size={14} /> Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link href="/auth" className="hidden rounded px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 sm:block">Sign in</Link>
+                <Link href="/auth" className="hidden rounded bg-[#ff6a00] px-4 py-2 text-xs font-bold text-white hover:bg-[#e55f00] sm:block">Create account</Link>
+              </>
+            )}
+            <button className="rounded p-2 sm:hidden">
+              <Link href={isAuthenticated ? (user?.role === 'seller' ? '/supplier' : '/auth') : '/auth'}>
+                <CircleUserRound size={20} />
+              </Link>
+            </button>
           </nav>
         </div>
       </header>
@@ -338,7 +359,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
               </div>
               <span className="text-[10px] font-medium">Cart</span>
             </Link>
-            <Link href="/" className="flex flex-col items-center gap-0.5 py-2 text-muted-foreground hover:text-primary">
+            <Link href={isAuthenticated ? (user?.role === 'seller' ? '/supplier' : '/auth') : '/auth'} className="flex flex-col items-center gap-0.5 py-2 text-muted-foreground hover:text-primary">
               <Globe2 size={20} />
               <span className="text-[10px] font-medium">Account</span>
             </Link>
