@@ -10,6 +10,7 @@ export interface User {
   verified: boolean;
   avatar: string;
   createdAt: string;
+  session?: Session;
 }
 
 interface Session {
@@ -23,20 +24,16 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signIn: (phone: string) => Promise<{ error?: string }>;
-  signUp: (phone: string, name: string, role: 'buyer' | 'seller') => Promise<{ error?: string; phone?: string }>;
-  verifyOtp: (phone: string, token: string) => Promise<{ error?: string; user?: User }>;
+  signIn: (phone: string, password: string) => Promise<{ error?: string }>;
+  signUp: (phone: string, name: string, role: 'buyer' | 'seller', password: string) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://50d9b296.nzanila-api.pages.dev');
-
-function authHeaders(session: Session | null): Record<string, string> {
-  return session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {};
-}
+const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://bd75c998.nzanila-api.pages.dev');
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -49,9 +46,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const stored = localStorage.getItem('nz_auth');
       if (stored) {
         const parsed = JSON.parse(stored) as { user: User; session: Session };
-        // Check if token is expired
         if (parsed.session.expiresAt * 1000 > Date.now()) {
-          setUser(parsed.user);
+          const userWithSession = { ...parsed.user, session: parsed.session };
+          setUser(userWithSession);
           setSession(parsed.session);
         } else {
           localStorage.removeItem('nz_auth');
@@ -66,7 +63,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!session) return;
     const msUntilExpiry = session.expiresAt * 1000 - Date.now();
     if (msUntilExpiry < 60_000) {
-      // Token about to expire, refresh
       fetch(`${API}/api/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -82,7 +78,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .catch(() => { logout(); });
     }
     const timeout = setTimeout(() => {
-      // Auto-refresh 1 minute before expiry
       fetch(`${API}/api/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,53 +95,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timeout);
   }, [session, user]);
 
-  const signUp = useCallback(async (phone: string, name: string, role: 'buyer' | 'seller') => {
+  const signUp = useCallback(async (phone: string, name: string, role: 'buyer' | 'seller', password: string) => {
     try {
       const res = await fetch(`${API}/api/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, name, role }),
+        body: JSON.stringify({ phone, name, role, password }),
       });
       const data = await res.json() as any;
       if (!res.ok) return { error: data.error || 'Signup failed' };
-      return { phone: data.phone, otp: data.otp, whatsappUrl: data.whatsappUrl };
+
+      if (data.user && data.session) {
+        const userWithSession = { ...data.user, session: data.session };
+        setUser(userWithSession);
+        setSession(data.session);
+        localStorage.setItem('nz_auth', JSON.stringify({ user: userWithSession, session: data.session }));
+      }
+      return {};
     } catch {
       return { error: 'Network error' };
     }
   }, []);
 
-  const signIn = useCallback(async (phone: string) => {
+  const signIn = useCallback(async (phone: string, password: string) => {
     try {
       const res = await fetch(`${API}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone, password }),
       });
       const data = await res.json() as any;
       if (!res.ok) return { error: data.error || 'Login failed' };
-      return { otp: data.otp, whatsappUrl: data.whatsappUrl };
-    } catch {
-      return { error: 'Network error' };
-    }
-  }, []);
-
-  const verifyOtp = useCallback(async (phone: string, token: string) => {
-    try {
-      const res = await fetch(`${API}/api/auth/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, token }),
-      });
-      const data = await res.json() as any;
-      if (!res.ok) return { error: data.error || 'Verification failed' };
 
       if (data.user && data.session) {
-        setUser(data.user);
+        const userWithSession = { ...data.user, session: data.session };
+        setUser(userWithSession);
         setSession(data.session);
-        localStorage.setItem('nz_auth', JSON.stringify({ user: data.user, session: data.session }));
-        return { user: data.user };
+        localStorage.setItem('nz_auth', JSON.stringify({ user: userWithSession, session: data.session }));
       }
-      return { error: 'Invalid response' };
+      return {};
     } catch {
       return { error: 'Network error' };
     }
@@ -166,10 +153,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('nz_auth');
   }, [session]);
 
+  const refreshUser = useCallback(async () => {
+    if (!session?.accessToken) return;
+    try {
+      const res = await fetch(`${API}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${session.accessToken}` },
+      });
+      const data = await res.json() as any;
+      if (data.user) {
+        const userWithSession = { ...data.user, session };
+        setUser(userWithSession);
+        localStorage.setItem('nz_auth', JSON.stringify({ user: userWithSession, session }));
+      }
+    } catch { /* ignore */ }
+  }, [session]);
+
   return (
     <AuthContext.Provider value={{
       user, session, loading,
-      signIn, signUp, verifyOtp, logout,
+      signIn, signUp, logout, refreshUser,
       isAuthenticated: !!user,
     }}>
       {children}
@@ -181,6 +183,10 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
+}
+
+function authHeaders(session: Session | null): Record<string, string> {
+  return session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {};
 }
 
 export { authHeaders };

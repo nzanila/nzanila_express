@@ -380,6 +380,105 @@ const whatsappUrl = buildWhatsAppUrl("+" + normalizedPhone, otp);
     }
 
     // ═══════════════════════════════════════
+    // ONBOARDING ROUTES
+    // ═══════════════════════════════════════
+
+    // POST /onboarding/buyer — complete buyer onboarding (address)
+    if (path === "/onboarding/buyer" && method === "POST") {
+      const user = await getUser();
+      if (!user) return json({ error: "Not authenticated" }, 401);
+
+      const body = await request.json() as {
+        province?: string;
+        city?: string;
+        zone?: string;
+        landmark?: string;
+        deliveryPhone?: string;
+      };
+
+      const updateData: Record<string, unknown> = {};
+      if (body.province) updateData.province = body.province;
+      if (body.city) updateData.city = body.city;
+      if (body.zone) updateData.zone = body.zone;
+      if (body.landmark) updateData.landmark = body.landmark;
+      if (body.deliveryPhone) updateData.delivery_phone = body.deliveryPhone;
+      updateData.onboarding_completed = true;
+
+      const [updated] = await sbPatch(env, "marketplace_users", `id=eq.${user.profile.id}`, updateData);
+      return json({ user: dtoUser(updated), message: "Buyer onboarding completed" });
+    }
+
+    // POST /onboarding/seller — submit seller onboarding (business info)
+    if (path === "/onboarding/seller" && method === "POST") {
+      const user = await getUser();
+      if (!user) return json({ error: "Not authenticated" }, 401);
+      if (user.profile.role !== "seller") return json({ error: "User is not a seller" }, 400);
+
+      const body = await request.json() as {
+        businessName?: string;
+        sellerFullName?: string;
+        province?: string;
+        city?: string;
+        zone?: string;
+        landmark?: string;
+        productCategories?: string[];
+        offersDelivery?: boolean;
+        offersPickup?: boolean;
+        deliveryAreas?: string;
+      };
+
+      const updateData: Record<string, unknown> = {};
+      if (body.businessName) updateData.business_name = body.businessName;
+      if (body.sellerFullName) updateData.seller_full_name = body.sellerFullName;
+      if (body.province) updateData.province = body.province;
+      if (body.city) updateData.city = body.city;
+      if (body.zone) updateData.zone = body.zone;
+      if (body.landmark) updateData.landmark = body.landmark;
+      if (body.productCategories) updateData.product_categories = body.productCategories;
+      if (body.offersDelivery !== undefined) updateData.offers_delivery = body.offersDelivery;
+      if (body.offersPickup !== undefined) updateData.offers_pickup = body.offersPickup;
+      if (body.deliveryAreas) updateData.delivery_areas = body.deliveryAreas;
+      updateData.verification_status = "under_review";
+      updateData.onboarding_completed = true;
+
+      const [updated] = await sbPatch(env, "marketplace_users", `id=eq.${user.profile.id}`, updateData);
+      return json({ user: dtoUser(updated), message: "Seller onboarding submitted for review" });
+    }
+
+    // GET /onboarding/seller/status — get seller verification status
+    if (path === "/onboarding/seller/status" && method === "GET") {
+      const user = await getUser();
+      if (!user) return json({ error: "Not authenticated" }, 401);
+      if (user.profile.role !== "seller") return json({ error: "User is not a seller" }, 400);
+
+      const status = user.profile.verification_status || "not_submitted";
+      return json({ 
+        status,
+        message: status === "not_submitted" ? "Not submitted" 
+                 : status === "under_review" ? "Under review"
+                 : status === "verified" ? "Verified"
+                 : status === "needs_changes" ? "Needs changes"
+                 : status === "suspended" ? "Suspended"
+                 : "Unknown"
+      });
+    }
+
+    // PATCH /onboarding/seller/status — update seller verification status (admin only)
+    if (path === "/onboarding/seller/status" && method === "PATCH") {
+      const user = await getUser();
+      if (!user) return json({ error: "Not authenticated" }, 401);
+      
+      const body = await request.json() as { status: string; userId?: number };
+      const targetUserId = body.userId || user.profile.id;
+      
+      const validStatuses = ["not_submitted", "under_review", "verified", "needs_changes", "suspended"];
+      if (!validStatuses.includes(body.status)) return json({ error: "Invalid status" }, 400);
+
+      const [updated] = await sbPatch(env, "marketplace_users", `id=eq.${targetUserId}`, { verification_status: body.status });
+      return json({ user: dtoUser(updated), message: "Verification status updated" });
+    }
+
+    // ═══════════════════════════════════════
     // PUBLIC ROUTES
     // ═══════════════════════════════════════
 

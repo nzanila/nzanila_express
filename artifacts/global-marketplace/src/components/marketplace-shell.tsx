@@ -45,7 +45,7 @@ function LanguageSelector() {
   return (
     <div className="relative" data-testid="language-selector">
       <button onClick={() => setOpen(!open)} className="flex items-center gap-1 rounded px-2 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100">
-        <span>{current.flag}</span>
+        <span className="sm:hidden uppercase">{current.code}</span>
         <span className="hidden sm:inline">{current.label}</span>
         <ChevronDown size={12} className="text-gray-400" />
       </button>
@@ -55,7 +55,7 @@ function LanguageSelector() {
           <div className="absolute top-full right-0 z-20 mt-1 w-40 rounded border border-gray-200 bg-white py-1 shadow-lg">
             {locales.map((lang) => (
               <button key={lang.code} onClick={() => { setLocale(lang.code); setOpen(false); }} className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-gray-50 ${lang.code === current.code ? 'font-bold' : ''}`}>
-                <span>{lang.flag}</span>{lang.label}
+                {lang.label}
               </button>
             ))}
           </div>
@@ -222,7 +222,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
             <LanguageSelector />
             {isAuthenticated ? (
               <>
-                <Link href={user?.role === 'seller' ? '/supplier' : '/'} className="hidden items-center gap-1.5 rounded px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 sm:flex">
+                <Link href={user?.role === 'seller' ? '/seller/profile/edit' : '/buyer/profile'} className="hidden items-center gap-1.5 rounded px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 sm:flex">
                   <CircleUserRound size={16} />
                   <span className="max-w-[80px] truncate">{user?.name || 'Account'}</span>
                 </Link>
@@ -233,11 +233,11 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
             ) : (
               <>
                 <Link href="/auth" className="hidden rounded px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 sm:block">Sign in</Link>
-                <Link href="/auth" className="hidden rounded bg-[#ff6a00] px-4 py-2 text-xs font-bold text-white hover:bg-[#e55f00] sm:block">Create account</Link>
+                <Link href="/onboarding" className="hidden rounded bg-[#ff6a00] px-4 py-2 text-xs font-bold text-white hover:bg-[#e55f00] sm:block">Create account</Link>
               </>
             )}
             <button className="rounded p-2 sm:hidden">
-              <Link href={isAuthenticated ? (user?.role === 'seller' ? '/supplier' : '/auth') : '/auth'}>
+              <Link href={isAuthenticated ? (user?.role === 'seller' ? '/supplier' : '/auth') : '/onboarding'}>
                 <CircleUserRound size={20} />
               </Link>
             </button>
@@ -359,7 +359,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
               </div>
               <span className="text-[10px] font-medium">Cart</span>
             </Link>
-            <Link href={isAuthenticated ? (user?.role === 'seller' ? '/supplier' : '/auth') : '/auth'} className="flex flex-col items-center gap-0.5 py-2 text-muted-foreground hover:text-primary">
+            <Link href={isAuthenticated ? (user?.role === 'seller' ? '/seller/profile/edit' : '/buyer/profile') : '/onboarding'} className="flex flex-col items-center gap-0.5 py-2 text-muted-foreground hover:text-primary">
               <Globe2 size={20} />
               <span className="text-[10px] font-medium">Account</span>
             </Link>

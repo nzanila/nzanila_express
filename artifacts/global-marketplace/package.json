@@ -72,5 +72,10 @@
     "vite": "^7.3.2",
     "wouter": "^3.3.5",
     "zod": "^3.25.76"
+  },
+  "dependencies": {
+    "@types/leaflet": "^1.9.22",
+    "leaflet": "^1.9.4",
+    "react-leaflet": "^5.0.0"
   }
 }

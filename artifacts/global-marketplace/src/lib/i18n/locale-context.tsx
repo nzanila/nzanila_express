@@ -15,7 +15,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(() => {
     if (typeof window === 'undefined') return 'rn';
     const saved = localStorage.getItem(STORAGE_KEY) as Locale | null;
-    return saved && ['rn', 'fr', 'en'].includes(saved) ? saved : 'rn';
+    return saved && ['rn', 'fr', 'en', 'sw'].includes(saved) ? saved : 'rn';
   });
 
   const setLocale = (next: Locale) => {

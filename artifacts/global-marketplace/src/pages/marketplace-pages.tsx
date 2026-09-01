@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/lib/auth-context';
 import {
   ArrowLeft,
   ArrowRight,
@@ -1486,6 +1487,7 @@ export function SuppliersPage() {
 
 function SupplierCard({ supplier }: { supplier: Supplier }) {
   return (
+    <Link href={`/seller/${supplier.id}`}>
     <article
       className="group rounded-xl sm:rounded-2xl border border-border bg-card p-2.5 sm:p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/30"
       data-testid={`card-supplier-${supplier.id}`}
@@ -1558,6 +1560,7 @@ function SupplierCard({ supplier }: { supplier: Supplier }) {
         </div>
       </div>
     </article>
+    </Link>
   );
 }
 
@@ -1568,9 +1571,23 @@ function SupplierFrame({
   children: ReactNode;
   title: string;
 }) {
+  const { user } = useAuth();
+  const verificationStatus = (user as any)?.verificationStatus || 'not_verified';
+  const isUnverified = verificationStatus === 'not_verified' || verificationStatus === 'not_submitted';
+
   return (
     <AppShell mode="supplier">
       <div className="px-5 py-8 lg:px-10">
+        {isUnverified && (
+          <Link href="/seller/verify" className="mb-6 flex items-center gap-3 rounded-xl border border-yellow-200 bg-yellow-50 p-4 hover:bg-yellow-100 transition-colors">
+            <span className="text-2xl">🪪</span>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-yellow-800">Get Verified — Upload your ID</p>
+              <p className="text-xs text-yellow-600">Verified sellers get more trust from buyers and higher rankings</p>
+            </div>
+            <span className="text-xs font-semibold text-yellow-700">Upload →</span>
+          </Link>
+        )}
         <div className="mb-8 flex items-center justify-between">
           <div>
             <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-accent-foreground">
