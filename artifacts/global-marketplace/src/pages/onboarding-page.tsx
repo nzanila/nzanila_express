@@ -13,9 +13,7 @@ type OnboardingStep =
   | 'create-account'
   | 'buyer-location'
   | 'seller-business'
-  | 'seller-province'
-  | 'seller-city'
-  | 'seller-zone'
+  | 'seller-location'
   | 'seller-details'
   | 'seller-verification'
   | 'buyer-complete'
@@ -35,9 +33,7 @@ const STEP_LABELS: Record<OnboardingStep, string> = {
   'create-account': 'Create Account',
   'buyer-location': 'Location',
   'seller-business': 'Business',
-  'seller-province': 'Province',
-  'seller-city': 'Commune',
-  'seller-zone': 'Zone',
+  'seller-location': 'Shop Location',
   'seller-details': 'Details',
   'seller-verification': 'Verification',
   'buyer-complete': 'All Done',
@@ -47,12 +43,12 @@ const STEP_LABELS: Record<OnboardingStep, string> = {
 const STEP_ORDER: OnboardingStep[] = [
   'welcome', 'account-type', 'create-account',
   'buyer-location',
-  'seller-business', 'seller-province', 'seller-city', 'seller-zone', 'seller-details',
+  'seller-business', 'seller-location', 'seller-details',
   'seller-verification', 'buyer-complete', 'seller-complete'
 ];
 
 const BUYER_STEPS: OnboardingStep[] = ['buyer-location'];
-const SELLER_STEPS: OnboardingStep[] = ['seller-business', 'seller-province', 'seller-city', 'seller-zone', 'seller-details'];
+const SELLER_STEPS: OnboardingStep[] = ['seller-business', 'seller-location', 'seller-details'];
 
 function StepProgress({ currentStep }: { currentStep: OnboardingStep }) {
   const isBuyer = BUYER_STEPS.includes(currentStep);
@@ -105,67 +101,16 @@ export function OnboardingPage() {
   // Seller state
   const [businessName, setBusinessName] = useState('');
   const [sellerFullName, setSellerFullName] = useState('');
-  const [sellerProvince, setSellerProvince] = useState('');
-  const [sellerCity, setSellerCity] = useState('');
-  const [sellerZone, setSellerZone] = useState('');
-  const [sellerLandmark, setSellerLandmark] = useState('');
+  const [sellerLocationData, setSellerLocationData] = useState<LocationData | null>(null);
+  const [showSellerLocationPicker, setShowSellerLocationPicker] = useState(false);
   const [productCategories, setProductCategories] = useState<string[]>([]);
   const [offersDelivery, setOffersDelivery] = useState<boolean | null>(null);
   const [offersPickup, setOffersPickup] = useState<boolean | null>(null);
   const [deliveryAreas, setDeliveryAreas] = useState('');
-  const [sellerLatitude, setSellerLatitude] = useState<number | null>(null);
-  const [sellerLongitude, setSellerLongitude] = useState<number | null>(null);
   const [businessDescription, setBusinessDescription] = useState('');
-  const [sellerLocationData, setSellerLocationData] = useState<LocationData | null>(null);
-  const [showSellerLocationPicker, setShowSellerLocationPicker] = useState(false);
-
-  // Seller location data from API
-  const [provinces, setProvinces] = useState<any[]>([]);
-  const [communes, setCommunes] = useState<any[]>([]);
-  const [zones, setZones] = useState<any[]>([]);
 
   const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://bd75c998.nzanila-api.pages.dev');
   const normalizePhone = (value: string) => `${COUNTRY_OPTIONS[countryCode].dialCode}${value.replace(/\D/g, '')}`;
-
-  useEffect(() => { fetchProvinces(); }, []);
-
-  useEffect(() => {
-    if (sellerProvince) { fetchCommunes(sellerProvince); }
-    else { setCommunes([]); setZones([]); setSellerCity(''); setSellerZone(''); }
-  }, [sellerProvince]);
-
-  useEffect(() => {
-    if (sellerCity) { fetchZones(sellerCity); }
-    else { setZones([]); setSellerZone(''); }
-  }, [sellerCity]);
-
-  const fetchProvinces = async () => {
-    try {
-      const res = await fetch(`${API}/api/profiles/locations/provinces`);
-      const data = await res.json();
-      setProvinces(data);
-    } catch (err) { console.error('Failed to fetch provinces:', err); }
-  };
-
-  const fetchCommunes = async (provinceName: string) => {
-    try {
-      const prov = provinces.find(p => p.name === provinceName);
-      if (!prov) return;
-      const res = await fetch(`${API}/api/profiles/locations/provinces/${prov.id}/communes`);
-      const data = await res.json();
-      setCommunes(data);
-    } catch (err) { console.error('Failed to fetch communes:', err); }
-  };
-
-  const fetchZones = async (communeName: string) => {
-    try {
-      const comm = communes.find(c => c.name === communeName);
-      if (!comm) return;
-      const res = await fetch(`${API}/api/profiles/locations/communes/${comm.id}/zones`);
-      const data = await res.json();
-      setZones(data);
-    } catch (err) { console.error('Failed to fetch zones:', err); }
-  };
 
   const handleAccountTypeSelect = (type: 'buyer' | 'seller') => {
     setAccountType(type);
@@ -223,15 +168,17 @@ export function OnboardingPage() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.accessToken || ''}` },
         body: JSON.stringify({
           name: fullName, businessName: businessName || undefined, sellerFullName: sellerFullName || undefined,
-          province: sellerLocationData?.province || sellerProvince || undefined,
-          city: sellerLocationData?.commune || sellerCity || undefined,
-          zone: sellerLocationData?.zone || sellerZone || undefined,
-          landmark: sellerLocationData?.landmark || sellerLandmark || undefined,
+          province: sellerLocationData?.province || undefined,
+          city: sellerLocationData?.commune || undefined,
+          zone: sellerLocationData?.zone || undefined,
+          landmark: sellerLocationData?.landmark || undefined,
           productCategories: productCategories.length > 0 ? productCategories : undefined,
-          offersDelivery: offersDelivery !== null ? offersDelivery : undefined, offersPickup: offersPickup !== null ? offersPickup : undefined,
-          deliveryAreas: deliveryAreas || undefined, businessDescription: businessDescription || undefined,
-          shopLatitude: sellerLocationData?.latitude || sellerLatitude || undefined,
-          shopLongitude: sellerLocationData?.longitude || sellerLongitude || undefined,
+          offersDelivery: offersDelivery !== null ? offersDelivery : undefined,
+          offersPickup: offersPickup !== null ? offersPickup : undefined,
+          deliveryAreas: deliveryAreas || undefined,
+          businessDescription: businessDescription || undefined,
+          shopLatitude: sellerLocationData?.latitude || undefined,
+          shopLongitude: sellerLocationData?.longitude || undefined,
           shopLocationApproximate: true,
           shopAddress: sellerLocationData?.approximateAddress || undefined,
           shopDirections: sellerLocationData?.directions || undefined,
@@ -255,24 +202,11 @@ export function OnboardingPage() {
       case 'create-account': setStep('account-type'); break;
       case 'buyer-location': setStep(isAuthenticated ? '/' : 'create-account'); break;
       case 'seller-business': setStep(isAuthenticated ? '/' : 'create-account'); break;
-      case 'seller-province': setStep('seller-business'); break;
-      case 'seller-city': setStep('seller-province'); break;
-      case 'seller-zone': setStep('seller-city'); break;
-      case 'seller-details': setStep('seller-zone'); break;
+      case 'seller-location': setStep('seller-business'); break;
+      case 'seller-details': setStep('seller-location'); break;
       default: setLocation('/');
     }
   };
-
-  const renderSelect = (label: string, value: string, onChange: (v: string) => void, options: { value: string; label: string }[], placeholder: string, disabled?: boolean) => (
-    <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <label className="mb-2 block text-sm font-semibold text-gray-700">{label}</label>
-      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}
-        className="h-13 w-full rounded-xl border border-gray-200 bg-white px-4 text-base outline-none focus:border-[#ff6a00] focus:ring-2 focus:ring-[#ff6a00]/20 disabled:opacity-50">
-        <option value="">{placeholder}</option>
-        {options.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
-      </select>
-    </div>
-  );
 
   const renderInput = (label: string, value: string, onChange: (v: string) => void, placeholder: string, type = 'text') => (
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -281,10 +215,6 @@ export function OnboardingPage() {
         className="h-13 w-full rounded-xl border border-gray-200 bg-white px-4 text-base outline-none focus:border-[#ff6a00] focus:ring-2 focus:ring-[#ff6a00]/20" />
     </div>
   );
-
-  const provPlaceholder = locale === 'fr' ? 'Choisir la province' : locale === 'rn' ? 'Hitamwo intara' : locale === 'sw' ? 'Chagua mkoa' : 'Select Province';
-  const commPlaceholder = locale === 'fr' ? 'Choisir la commune' : locale === 'rn' ? 'Hitamwo komine' : locale === 'sw' ? 'Chagua wilaya' : 'Select Commune';
-  const zonePlaceholder = locale === 'fr' ? 'Choisir la zone' : locale === 'rn' ? 'Hitamwo zone' : locale === 'sw' ? 'Chagua eneo' : 'Select Zone';
 
   return (
     <div className="min-h-[100dvh] bg-[#f0f2f5] flex flex-col relative overflow-hidden">
@@ -522,73 +452,28 @@ export function OnboardingPage() {
               </div>
               {renderInput(tr('onboarding.businessName'), businessName, setBusinessName, 'e.g. Nzanila Electronics')}
               {renderInput(tr('onboarding.sellerFullName'), sellerFullName, setSellerFullName, 'e.g. Jean Ndayisaba')}
-              <button onClick={() => setStep('seller-province')} disabled={!businessName.trim() || !sellerFullName.trim()}
+              <button onClick={() => setStep('seller-location')} disabled={!businessName.trim() || !sellerFullName.trim()}
                 className="h-13 w-full rounded-xl bg-[#ff6a00] text-base font-bold text-white hover:bg-[#e55f00] disabled:opacity-40">
                 {tr('onboarding.continue')}
               </button>
             </div>
           )}
 
-          {/* Seller - Province */}
-          {step === 'seller-province' && (
+          {/* Seller - Shop Location (map picker) */}
+          {step === 'seller-location' && (
             <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="text-center mb-4">
                 <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[#ff6a00]/10">
                   <MapPin size={24} className="text-[#ff6a00]" />
                 </div>
-                <p className="text-sm text-gray-500">{tr('onboarding.province')}</p>
-              </div>
-              {renderSelect(tr('onboarding.province'), sellerProvince, setSellerProvince, provinces.map(p => ({ value: p.name, label: p.name })), provPlaceholder)}
-              <button onClick={() => setStep('seller-city')} disabled={!sellerProvince}
-                className="h-13 w-full rounded-xl bg-[#ff6a00] text-base font-bold text-white hover:bg-[#e55f00] disabled:opacity-40">
-                {tr('onboarding.continue')}
-              </button>
-            </div>
-          )}
-
-          {/* Seller - City/Commune */}
-          {step === 'seller-city' && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-4">
-                <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[#ff6a00]/10">
-                  <MapPin size={24} className="text-[#ff6a00]" />
-                </div>
-                <p className="text-sm text-gray-500">{tr('onboarding.city')}</p>
-              </div>
-              {renderSelect(tr('onboarding.city'), sellerCity, setSellerCity, communes.map(c => ({ value: c.name, label: c.name })), commPlaceholder)}
-              <button onClick={() => setStep('seller-zone')} disabled={!sellerCity}
-                className="h-13 w-full rounded-xl bg-[#ff6a00] text-base font-bold text-white hover:bg-[#e55f00] disabled:opacity-40">
-                {tr('onboarding.continue')}
-              </button>
-            </div>
-          )}
-
-          {/* Seller - Zone */}
-          {step === 'seller-zone' && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-4">
-                <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[#ff6a00]/10">
-                  <MapPin size={24} className="text-[#ff6a00]" />
-                </div>
-                <p className="text-sm text-gray-500">{tr('onboarding.zone')}</p>
-              </div>
-              {renderSelect(tr('onboarding.zone'), sellerZone, setSellerZone, zones.map(z => ({ value: z.name, label: z.name })), zonePlaceholder)}
-              <button onClick={() => setStep('seller-details')} disabled={!sellerZone}
-                className="h-13 w-full rounded-xl bg-[#ff6a00] text-base font-bold text-white hover:bg-[#e55f00] disabled:opacity-40">
-                {tr('onboarding.continue')}
-              </button>
-            </div>
-          )}
-
-          {/* Seller - Details (location, description, delivery) */}
-          {step === 'seller-details' && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-4">
-                <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[#ff6a00]/10">
-                  <Building2 size={24} className="text-[#ff6a00]" />
-                </div>
-                <p className="text-sm text-gray-500">
-                  {locale === 'fr' ? 'Où se trouve votre boutique?' : locale === 'rn' ? 'Icumba ry\'ubucuruzi ryari hehe?' : locale === 'sw' ? 'Duka lako liko wapi?' : 'Where is your shop?'}
+                <h2 className="text-lg font-bold text-gray-800">
+                  {locale === 'fr' ? 'Emplacement de la boutique' : locale === 'rn' ? 'Ahantu ka Zusobanuro' : locale === 'sw' ? 'Eneo la duka' : 'Shop Location'}
+                </h2>
+                <p className="mt-2 text-sm text-gray-500 leading-relaxed">
+                  {locale === 'fr' ? 'Ajoutez l\'emplacement de votre boutique ou lieu de vente habituel. Allez à votre boutique, puis appuyez sur "Utiliser ma position". Cela aide les acheteurs et livreurs à vous trouver plus facilement.'
+                    : locale === 'rn' ? 'Ongerera ahantu ka Zusobanuro cyangwa aho ushcura ibicuruzwa. Jya ku is transmet, ukande "Koresha aho niriho". Ibi birafasha abaguzi n\'abatwara kugira bakubone byoroshye.'
+                    : locale === 'sw' ? 'Ongeza eneo la duka lako au mahali unapouza kwa kawaida. Nenda kwenye duka lako, kisha gusa "Tumia eneo langu". Hii inasaidia wanunuzi na wasafirishaji kukupata kwa urahisi.'
+                    : 'Please add the location of your shop or normal selling place. Go to your shop or business location before choosing the position. This helps buyers and couriers find you more easily.'}
                 </p>
               </div>
 
@@ -616,6 +501,37 @@ export function OnboardingPage() {
                   {locale === 'fr' ? 'Choisir l\'emplacement de la boutique' : locale === 'rn' ? 'Hitamwo ahantu ka Zusobanuro' : locale === 'sw' ? 'Chagua eneo la duka' : 'Choose shop location'}
                 </button>
               )}
+
+              {error && (
+                <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3">
+                  <AlertCircle size={16} className="flex-shrink-0 text-red-600" />
+                  <p className="text-sm font-medium text-red-700">{error}</p>
+                </div>
+              )}
+
+              <button onClick={() => setStep('seller-details')}
+                className="h-13 w-full rounded-xl bg-[#ff6a00] text-base font-bold text-white hover:bg-[#e55f00]">
+                {tr('onboarding.continue')}
+              </button>
+
+              <button onClick={() => { setSellerLocationData({ latitude: 0, longitude: 0, approximateAddress: '', locationName: 'skipped', province: '', commune: '', zone: '', landmark: '', directions: '', phone: '', meetAtPublicLandmark: false }); setStep('seller-details'); }}
+                className="w-full text-center text-xs text-gray-400 hover:text-gray-600">
+                {locale === 'fr' ? 'Ajouter l\'emplacement plus tard' : locale === 'rn' ? 'Ongerera ahantu nyuma' : locale === 'sw' ? 'Ongeza eneo baadaye' : 'Add location later'}
+              </button>
+            </div>
+          )}
+
+          {/* Seller - Details (description, delivery) */}
+          {step === 'seller-details' && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="text-center mb-4">
+                <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[#ff6a00]/10">
+                  <Building2 size={24} className="text-[#ff6a00]" />
+                </div>
+                <p className="text-sm text-gray-500">
+                  {locale === 'fr' ? 'Plus de détails sur votre commerce' : locale === 'rn' ? 'Amategeko y\'ubucuruzi bwawe' : locale === 'sw' ? 'Maelezo zaidi ya biashara yako' : 'More details about your business'}
+                </p>
+              </div>
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-700">{locale === 'fr' ? 'Description du commerce' : locale === 'rn' ? 'Sobanuro ry\'ubucuruzi' : locale === 'sw' ? 'Maelezo ya biashara' : 'Business Description'}</label>
@@ -668,8 +584,7 @@ export function OnboardingPage() {
                 </div>
               )}
 
-              <button onClick={handleSellerSubmit}
-                disabled={!sellerLocationData || loading}
+              <button onClick={handleSellerSubmit} disabled={loading}
                 className="h-13 w-full rounded-xl bg-[#ff6a00] text-base font-bold text-white hover:bg-[#e55f00] disabled:opacity-40">
                 {loading ? (locale === 'fr' ? 'Envoi…' : locale === 'rn' ? 'Kohereza…' : locale === 'sw' ? 'Inatuma…' : 'Submitting…') : tr('onboarding.submitForReview')}
               </button>
