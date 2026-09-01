@@ -445,7 +445,18 @@ export function LocationSearchPicker({
           {reverseGeocoding ? (
             <p className="text-sm text-gray-400 italic">Loading...</p>
           ) : approximateAddress ? (
-            <p className="text-sm font-medium text-gray-800">{approximateAddress}</p>
+            <div>
+              <p className="text-sm font-medium text-gray-800">{approximateAddress}</p>
+              <a
+                href={`https://www.google.com/maps?q=${mapCenter.lat},${mapCenter.lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"
+              >
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                {locale === 'fr' ? 'Ouvrir dans Google Maps' : locale === 'rn' ? 'Fungura mu Google Maps' : locale === 'sw' ? 'Fungua kwenye Google Maps' : 'Open in Google Maps'}
+              </a>
+            </div>
           ) : (
             <p className="text-sm text-gray-400 italic">
               {locale === 'fr' ? 'Déplacez la carte pour définir la position' : 'Move the map to set location'}
@@ -495,11 +506,20 @@ export function LocationSearchPicker({
         <div className="rounded-xl bg-[#1a5f4a]/5 border border-[#1a5f4a]/20 p-3">
           <div className="flex items-start gap-2">
             <MapPin size={16} className="mt-0.5 text-[#1a5f4a]" />
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-semibold text-gray-800">{approximateAddress.split(',').slice(0, 2).join(',')}</p>
               <p className="text-xs text-gray-500 mt-0.5">
                 {mapCenter.lat.toFixed(4)}, {mapCenter.lng.toFixed(4)}
               </p>
+              <a
+                href={`https://www.google.com/maps?q=${mapCenter.lat},${mapCenter.lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"
+              >
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                View on Google Maps
+              </a>
             </div>
           </div>
         </div>

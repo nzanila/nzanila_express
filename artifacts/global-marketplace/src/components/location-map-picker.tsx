@@ -246,7 +246,18 @@ export function LocationMapPicker({
       <div className="px-2 py-2 bg-white border-t border-gray-100">
         <p className="text-[10px] font-semibold text-gray-400 uppercase mb-0.5">Location</p>
         {approximateAddress ? (
-          <p className="text-xs font-medium text-gray-700 line-clamp-2">{approximateAddress}</p>
+          <div>
+            <p className="text-xs font-medium text-gray-700 line-clamp-2">{approximateAddress}</p>
+            <a
+              href={`https://www.google.com/maps?q=${mapCenter.lat},${mapCenter.lng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 hover:underline"
+            >
+              <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+              Google Maps
+            </a>
+          </div>
         ) : (
           <p className="text-xs text-gray-400 italic">
             {locale === 'fr' ? 'Déplacez la carte pour définir la position' : 'Move the map to set location'}

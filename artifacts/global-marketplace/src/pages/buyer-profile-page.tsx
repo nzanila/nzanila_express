@@ -173,12 +173,23 @@ export function BuyerProfilePage() {
                   </div>
                 </div>
                 {addr.latitude && addr.longitude && (
-                  <div className="mt-3 rounded-lg overflow-hidden h-24 bg-gray-100">
-                    <iframe
-                      width="100%" height="100%" frameBorder="0"
-                      src={`https://www.openstreetmap.org/export/embed.html?bbox=${addr.longitude - 0.005},${addr.latitude - 0.005},${addr.longitude + 0.005},${addr.latitude + 0.005}&layer=mapnik&marker=${addr.latitude},${addr.longitude}`}
-                      style={{ border: 0 }} loading="lazy"
-                    />
+                  <div className="mt-3">
+                    <div className="rounded-lg overflow-hidden h-24 bg-gray-100">
+                      <iframe
+                        width="100%" height="100%" frameBorder="0"
+                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${addr.longitude - 0.005},${addr.latitude - 0.005},${addr.longitude + 0.005},${addr.latitude + 0.005}&layer=mapnik&marker=${addr.latitude},${addr.longitude}`}
+                        style={{ border: 0 }} loading="lazy"
+                      />
+                    </div>
+                    <a
+                      href={`https://www.google.com/maps?q=${addr.latitude},${addr.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"
+                    >
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                      Open in Google Maps
+                    </a>
                   </div>
                 )}
               </div>
