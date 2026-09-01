@@ -118,7 +118,7 @@ export function SellerVerificationPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold">Seller Verification</h1>
-              <p className="text-sm text-muted-foreground">Upload your ID to get verified</p>
+              <p className="text-sm text-muted-foreground">Optional — Get a Verified badge on your profile</p>
             </div>
           </div>
 

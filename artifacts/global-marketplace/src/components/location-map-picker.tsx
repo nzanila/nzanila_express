@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Search, Crosshair, ArrowLeft, MapPin, X } from 'lucide-react';
@@ -32,26 +32,31 @@ function FixedPinOverlay() {
   );
 }
 
-// Map movement handler
-function MapMoveHandler({ onMoveEnd }: { onMoveEnd: (lat: number, lng: number) => void }) {
-  useMapEvents({
-    moveend() {
-      const map = useMap();
+// Map movement handler - skips programmatic moves
+function MapMoveHandler({ onMoveEnd, isMovingRef }: { onMoveEnd: (lat: number, lng: number) => void; isMovingRef: React.MutableRefObject<boolean> }) {
+  const map = useMap();
+  useEffect(() => {
+    const handler = () => {
+      if (isMovingRef.current) return;
       const center = map.getCenter();
       onMoveEnd(center.lat, center.lng);
-    },
-  });
+    };
+    map.on('moveend', handler);
+    return () => { map.off('moveend', handler); };
+  }, [map, onMoveEnd, isMovingRef]);
   return null;
 }
 
-// Map view updater
-function MapViewUpdater({ lat, lng, zoom }: { lat: number; lng: number; zoom?: number }) {
+// Map view updater - marks movement as programmatic
+function MapViewUpdater({ lat, lng, zoom, isMovingRef }: { lat: number; lng: number; zoom?: number; isMovingRef: React.MutableRefObject<boolean> }) {
   const map = useMap();
   useEffect(() => {
     if (lat && lng) {
+      isMovingRef.current = true;
       map.setView([lat, lng], zoom || map.getZoom(), { animate: true });
+      setTimeout(() => { isMovingRef.current = false; }, 100);
     }
-  }, [lat, lng, zoom, map]);
+  }, [lat, lng, zoom, map, isMovingRef]);
   return null;
 }
 
@@ -78,6 +83,7 @@ export function LocationMapPicker({
   const [showResults, setShowResults] = useState(false);
   const [searching, setSearching] = useState(false);
   const moveTimeoutRef = useRef<NodeJS.Timeout>();
+  const isProgrammaticMoveRef = useRef(false);
 
   // Reverse geocode
   const reverseGeocode = useCallback(async (lat: number, lng: number) => {
@@ -230,8 +236,8 @@ export function LocationMapPicker({
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <MapMoveHandler onMoveEnd={handleMapMoveEnd} />
-          <MapViewUpdater lat={mapCenter.lat} lng={mapCenter.lng} zoom={mapZoom} />
+          <MapMoveHandler onMoveEnd={handleMapMoveEnd} isMovingRef={isProgrammaticMoveRef} />
+          <MapViewUpdater lat={mapCenter.lat} lng={mapCenter.lng} zoom={mapZoom} isMovingRef={isProgrammaticMoveRef} />
         </MapContainer>
 
         {/* Moving indicator */}

@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -46,14 +46,60 @@ function OnboardingGuard({ children }: { children: ReactNode }) {
   const { user, isAuthenticated, loading } = useAuth();
   const [location, setLocation] = useLocation();
 
+  useEffect(() => {
+    if (loading) return;
+    if (!isAuthenticated || !user) return;
+    if ((user as any).onboardingCompleted === false && !location.startsWith('/onboarding') && !location.startsWith('/auth')) {
+      setLocation('/onboarding');
+    }
+  }, [loading, isAuthenticated, user, location, setLocation]);
+
   if (loading) return null;
   if (!isAuthenticated || !user) return <>{children}</>;
-
-  // If onboarding not completed and not already on onboarding/auth pages
-  if (user.onboardingCompleted === false && !location.startsWith('/onboarding') && !location.startsWith('/auth')) {
-    setLocation('/onboarding');
+  if ((user as any).onboardingCompleted === false && !location.startsWith('/onboarding') && !location.startsWith('/auth')) {
     return null;
   }
+
+  return <>{children}</>;
+}
+
+function RequireRole({ children, role, redirectTo }: { children: ReactNode; role: 'buyer' | 'seller'; redirectTo: string }) {
+  const { user, isAuthenticated, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (loading) return;
+    if (!isAuthenticated || !user) {
+      setLocation('/auth');
+      return;
+    }
+    if (user.role !== role) {
+      setLocation(redirectTo);
+    }
+  }, [loading, isAuthenticated, user, role, redirectTo, setLocation]);
+
+  if (loading) return null;
+  if (!isAuthenticated || !user) return null;
+  if (user.role !== role) return null;
+
+  return <>{children}</>;
+}
+
+function RequireAnyRole({ children, redirectTo }: { children: ReactNode; redirectTo: string }) {
+  const { user, isAuthenticated, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (loading) return;
+    if (!isAuthenticated || !user) return;
+    if (user.role !== 'buyer' && user.role !== 'seller') {
+      setLocation(redirectTo);
+    }
+  }, [loading, isAuthenticated, user, redirectTo, setLocation]);
+
+  if (loading) return null;
+  if (!isAuthenticated || !user) return <>{children}</>;
+  if (user.role !== 'buyer' && user.role !== 'seller') return null;
 
   return <>{children}</>;
 }
@@ -70,18 +116,22 @@ function Router() {
         <Route path="/categories" component={CategoriesPage} />
         <Route path="/products" component={ProductsPage} />
         <Route path="/products/:id" component={ProductDetailPage} />
-        <Route path="/cart" component={CartPage} />
-        <Route path="/orders" component={OrdersPage} />
-        <Route path="/messages" component={MessagesPage} />
         <Route path="/suppliers" component={SuppliersPage} />
-        <Route path="/supplier" component={SupplierDashboardPage} />
-        <Route path="/supplier/products" component={SupplierProductsPage} />
-        <Route path="/supplier/orders" component={SupplierOrdersPage} />
+        <Route path="/seller/profile" component={() => <RequireRole role="seller" redirectTo="/auth"> <SellerProfilePage /> </RequireRole>} />
         <Route path="/seller/:id" component={SellerProfilePage} />
-        <Route path="/seller/profile/edit" component={SellerProfileEditPage} />
-        <Route path="/seller/products" component={SellerProductsPageNew} />
-        <Route path="/seller/verify" component={SellerVerificationPage} />
-        <Route path="/buyer/profile" component={BuyerProfilePage} />
+
+        <Route path="/cart" component={() => <RequireRole role="buyer" redirectTo="/"> <CartPage /> </RequireRole>} />
+        <Route path="/orders" component={() => <RequireAnyRole redirectTo="/auth"> <OrdersPage /> </RequireAnyRole>} />
+        <Route path="/messages" component={() => <RequireAnyRole redirectTo="/auth"> <MessagesPage /> </RequireAnyRole>} />
+        <Route path="/buyer/profile" component={() => <RequireRole role="buyer" redirectTo="/"> <BuyerProfilePage /> </RequireRole>} />
+
+        <Route path="/supplier" component={() => <RequireRole role="seller" redirectTo="/auth"> <SupplierDashboardPage /> </RequireRole>} />
+        <Route path="/supplier/products" component={() => <RequireRole role="seller" redirectTo="/auth"> <SupplierProductsPage /> </RequireRole>} />
+        <Route path="/supplier/orders" component={() => <RequireRole role="seller" redirectTo="/auth"> <SupplierOrdersPage /> </RequireRole>} />
+        <Route path="/seller/profile/edit" component={() => <RequireRole role="seller" redirectTo="/auth"> <SellerProfileEditPage /> </RequireRole>} />
+        <Route path="/seller/products" component={() => <RequireRole role="seller" redirectTo="/auth"> <SellerProductsPageNew /> </RequireRole>} />
+        <Route path="/seller/verify" component={() => <RequireRole role="seller" redirectTo="/auth"> <SellerVerificationPage /> </RequireRole>} />
+
         <Route component={NotFound} />
       </Switch>
     </RoutedErrorBoundary>

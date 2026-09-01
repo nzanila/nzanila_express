@@ -27,12 +27,13 @@ import { useAuth } from '@/lib/auth-context';
 import { locales } from '@/lib/i18n/translations';
 import { CategoriesModal } from '@/components/categories-modal';
 
-export type NavTab = 'ai' | 'products' | 'suppliers' | 'market';
+export type NavTab = 'ai' | 'products' | 'suppliers' | 'market' | 'profile';
 
 export function Logo() {
   return (
-    <Link href="/" className="flex items-center" data-testid="link-logo">
+    <Link href="/" className="flex items-center gap-2" data-testid="link-logo">
       <img src="/logo.png" alt="Nzanila.com" className="h-8 w-auto" />
+      <span className="text-base font-black tracking-[-0.04em] text-[#1f2937]">Nzanila</span>
     </Link>
   );
 }
@@ -165,6 +166,8 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
   const isSupplier = mode === 'supplier';
   const { tr } = useLocale();
   const { user, isAuthenticated, logout } = useAuth();
+  const ordersHref = isAuthenticated && user?.role === 'seller' ? '/supplier/orders' : '/orders';
+  const accountHref = isAuthenticated ? (user?.role === 'seller' ? '/seller/profile' : '/buyer/profile') : '/onboarding';
 
   useEffect(() => {
     setPwa(isPwaMode());
@@ -173,21 +176,18 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
   return (
     <div className="min-h-[100dvh] overflow-x-clip bg-[#f5f5f5] text-[#222]">
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white shadow-sm">
-        {!isSupplier && (
-          <div className="hidden border-b border-gray-200 bg-[#f5f5f5] sm:block">
-            <div className="mx-auto flex max-w-[1440px] items-center justify-between px-4 py-1.5 text-xs text-gray-600 lg:px-8">
-              <span>Welcome to Nzanila.com</span>
-              <div className="flex items-center gap-5">
-                <Link href="/" className="hover:text-[#ff6a00]">About Nzanila.com</Link>
-                <Link href="/" className="hover:text-[#ff6a00]">Help Center</Link>
-                <Link href="/ai-research" className="hover:text-[#ff6a00]">AI Sourcing</Link>
-                <Link href="/supplier" className="font-semibold hover:text-[#ff6a00]">Sell on Nzanila.com</Link>
-              </div>
+        <div className="hidden border-b border-gray-200 bg-[#f5f5f5] sm:block">
+          <div className="mx-auto flex max-w-[1440px] items-center justify-between px-4 py-1.5 text-xs text-gray-600 lg:px-8">
+            <span>Welcome to Nzanila.com</span>
+            <div className="flex items-center gap-5">
+              <Link href="/" className="hover:text-[#ff6a00]">About Nzanila.com</Link>
+              <Link href="/" className="hover:text-[#ff6a00]">Help Center</Link>
+              <Link href="/ai-research" className="hover:text-[#ff6a00]">AI Sourcing</Link>
+              <Link href="/supplier" className="font-semibold hover:text-[#ff6a00]">Sell on Nzanila.com</Link>
             </div>
           </div>
-        )}
-        {/* PWA mobile header — white bg with tagline */}
-        {pwa && !isSupplier && (
+        </div>
+        {pwa && (
           <div className="border-b border-gray-100 bg-white sm:hidden">
             <div className="flex items-center justify-center px-4 py-1.5">
               <p className="text-[10px] font-semibold text-[#1a5f4a]">🇧🇮 Sell Burundian products online — Wholesale & B2B</p>
@@ -197,32 +197,21 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
         <div className="mx-auto flex h-[60px] max-w-[1440px] items-center gap-4 px-4 lg:px-8">
           <button className="rounded p-2 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Menu"><Menu size={22} /></button>
           <Logo />
-          {!isSupplier && (
-            <div className="hidden items-center gap-1.5 text-xs md:flex">
-              <MapPin size={14} className="text-gray-500" />
-              <span className="text-gray-500">Deliver to:</span>
-              <span className="font-bold">🇺🇸 US</span>
-            </div>
-          )}
           <nav className="ml-auto flex items-center gap-0.5">
-            {!isSupplier && (
-              <>
-                <Link href="/orders" className="hidden items-center gap-1 rounded px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 sm:flex">
-                  <Truck size={16} /> Orders
-                </Link>
-                <Link href="/messages" className="hidden items-center gap-1 rounded px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 sm:flex">
-                  <MessageSquare size={16} /> Messages
-                </Link>
-                <Link href="/cart" className="relative rounded p-2.5 text-gray-700 hover:bg-gray-100" data-testid="link-cart">
-                  <ShoppingBag size={20} />
-                  {cart?.itemCount ? <span className="absolute -right-0.5 -top-0.5 grid min-w-[16px] place-items-center rounded-full bg-[#ff6a00] px-1 text-[10px] font-bold text-white">{cart.itemCount}</span> : null}
-                </Link>
-              </>
-            )}
+            <Link href={ordersHref} className="hidden items-center gap-1 rounded px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 sm:flex">
+              <Truck size={16} /> Orders
+            </Link>
+            <Link href="/messages" className="hidden items-center gap-1 rounded px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 sm:flex">
+              <MessageSquare size={16} /> Messages
+            </Link>
+            <Link href="/cart" className="relative rounded p-2.5 text-gray-700 hover:bg-gray-100" data-testid="link-cart">
+              <ShoppingBag size={20} />
+              {cart?.itemCount ? <span className="absolute -right-0.5 -top-0.5 grid min-w-[16px] place-items-center rounded-full bg-[#ff6a00] px-1 text-[10px] font-bold text-white">{cart.itemCount}</span> : null}
+            </Link>
             <LanguageSelector />
             {isAuthenticated ? (
               <>
-                <Link href={user?.role === 'seller' ? '/seller/profile/edit' : '/buyer/profile'} className="hidden items-center gap-1.5 rounded px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 sm:flex">
+                <Link href={accountHref} className="hidden items-center gap-1.5 rounded px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 sm:flex">
                   <CircleUserRound size={16} />
                   <span className="max-w-[80px] truncate">{user?.name || 'Account'}</span>
                 </Link>
@@ -258,6 +247,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
       <main className="mx-auto max-w-[1440px] pb-14 lg:pb-0">
         <div className={`grid grid-cols-1 ${!hideSearch && !isSupplier ? 'lg:grid-cols-[288px_1fr]' : ''}`}>
           {/* Categories Sidebar - Desktop */}
+
           {!isSupplier && !hideSearch && (
             <div className={`hidden lg:block transition-all duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'}`}>
               <div className="sticky lg:top-[90px] h-[calc(100vh-100px)] m-4 rounded-xl border border-border bg-card shadow-sm overflow-hidden flex flex-col">
@@ -359,7 +349,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
               </div>
               <span className="text-[10px] font-medium">Cart</span>
             </Link>
-            <Link href={isAuthenticated ? (user?.role === 'seller' ? '/seller/profile/edit' : '/buyer/profile') : '/onboarding'} className="flex flex-col items-center gap-0.5 py-2 text-muted-foreground hover:text-primary">
+            <Link href={accountHref} className="flex flex-col items-center gap-0.5 py-2 text-muted-foreground hover:text-primary">
               <Globe2 size={20} />
               <span className="text-[10px] font-medium">Account</span>
             </Link>

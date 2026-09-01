@@ -681,7 +681,7 @@ export function ProductDetailPage() {
                       </span>
                     )}
                     <span>·</span>
-                    <span>{tr('detail.yearsOnNzanila', { count: String(yrs) })}</span>
+                    <span>{tr('detail.yearsOnNzanila')}</span>
                   </div>
                 </div>
                 <Link href="/suppliers" className="flex-shrink-0 rounded-lg border border-primary px-3 py-1.5 text-[11px] font-bold text-primary hover:bg-primary/5">
@@ -1564,7 +1564,7 @@ function SupplierCard({ supplier }: { supplier: Supplier }) {
   );
 }
 
-function SupplierFrame({
+export function SupplierFrame({
   children,
   title,
 }: {
@@ -1579,27 +1579,44 @@ function SupplierFrame({
     <AppShell mode="supplier">
       <div className="px-5 py-8 lg:px-10">
         {isUnverified && (
-          <Link href="/seller/verify" className="mb-6 flex items-center gap-3 rounded-xl border border-yellow-200 bg-yellow-50 p-4 hover:bg-yellow-100 transition-colors">
-            <span className="text-2xl">🪪</span>
+          <Link href="/seller/verify" className="mb-6 flex items-center gap-3 rounded-2xl border border-yellow-200 bg-yellow-50 p-3 transition-colors hover:bg-yellow-100">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-base text-yellow-600">✓</span>
             <div className="flex-1">
-              <p className="text-sm font-bold text-yellow-800">Get Verified — Upload your ID</p>
-              <p className="text-xs text-yellow-600">Verified sellers get more trust from buyers and higher rankings</p>
+              <p className="text-xs font-bold text-yellow-800">Verify your ID to get a Verified badge</p>
             </div>
-            <span className="text-xs font-semibold text-yellow-700">Upload →</span>
+            <span className="text-xs font-semibold text-yellow-700">Optional →</span>
           </Link>
         )}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-accent-foreground">
-              Supplier desk
-            </p>
-            <h1 className="mt-2 font-display text-3xl font-extrabold tracking-[-0.06em]">
-              {title}
-            </h1>
+
+        <div className="mb-8 rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                Supplier desk
+              </p>
+              <h1 className="mt-2 font-display text-3xl font-extrabold tracking-[-0.06em]">
+                {title}
+              </h1>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
+              <span className="h-2 w-2 rounded-full bg-[#3e856d]" />
+              Storefront live
+            </div>
           </div>
-          <div className="hidden items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs font-bold sm:flex">
-            <span className="h-2 w-2 rounded-full bg-[#3e856d]" />{' '}
-            Storefront live
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Link href="/supplier/orders" className="rounded-full border border-border bg-secondary px-3 py-1.5 text-xs font-semibold text-foreground hover:border-primary/40 hover:text-primary">
+              Orders
+            </Link>
+            <Link href="/supplier/products" className="rounded-full border border-border bg-secondary px-3 py-1.5 text-xs font-semibold text-foreground hover:border-primary/40 hover:text-primary">
+              Products
+            </Link>
+            <Link href="/seller/profile" className="rounded-full border border-border bg-secondary px-3 py-1.5 text-xs font-semibold text-foreground hover:border-primary/40 hover:text-primary">
+              Profile
+            </Link>
+            <Link href="/seller/verify" className="rounded-full border border-border bg-secondary px-3 py-1.5 text-xs font-semibold text-foreground hover:border-primary/40 hover:text-primary">
+              Verification
+            </Link>
           </div>
         </div>
         {children}

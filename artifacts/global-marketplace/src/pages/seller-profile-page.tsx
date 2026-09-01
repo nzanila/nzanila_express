@@ -51,11 +51,14 @@ interface SellerProduct {
 
 export function SellerProfilePage() {
   const params = useParams();
-  const sellerId = params?.id;
+  const { user } = useAuth();
+  const sellerId = params?.id ?? (user?.role === 'seller' ? String(user.id) : undefined);
   const [profile, setProfile] = useState<SellerProfile | null>(null);
   const [products, setProducts] = useState<SellerProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  const isOwnProfile = user?.role === 'seller' && !params?.id;
 
   useEffect(() => {
     if (!sellerId) return;
@@ -96,132 +99,174 @@ export function SellerProfilePage() {
 
   return (
     <AppShell hideSearch>
-      <div className="bg-background px-3 py-4 sm:px-5 sm:py-8 lg:px-10 max-w-4xl mx-auto">
+      <div className="mx-auto max-w-5xl px-3 py-4 sm:px-5 sm:py-8 lg:px-10">
         <Link href="/suppliers" className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft size={16} /> Back to suppliers
         </Link>
 
-        <div className="rounded-2xl border border-border bg-card p-6">
-          <div className="flex flex-col sm:flex-row gap-6">
-            <div className="h-24 w-24 flex-shrink-0 rounded-xl bg-primary/10 flex items-center justify-center overflow-hidden">
-              {profile.profilePicture ? (
-                <img src={profile.profilePicture} alt={profile.businessName} className="h-full w-full object-cover" />
-              ) : (
-                <ShoppingBag size={40} className="text-primary/60" />
-              )}
+        <div className="rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-primary/10 shadow-inner">
+                {profile.profilePicture ? (
+                  <img src={profile.profilePicture} alt={profile.businessName} className="h-full w-full object-cover" />
+                ) : (
+                  <ShoppingBag size={40} className="text-primary/60" />
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-bold text-foreground">{profile.businessName || 'Seller'}</h1>
+                  {profile.verificationStatus === 'verified' && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                      <ShieldCheck size={12} /> Verified
+                    </span>
+                  )}
+                </div>
+                {profile.sellerFullName && <p className="mt-1 text-sm text-muted-foreground">{profile.sellerFullName}</p>}
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                  {profile.province && <span className="flex items-center gap-1"><MapPin size={14} /> {profile.city || profile.province}</span>}
+                  <span className="flex items-center gap-1"><Clock size={14} /> Responds in {profile.responseTimeHours}h</span>
+                  {profile.rating > 0 && <span className="flex items-center gap-1"><Star size={14} className="text-yellow-500" /> {profile.rating.toFixed(1)}</span>}
+                </div>
+              </div>
             </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold">{profile.businessName || 'Seller'}</h1>
-                {profile.verificationStatus === 'verified' && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                    <ShieldCheck size={12} /> Verified
-                  </span>
-                )}
-              </div>
-              {profile.sellerFullName && (
-                <p className="text-sm text-muted-foreground mt-0.5">{profile.sellerFullName}</p>
+
+            <div className="flex items-center gap-2">
+              {profile.phone && (
+                <a href={`tel:${profile.phone}`} className="inline-flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-xs font-bold text-foreground hover:bg-secondary">
+                  <Phone size={14} /> Call seller
+                </a>
               )}
-              <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-muted-foreground">
-                {profile.province && (
-                  <span className="flex items-center gap-1"><MapPin size={14} /> {profile.city || profile.province}</span>
-                )}
-                <span className="flex items-center gap-1"><Clock size={14} /> Responds in {profile.responseTimeHours}h</span>
-                {profile.rating > 0 && (
-                  <span className="flex items-center gap-1"><Star size={14} className="text-yellow-500" /> {profile.rating.toFixed(1)}</span>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2 mt-3">
-                {profile.offersDelivery && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
-                    <Truck size={12} /> Delivery
-                  </span>
-                )}
-                {profile.offersPickup && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
-                    <ShoppingBag size={12} /> Pickup
-                  </span>
-                )}
-                {profile.productCategories?.map(cat => (
-                  <span key={cat} className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">{cat}</span>
-                ))}
-              </div>
             </div>
           </div>
 
-          {profile.businessDescription && (
-            <div className="mt-6 border-t border-border pt-4">
-              <h3 className="text-sm font-semibold mb-1">About</h3>
-              <p className="text-sm text-muted-foreground">{profile.businessDescription}</p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-4">
+            <div className="rounded-2xl border border-border bg-secondary/40 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Rating</p>
+              <p className="mt-2 text-2xl font-bold text-foreground">{profile.rating > 0 ? profile.rating.toFixed(1) : 'New'}</p>
             </div>
-          )}
-
-          {profile.shopLatitude && profile.shopLongitude && (
-            <div className="mt-6 border-t border-border pt-4">
-              <h3 className="text-sm font-semibold mb-2">Location</h3>
-              <div className="rounded-lg overflow-hidden h-48 bg-gray-100">
-                <iframe
-                  width="100%"
-                  height="100%"
-                  frameBorder="0"
-                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${profile.shopLongitude - 0.01},${profile.shopLatitude - 0.01},${profile.shopLongitude + 0.01},${profile.shopLatitude + 0.01}&layer=mapnik&marker=${profile.shopLatitude},${profile.shopLongitude}`}
-                  style={{ border: 0 }}
-                  loading="lazy"
-                />
-              </div>
-              <a
-                href={`https://www.google.com/maps?q=${profile.shopLatitude},${profile.shopLongitude}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"
-              >
-                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
-                Open in Google Maps
-              </a>
+            <div className="rounded-2xl border border-border bg-secondary/40 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Response</p>
+              <p className="mt-2 text-2xl font-bold text-foreground">{profile.responseTimeHours}h</p>
             </div>
-          )}
-
-          {profile.deliveryAreas && (
-            <div className="mt-6 border-t border-border pt-4">
-              <h3 className="text-sm font-semibold mb-1">Delivery Areas</h3>
-              <p className="text-sm text-muted-foreground">{profile.deliveryAreas}</p>
+            <div className="rounded-2xl border border-border bg-secondary/40 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Orders</p>
+              <p className="mt-2 text-2xl font-bold text-foreground">{profile.totalOrders || 0}</p>
             </div>
-          )}
-
-          {profile.openingHours && typeof profile.openingHours === 'object' && (
-            <div className="mt-6 border-t border-border pt-4">
-              <h3 className="text-sm font-semibold mb-2">Opening Hours</h3>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
-                {Object.entries(profile.openingHours).map(([day, hours]: [string, any]) => (
-                  <div key={day} className="flex justify-between">
-                    <span className="font-medium">{day}</span>
-                    <span className="text-muted-foreground">
-                      {hours.closed ? 'Closed' : `${hours.open} – ${hours.close}`}
-                    </span>
-                  </div>
-                ))}
-              </div>
+            <div className="rounded-2xl border border-border bg-secondary/40 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Service</p>
+              <p className="mt-2 text-sm font-bold text-foreground">{[profile.offersDelivery ? 'Delivery' : '', profile.offersPickup ? 'Pickup' : ''].filter(Boolean).join(' / ') || 'Online only'}</p>
             </div>
-          )}
+          </div>
         </div>
 
-        {products.length > 0 && (
-          <div className="mt-6">
-            <h2 className="text-lg font-bold mb-4">Products</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {products.filter(p => p.is_active !== false).map(product => (
-                <Link key={product.id} href={`/products/${product.id}`} className="rounded-xl border border-border bg-card p-4 hover:border-primary/30 transition-all">
-                  <h3 className="font-semibold text-sm">{product.name}</h3>
-                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{product.description}</p>
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="text-sm font-bold text-primary">{product.price} BIF/{product.unit}</span>
-                    <span className="text-xs text-muted-foreground">MOQ: {product.minimumOrderQuantity}</span>
+        <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-6">
+            {isOwnProfile && (
+              <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Profile actions</p>
+                    <h3 className="mt-1 text-base font-bold text-foreground">Manage this profile</h3>
                   </div>
-                </Link>
-              ))}
-            </div>
+                  <Link href="/seller/profile/edit" className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90">
+                    <Edit size={14} /> Edit profile
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {profile.businessDescription && (
+              <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
+                <h3 className="text-lg font-bold text-foreground">About this supplier</h3>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">{profile.businessDescription}</p>
+              </div>
+            )}
+
+            {products.length > 0 && (
+              <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-foreground">Featured products</h2>
+                  <span className="text-xs font-bold text-muted-foreground">{products.filter(p => p.is_active !== false).length} items</span>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {products.filter(p => p.is_active !== false).map(product => (
+                    <Link key={product.id} href={`/products/${product.id}`} className="group overflow-hidden rounded-2xl border border-border bg-secondary/30 p-3 transition-all hover:border-primary/40 hover:bg-white">
+                      <div className="mb-3 flex h-28 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-secondary text-primary/60">
+                        <ShoppingBag size={30} />
+                      </div>
+                      <h3 className="font-semibold text-sm text-foreground">{product.name}</h3>
+                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{product.description}</p>
+                      <div className="mt-3 flex items-center justify-between">
+                        <span className="text-sm font-bold text-primary">{product.price} BIF/{product.unit}</span>
+                        <span className="text-xs text-muted-foreground">MOQ: {product.minimumOrderQuantity}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        )}
+
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
+              <h3 className="text-lg font-bold text-foreground">Business details</h3>
+              <div className="mt-4 space-y-3 text-sm">
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-secondary/30 px-3 py-2">
+                  <span className="text-muted-foreground">Location</span>
+                  <span className="font-medium text-foreground">{profile.city || profile.province || 'Not provided'}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-secondary/30 px-3 py-2">
+                  <span className="text-muted-foreground">Delivery</span>
+                  <span className="font-medium text-foreground">{profile.offersDelivery ? 'Available' : 'Not available'}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-secondary/30 px-3 py-2">
+                  <span className="text-muted-foreground">Pickup</span>
+                  <span className="font-medium text-foreground">{profile.offersPickup ? 'Available' : 'Not available'}</span>
+                </div>
+              </div>
+            </div>
+
+            {profile.productCategories?.length ? (
+              <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
+                <h3 className="text-lg font-bold text-foreground">Categories</h3>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {profile.productCategories.map(cat => (
+                    <span key={cat} className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">{cat}</span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {profile.shopLatitude && profile.shopLongitude && (
+              <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
+                <h3 className="text-lg font-bold text-foreground">Location</h3>
+                <div className="mt-3 overflow-hidden rounded-2xl bg-gray-100">
+                  <iframe
+                    width="100%"
+                    height="180"
+                    frameBorder="0"
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${profile.shopLongitude - 0.01},${profile.shopLatitude - 0.01},${profile.shopLongitude + 0.01},${profile.shopLatitude + 0.01}&layer=mapnik&marker=${profile.shopLatitude},${profile.shopLongitude}`}
+                    style={{ border: 0 }}
+                    loading="lazy"
+                  />
+                </div>
+                <a href={`https://www.google.com/maps?q=${profile.shopLatitude},${profile.shopLongitude}`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline">
+                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                  Open in Google Maps
+                </a>
+              </div>
+            )}
+
+            {profile.deliveryAreas && (
+              <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
+                <h3 className="text-lg font-bold text-foreground">Delivery areas</h3>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">{profile.deliveryAreas}</p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </AppShell>
   );
