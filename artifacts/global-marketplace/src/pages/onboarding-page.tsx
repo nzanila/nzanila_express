@@ -11,10 +11,7 @@ type OnboardingStep =
   | 'welcome'
   | 'account-type'
   | 'create-account'
-  | 'buyer-province'
-  | 'buyer-city'
-  | 'buyer-zone'
-  | 'buyer-landmark'
+  | 'buyer-location'
   | 'seller-business'
   | 'seller-province'
   | 'seller-city'
@@ -36,10 +33,7 @@ const STEP_LABELS: Record<OnboardingStep, string> = {
   welcome: 'Welcome',
   'account-type': 'Choose Type',
   'create-account': 'Create Account',
-  'buyer-province': 'Province',
-  'buyer-city': 'Commune',
-  'buyer-zone': 'Zone',
-  'buyer-landmark': 'Address',
+  'buyer-location': 'Location',
   'seller-business': 'Business',
   'seller-province': 'Province',
   'seller-city': 'Commune',
@@ -52,12 +46,12 @@ const STEP_LABELS: Record<OnboardingStep, string> = {
 
 const STEP_ORDER: OnboardingStep[] = [
   'welcome', 'account-type', 'create-account',
-  'buyer-province', 'buyer-city', 'buyer-zone', 'buyer-landmark',
+  'buyer-location',
   'seller-business', 'seller-province', 'seller-city', 'seller-zone', 'seller-details',
   'seller-verification', 'buyer-complete', 'seller-complete'
 ];
 
-const BUYER_STEPS: OnboardingStep[] = ['buyer-province', 'buyer-city', 'buyer-zone', 'buyer-landmark'];
+const BUYER_STEPS: OnboardingStep[] = ['buyer-location'];
 const SELLER_STEPS: OnboardingStep[] = ['seller-business', 'seller-province', 'seller-city', 'seller-zone', 'seller-details'];
 
 function StepProgress({ currentStep }: { currentStep: OnboardingStep }) {
@@ -84,7 +78,7 @@ export function OnboardingPage() {
 
   const [step, setStep] = useState<OnboardingStep>(() => {
     if (isAuthenticated && user?.role === 'seller' && !user?.onboardingCompleted) return 'seller-business';
-    if (isAuthenticated && user?.role === 'buyer' && !user?.onboardingCompleted) return 'buyer-province';
+    if (isAuthenticated && user?.role === 'buyer' && !user?.onboardingCompleted) return 'buyer-location';
     if (isAuthenticated && user?.onboardingCompleted) { setLocation('/'); return 'welcome'; }
     return 'welcome';
   });
@@ -104,19 +98,11 @@ export function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const [province, setProvince] = useState('');
-  const [city, setCity] = useState('');
-  const [zone, setZone] = useState('');
-  const [landmark, setLandmark] = useState('');
-  const [deliveryPhone, setDeliveryPhone] = useState('');
-  const [buyerLatitude, setBuyerLatitude] = useState<number | null>(null);
-  const [buyerLongitude, setBuyerLongitude] = useState<number | null>(null);
-  const [showBuyerMapPicker, setShowBuyerMapPicker] = useState(false);
+  // Buyer location
+  const [buyerLocationData, setBuyerLocationData] = useState<LocationData | null>(null);
+  const [showBuyerLocationPicker, setShowBuyerLocationPicker] = useState(false);
 
-  const [provinces, setProvinces] = useState<any[]>([]);
-  const [communes, setCommunes] = useState<any[]>([]);
-  const [zones, setZones] = useState<any[]>([]);
-
+  // Seller state
   const [businessName, setBusinessName] = useState('');
   const [sellerFullName, setSellerFullName] = useState('');
   const [sellerProvince, setSellerProvince] = useState('');
@@ -129,29 +115,19 @@ export function OnboardingPage() {
   const [deliveryAreas, setDeliveryAreas] = useState('');
   const [sellerLatitude, setSellerLatitude] = useState<number | null>(null);
   const [sellerLongitude, setSellerLongitude] = useState<number | null>(null);
-  const [showSellerMapPicker, setShowSellerMapPicker] = useState(false);
   const [businessDescription, setBusinessDescription] = useState('');
-
-  // Location search picker state
-  const [showLocationPicker, setShowLocationPicker] = useState(false);
-  const [locationPickerMode, setLocationPickerMode] = useState<'buyer' | 'seller'>('buyer');
-  const [buyerLocationData, setBuyerLocationData] = useState<LocationData | null>(null);
   const [sellerLocationData, setSellerLocationData] = useState<LocationData | null>(null);
+  const [showSellerLocationPicker, setShowSellerLocationPicker] = useState(false);
+
+  // Seller location data from API
+  const [provinces, setProvinces] = useState<any[]>([]);
+  const [communes, setCommunes] = useState<any[]>([]);
+  const [zones, setZones] = useState<any[]>([]);
 
   const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://bd75c998.nzanila-api.pages.dev');
   const normalizePhone = (value: string) => `${COUNTRY_OPTIONS[countryCode].dialCode}${value.replace(/\D/g, '')}`;
 
   useEffect(() => { fetchProvinces(); }, []);
-
-  useEffect(() => {
-    if (province) { fetchCommunes(province); }
-    else { setCommunes([]); setZones([]); setCity(''); setZone(''); }
-  }, [province]);
-
-  useEffect(() => {
-    if (city) { fetchZones(city); }
-    else { setZones([]); setZone(''); }
-  }, [city]);
 
   useEffect(() => {
     if (sellerProvince) { fetchCommunes(sellerProvince); }
@@ -204,7 +180,7 @@ export function OnboardingPage() {
     const result = await signUp(normalizedPhone, fullName, accountType, password);
     setLoading(false);
     if (result.error) { setError(result.error); return; }
-    setStep(accountType === 'buyer' ? 'buyer-province' : 'seller-business');
+    setStep(accountType === 'buyer' ? 'buyer-location' : 'seller-business');
   };
 
   const handleBuyerComplete = async () => {
@@ -216,11 +192,11 @@ export function OnboardingPage() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.accessToken || ''}` },
         body: JSON.stringify({
           name: fullName || undefined,
-          province: buyerLocationData?.province || province || undefined,
-          city: buyerLocationData?.commune || city || undefined,
-          zone: buyerLocationData?.zone || zone || undefined,
-          landmark: buyerLocationData?.landmark || landmark || undefined,
-          deliveryPhone: buyerLocationData?.phone || deliveryPhone || undefined,
+          province: buyerLocationData?.province || undefined,
+          city: buyerLocationData?.commune || undefined,
+          zone: buyerLocationData?.zone || undefined,
+          landmark: buyerLocationData?.landmark || undefined,
+          deliveryPhone: buyerLocationData?.phone || undefined,
           preferredLanguage: preferredLanguage || undefined,
           latitude: buyerLocationData?.latitude || undefined,
           longitude: buyerLocationData?.longitude || undefined,
@@ -277,10 +253,7 @@ export function OnboardingPage() {
     switch (step) {
       case 'account-type': setStep('welcome'); break;
       case 'create-account': setStep('account-type'); break;
-      case 'buyer-province': setStep(isAuthenticated ? '/' : 'create-account'); break;
-      case 'buyer-city': setStep('buyer-province'); break;
-      case 'buyer-zone': setStep('buyer-city'); break;
-      case 'buyer-landmark': setStep('buyer-zone'); break;
+      case 'buyer-location': setStep(isAuthenticated ? '/' : 'create-account'); break;
       case 'seller-business': setStep(isAuthenticated ? '/' : 'create-account'); break;
       case 'seller-province': setStep('seller-business'); break;
       case 'seller-city': setStep('seller-province'); break;
@@ -474,67 +447,22 @@ export function OnboardingPage() {
             </div>
           )}
 
-          {/* === BUYER STEPS === */}
-
-          {/* Buyer - Province */}
-          {step === 'buyer-province' && (
+          {/* === BUYER LOCATION (optional) === */}
+          {step === 'buyer-location' && (
             <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="text-center mb-4">
                 <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[#1a5f4a]/10">
                   <MapPin size={24} className="text-[#1a5f4a]" />
                 </div>
-                <p className="text-sm text-gray-500">{tr('onboarding.deliveryAddress')}</p>
-              </div>
-              {renderSelect(tr('onboarding.province'), province, setProvince, provinces.map(p => ({ value: p.name, label: p.name })), provPlaceholder)}
-              <button onClick={() => setStep('buyer-city')} disabled={!province}
-                className="h-13 w-full rounded-xl bg-[#1a5f4a] text-base font-bold text-white hover:bg-[#154a3a] disabled:opacity-40">
-                {tr('onboarding.continue')}
-              </button>
-            </div>
-          )}
-
-          {/* Buyer - City/Commune */}
-          {step === 'buyer-city' && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-4">
-                <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[#1a5f4a]/10">
-                  <MapPin size={24} className="text-[#1a5f4a]" />
-                </div>
-                <p className="text-sm text-gray-500">{tr('onboarding.city')}</p>
-              </div>
-              {renderSelect(tr('onboarding.city'), city, setCity, communes.map(c => ({ value: c.name, label: c.name })), commPlaceholder)}
-              <button onClick={() => setStep('buyer-zone')} disabled={!city}
-                className="h-13 w-full rounded-xl bg-[#1a5f4a] text-base font-bold text-white hover:bg-[#154a3a] disabled:opacity-40">
-                {tr('onboarding.continue')}
-              </button>
-            </div>
-          )}
-
-          {/* Buyer - Zone */}
-          {step === 'buyer-zone' && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-4">
-                <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[#1a5f4a]/10">
-                  <MapPin size={24} className="text-[#1a5f4a]" />
-                </div>
-                <p className="text-sm text-gray-500">{tr('onboarding.zone')}</p>
-              </div>
-              {renderSelect(tr('onboarding.zone'), zone, setZone, zones.map(z => ({ value: z.name, label: z.name })), zonePlaceholder)}
-              <button onClick={() => setStep('buyer-landmark')} disabled={!zone}
-                className="h-13 w-full rounded-xl bg-[#1a5f4a] text-base font-bold text-white hover:bg-[#154a3a] disabled:opacity-40">
-                {tr('onboarding.continue')}
-              </button>
-            </div>
-          )}
-
-          {/* Buyer - Landmark + Map + Submit */}
-          {step === 'buyer-landmark' && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-4">
-                <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[#1a5f4a]/10">
-                  <MapPin size={24} className="text-[#1a5f4a]" />
-                </div>
-                <p className="text-sm text-gray-500">{locale === 'fr' ? 'Où devons-nous livrer?' : locale === 'rn' ? 'Dutwehe mugihe tuzagurage?' : locale === 'sw' ? 'Tunawezaje kukuletea?' : 'Where should we deliver?'}</p>
+                <h2 className="text-lg font-bold text-gray-800">
+                  {locale === 'fr' ? 'Ajouter votre lieu de livraison' : locale === 'rn' ? 'Ongerera aho hazaguragwo' : locale === 'sw' ? 'Ongeza eneo la uwasilishaji' : 'Add your delivery location'}
+                </h2>
+                <p className="mt-2 text-sm text-gray-500 leading-relaxed">
+                  {locale === 'fr' ? 'Allez au lieu où vous souhaitez recevoir votre commande, puis appuyez sur "Utiliser ma position". Vous pouvez aussi rechercher un lieu ou déplacer le point manuellement. Ajoutez un repère pour que le vendeur vous trouve facilement.'
+                    : locale === 'rn' ? 'Jya aho ushaka kwakira ibicuruzwa vyawe, ukande "Koresha aho niriho". Urashobora kandi kondera ahantu cyangwa usoreho inoti. Ongerera ibimenyetso kugira umufasha.'
+                    : locale === 'sw' ? 'Nenda mahali unapopokea oda yako, kisha gusa "Tumia eneo langu". Unaweza pia kutafuta mahali au kusogeza nukta kwa mkono. Ongeza kivinjari ili muuzaji akupate kwa urahisi.'
+                    : 'Where should we deliver your order? You can go to the place where you want to receive the order, then tap "Use my current location". You can also search or move the pin manually. Add a landmark so the seller can find you easily.'}
+                </p>
               </div>
 
               {buyerLocationData ? (
@@ -542,19 +470,19 @@ export function OnboardingPage() {
                   <div className="flex items-start gap-3">
                     <MapPin size={18} className="mt-0.5 text-[#1a5f4a]" />
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-gray-800">{buyerLocationData.locationName} - {buyerLocationData.approximateAddress.split(',').slice(0, 2).join(',')}</p>
-                      <p className="text-xs text-gray-500 mt-1">{buyerLocationData.landmark}</p>
+                      <p className="text-sm font-semibold text-gray-800">{buyerLocationData.approximateAddress.split(',').slice(0, 2).join(',')}</p>
+                      {buyerLocationData.landmark && <p className="text-xs text-gray-500 mt-1">{buyerLocationData.landmark}</p>}
                       {buyerLocationData.directions && <p className="text-xs text-gray-500 mt-0.5">{buyerLocationData.directions}</p>}
                     </div>
                   </div>
-                  <button onClick={() => { setBuyerLocationData(null); setShowLocationPicker(true); setLocationPickerMode('buyer'); }}
+                  <button onClick={() => { setBuyerLocationData(null); setShowBuyerLocationPicker(true); }}
                     className="mt-3 text-sm font-semibold text-[#1a5f4a] hover:underline">
                     {locale === 'fr' ? 'Modifier l\'adresse' : locale === 'rn' ? 'Hindura ahantu' : locale === 'sw' ? 'Badilisha anwani' : 'Edit address'}
                   </button>
                 </div>
               ) : (
                 <button
-                  onClick={() => { setShowLocationPicker(true); setLocationPickerMode('buyer'); }}
+                  onClick={() => setShowBuyerLocationPicker(true)}
                   className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white py-8 text-base font-semibold text-gray-600 hover:border-[#1a5f4a] hover:bg-[#1a5f4a]/5 hover:text-[#1a5f4a] transition-all"
                 >
                   <MapPin size={20} />
@@ -569,7 +497,7 @@ export function OnboardingPage() {
                 </div>
               )}
 
-              <button onClick={handleBuyerComplete} disabled={!buyerLocationData || loading}
+              <button onClick={handleBuyerComplete} disabled={loading}
                 className="h-13 w-full rounded-xl bg-[#1a5f4a] text-base font-bold text-white hover:bg-[#154a3a] disabled:opacity-40">
                 {loading ? (locale === 'fr' ? 'Enregistrement…' : locale === 'rn' ? 'Kubika…' : locale === 'sw' ? 'Inahifadhi…' : 'Saving…') : tr('onboarding.continue')}
               </button>
@@ -652,14 +580,16 @@ export function OnboardingPage() {
             </div>
           )}
 
-          {/* Seller - Details (landmark, map, description, categories, delivery) */}
+          {/* Seller - Details (location, description, delivery) */}
           {step === 'seller-details' && (
             <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="text-center mb-4">
                 <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[#ff6a00]/10">
                   <Building2 size={24} className="text-[#ff6a00]" />
                 </div>
-                <p className="text-sm text-gray-500">{locale === 'fr' ? 'Où se trouve votre boutique?' : locale === 'rn' ? 'Icumba ry\'ubucuruzi ryari hehe?' : locale === 'sw' ? 'Duka lako liko wapi?' : 'Where is your shop?'}</p>
+                <p className="text-sm text-gray-500">
+                  {locale === 'fr' ? 'Où se trouve votre boutique?' : locale === 'rn' ? 'Icumba ry\'ubucuruzi ryari hehe?' : locale === 'sw' ? 'Duka lako liko wapi?' : 'Where is your shop?'}
+                </p>
               </div>
 
               {sellerLocationData ? (
@@ -667,19 +597,19 @@ export function OnboardingPage() {
                   <div className="flex items-start gap-3">
                     <MapPin size={18} className="mt-0.5 text-[#ff6a00]" />
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-gray-800">{sellerLocationData.locationName} - {sellerLocationData.approximateAddress.split(',').slice(0, 2).join(',')}</p>
-                      <p className="text-xs text-gray-500 mt-1">{sellerLocationData.landmark}</p>
+                      <p className="text-sm font-semibold text-gray-800">{sellerLocationData.approximateAddress.split(',').slice(0, 2).join(',')}</p>
+                      {sellerLocationData.landmark && <p className="text-xs text-gray-500 mt-1">{sellerLocationData.landmark}</p>}
                       {sellerLocationData.directions && <p className="text-xs text-gray-500 mt-0.5">{sellerLocationData.directions}</p>}
                     </div>
                   </div>
-                  <button onClick={() => { setSellerLocationData(null); setShowLocationPicker(true); setLocationPickerMode('seller'); }}
+                  <button onClick={() => { setSellerLocationData(null); setShowSellerLocationPicker(true); }}
                     className="mt-3 text-sm font-semibold text-[#ff6a00] hover:underline">
                     {locale === 'fr' ? 'Modifier l\'adresse' : locale === 'rn' ? 'Hindura ahantu' : locale === 'sw' ? 'Badilisha anwani' : 'Edit address'}
                   </button>
                 </div>
               ) : (
                 <button
-                  onClick={() => { setShowLocationPicker(true); setLocationPickerMode('seller'); }}
+                  onClick={() => setShowSellerLocationPicker(true)}
                   className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white py-8 text-base font-semibold text-gray-600 hover:border-[#ff6a00] hover:bg-[#ff6a00]/5 hover:text-[#ff6a00] transition-all"
                 >
                   <MapPin size={20} />
@@ -811,21 +741,25 @@ export function OnboardingPage() {
         </div>
       </div>
 
-      {/* Location Search Picker */}
-      {showLocationPicker && (
+      {/* Location Search Pickers */}
+      {showBuyerLocationPicker && (
         <LocationSearchPicker
-          mode={locationPickerMode}
+          mode="buyer"
           onConfirm={(data) => {
-            if (locationPickerMode === 'buyer') {
-              setBuyerLocationData(data);
-            } else {
-              setSellerLocationData(data);
-            }
-            setShowLocationPicker(false);
+            setBuyerLocationData(data);
+            setShowBuyerLocationPicker(false);
           }}
-          onCancel={() => setShowLocationPicker(false)}
-          initialLat={locationPickerMode === 'buyer' ? (buyerLatitude || -3.3731) : (sellerLatitude || -3.3731)}
-          initialLng={locationPickerMode === 'buyer' ? (buyerLongitude || 29.3644) : (sellerLongitude || 29.3644)}
+          onCancel={() => setShowBuyerLocationPicker(false)}
+        />
+      )}
+      {showSellerLocationPicker && (
+        <LocationSearchPicker
+          mode="seller"
+          onConfirm={(data) => {
+            setSellerLocationData(data);
+            setShowSellerLocationPicker(false);
+          }}
+          onCancel={() => setShowSellerLocationPicker(false)}
         />
       )}
     </div>

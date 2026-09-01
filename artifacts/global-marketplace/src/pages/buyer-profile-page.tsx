@@ -3,8 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { ArrowLeft, MapPin, Plus, Trash2, Edit, Home, Building, Map, X, Check, AlertTriangle } from 'lucide-react';
 import { AppShell } from '@/components/marketplace-shell';
 import { useAuth } from '@/lib/auth-context';
-import { LocationMapPickerModal } from '@/components/location-map-picker';
-import { getLocationsForCountry, getDefaultCenter, type Province } from '@/lib/locations';
+import { LocationSearchPicker, type LocationData } from '@/components/location-search-picker';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : '');
 
@@ -21,6 +20,7 @@ interface BuyerAddress {
   latitude: number;
   longitude: number;
   isDefault: boolean;
+  approximateAddress?: string;
 }
 
 export function BuyerProfilePage() {
@@ -28,10 +28,10 @@ export function BuyerProfilePage() {
   const [, setLocation] = useLocation();
   const [addresses, setAddresses] = useState<BuyerAddress[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingAddress, setEditingAddress] = useState<BuyerAddress | null>(null);
-  const [showForm, setShowForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<BuyerAddress | null>(null);
 
   const fetchAddresses = () => {
     if (!user) return;
@@ -77,6 +77,39 @@ export function BuyerProfilePage() {
     fetchAddresses();
   };
 
+  const handleLocationConfirm = async (data: LocationData) => {
+    const body = {
+      addressName: data.locationName || 'Home',
+      recipientName: user?.name || '',
+      phoneNumber: data.phone || user?.phone || '',
+      province: data.province || '',
+      commune: data.commune || '',
+      zone: data.zone || '',
+      landmark: data.landmark || '',
+      detailedDirections: data.directions || '',
+      latitude: data.latitude || null,
+      longitude: data.longitude || null,
+      isDefault: !editingAddress && addresses.length === 0,
+      approximateAddress: data.approximateAddress || '',
+    };
+
+    const url = editingAddress ? `${API}/api/profiles/buyers/addresses/${editingAddress.id}` : `${API}/api/profiles/buyers/addresses`;
+    const method = editingAddress ? 'PATCH' : 'POST';
+
+    try {
+      await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.accessToken || ''}` },
+        body: JSON.stringify(body),
+      });
+      fetchAddresses();
+    } catch (err) {
+      console.error('Failed to save address:', err);
+    }
+    setShowLocationPicker(false);
+    setEditingAddress(null);
+  };
+
   return (
     <AppShell>
       <div className="bg-background px-3 py-4 sm:px-5 sm:py-8 lg:px-10 max-w-2xl mx-auto">
@@ -89,7 +122,7 @@ export function BuyerProfilePage() {
             <h1 className="text-xl font-bold">My Profile</h1>
             <p className="text-sm text-muted-foreground">Manage your delivery addresses</p>
           </div>
-          <button onClick={() => { setEditingAddress(null); setShowForm(true); }} className="flex items-center gap-1 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90">
+          <button onClick={() => { setEditingAddress(null); setShowLocationPicker(true); }} className="flex items-center gap-1 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90">
             <Plus size={14} /> Add Address
           </button>
         </div>
@@ -127,14 +160,15 @@ export function BuyerProfilePage() {
                         {addr.isDefault && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">DEFAULT</span>}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{addr.recipientName} · {addr.phoneNumber}</p>
-                      <p className="text-xs text-muted-foreground">{[addr.province, addr.commune, addr.zone].filter(Boolean).join(', ')}</p>
+                      {addr.approximateAddress && <p className="text-xs text-muted-foreground">{addr.approximateAddress.split(',').slice(0, 2).join(',')}</p>}
+                      {!addr.approximateAddress && <p className="text-xs text-muted-foreground">{[addr.province, addr.commune, addr.zone].filter(Boolean).join(', ')}</p>}
                       {addr.landmark && <p className="text-xs text-muted-foreground">📍 {addr.landmark}</p>}
                       {addr.detailedDirections && <p className="text-xs text-muted-foreground">{addr.detailedDirections}</p>}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
                     {!addr.isDefault && <button onClick={() => handleSetDefault(addr.id)} className="rounded-lg p-1.5 text-xs text-muted-foreground hover:bg-gray-100" title="Set as default"><Check size={14} /></button>}
-                    <button onClick={() => { setEditingAddress(addr); setShowForm(true); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-gray-100"><Edit size={14} /></button>
+                    <button onClick={() => { setEditingAddress(addr); setShowLocationPicker(true); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-gray-100"><Edit size={14} /></button>
                     <button onClick={() => handleDelete(addr.id)} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50"><Trash2 size={14} /></button>
                   </div>
                 </div>
@@ -198,135 +232,16 @@ export function BuyerProfilePage() {
         </div>
       )}
 
-      {showForm && (
-        <AddressFormModal
-          address={editingAddress}
-          onClose={() => { setShowForm(false); setEditingAddress(null); }}
-          onSaved={() => { setShowForm(false); setEditingAddress(null); fetchAddresses(); }}
+      {/* Location Search Picker */}
+      {showLocationPicker && (
+        <LocationSearchPicker
+          mode="buyer"
+          onConfirm={handleLocationConfirm}
+          onCancel={() => { setShowLocationPicker(false); setEditingAddress(null); }}
+          initialLat={editingAddress?.latitude || undefined}
+          initialLng={editingAddress?.longitude || undefined}
         />
       )}
     </AppShell>
-  );
-}
-
-function AddressFormModal({ address, onClose, onSaved }: { address: BuyerAddress | null; onClose: () => void; onSaved: () => void }) {
-  const { user, session } = useAuth();
-  const [addressName, setAddressName] = useState(address?.addressName || 'Home');
-  const [recipientName, setRecipientName] = useState(address?.recipientName || user?.name || '');
-  const [phoneNumber, setPhoneNumber] = useState(address?.phoneNumber || user?.phone || '');
-  const [province, setProvince] = useState(address?.province || '');
-  const [commune, setCommune] = useState(address?.commune || '');
-  const [zone, setZone] = useState(address?.zone || '');
-  const [landmark, setLandmark] = useState(address?.landmark || '');
-  const [detailedDirections, setDetailedDirections] = useState(address?.detailedDirections || '');
-  const [latitude, setLatitude] = useState<number | null>(address?.latitude || null);
-  const [longitude, setLongitude] = useState<number | null>(address?.longitude || null);
-  const [showMap, setShowMap] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  const locations = getLocationsForCountry('BI');
-  const selectedProvince = locations.find(p => p.name === province);
-  const selectedCommune = selectedProvince?.communes.find(c => c.name === commune);
-
-  const handleSave = async () => {
-    setSaving(true);
-    setError('');
-    const body = { addressName, recipientName, phoneNumber, province, commune, zone, landmark, detailedDirections, latitude, longitude, isDefault: !address };
-    const url = address ? `${API}/api/profiles/buyers/addresses/${address.id}` : `${API}/api/profiles/buyers/addresses`;
-    const method = address ? 'PATCH' : 'POST';
-    try {
-      const res = await fetch(url, {
-        method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.accessToken || ''}` },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error('Failed');
-      onSaved();
-    } catch { setError('Failed to save address'); setSaving(false); }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-border px-4 py-3 flex items-center justify-between">
-          <h3 className="font-semibold">{address ? 'Edit Address' : 'New Address'}</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
-        </div>
-        <div className="p-4 space-y-4">
-          {error && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold">Address Name</label>
-            <div className="flex gap-2">
-              {['Home', 'Work', 'Other'].map(name => (
-                <button key={name} onClick={() => setAddressName(name)} className={`flex-1 rounded-xl border py-2 text-xs font-medium ${addressName === name ? 'border-primary bg-primary/5 text-primary' : 'border-border text-muted-foreground'}`}>{name}</button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold">Recipient Name</label>
-              <input value={recipientName} onChange={e => setRecipientName(e.target.value)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none" />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold">Phone Number</label>
-              <input value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none" />
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold">Province</label>
-            <select value={province} onChange={e => { setProvince(e.target.value); setCommune(''); setZone(''); }} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none bg-white">
-              <option value="">Select province</option>
-              {locations.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
-            </select>
-          </div>
-
-          {selectedProvince && (
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold">Commune / City</label>
-              <select value={commune} onChange={e => { setCommune(e.target.value); setZone(''); }} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none bg-white">
-                <option value="">Select commune</option>
-                {selectedProvince.communes.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-              </select>
-            </div>
-          )}
-
-          {selectedCommune && (
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold">Zone / Quartier</label>
-              <select value={zone} onChange={e => setZone(e.target.value)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none bg-white">
-                <option value="">Select zone</option>
-                {selectedCommune.zones.map(z => <option key={z.name} value={z.name}>{z.name}</option>)}
-              </select>
-            </div>
-          )}
-
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold">Nearest Landmark</label>
-            <input value={landmark} onChange={e => setLandmark(e.target.value)} placeholder="e.g. Near Hotel Source du Nil" className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none" />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold">Detailed Directions (optional)</label>
-            <textarea value={detailedDirections} onChange={e => setDetailedDirections(e.target.value)} rows={2} className="w-full rounded-xl border border-border px-3 py-2 text-sm outline-none" />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold">Map Pin (optional)</label>
-            <button onClick={() => setShowMap(true)} className="h-10 w-full rounded-xl border border-border px-3 text-sm text-left text-muted-foreground hover:border-primary/50">
-              {latitude ? `📍 ${latitude.toFixed(4)}, ${longitude?.toFixed(4)}` : 'Click to pin on map'}
-            </button>
-          </div>
-
-          <button onClick={handleSave} disabled={!recipientName.trim() || !phoneNumber.trim() || saving} className="h-12 w-full rounded-xl bg-primary text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-40">
-            {saving ? 'Saving…' : address ? 'Update Address' : 'Save Address'}
-          </button>
-        </div>
-      </div>
-
-      <LocationMapPickerModal isOpen={showMap} onClose={() => setShowMap(false)} onLocationSelect={(lat, lng) => { setLatitude(lat); setLongitude(lng); }} initialLat={latitude || getDefaultCenter('BI').lat} initialLng={longitude || getDefaultCenter('BI').lng} />
-    </div>
   );
 }
