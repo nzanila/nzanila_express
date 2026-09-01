@@ -187,7 +187,7 @@ export function LocationSearchPicker({
   }, [searchQuery, handleSearch]);
 
   // Select search result
-  const selectSearchResult = (result: SearchResult) => {
+  const selectSearchResult = async (result: SearchResult) => {
     const lat = parseFloat(result.lat);
     const lng = parseFloat(result.lon);
     setMapCenter({ lat, lng });
@@ -195,6 +195,52 @@ export function LocationSearchPicker({
     setSearchQuery(result.display_name.split(',')[0]);
     setShowResults(false);
     setApproximateAddress(result.display_name);
+    onLocationSelect(lat, lng);
+
+    // Try to auto-fill province/commune/zone from search result
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+        { headers: { 'Accept-Language': locale } }
+      );
+      const data = await res.json();
+      const addr = data.address || {};
+      const state = addr.state || addr.county || '';
+      const city = addr.city || addr.town || addr.village || addr.municipality || '';
+      const suburb = addr.suburb || addr.neighbourhood || addr.quarter || '';
+
+      if (provinces.length > 0) {
+        const matchedProvince = provinces.find(p =>
+          state.toLowerCase().includes(p.name.toLowerCase()) ||
+          p.name.toLowerCase().includes(state.toLowerCase())
+        );
+        if (matchedProvince) {
+          setProvince(matchedProvince.name);
+          try {
+            const commRes = await fetch(`${API_BASE}/api/profiles/locations/provinces/${matchedProvince.id}/communes`);
+            const communesData = await commRes.json();
+            setCommunes(communesData);
+            const matchedCommune = communesData.find(c =>
+              city.toLowerCase().includes(c.name.toLowerCase()) ||
+              c.name.toLowerCase().includes(city.toLowerCase())
+            );
+            if (matchedCommune) {
+              setCommune(matchedCommune.name);
+              try {
+                const zoneRes = await fetch(`${API_BASE}/api/profiles/locations/communes/${matchedCommune.id}/zones`);
+                const zonesData = await zoneRes.json();
+                setZones(zonesData);
+                const matchedZone = zonesData.find(z =>
+                  suburb.toLowerCase().includes(z.name.toLowerCase()) ||
+                  z.name.toLowerCase().includes(suburb.toLowerCase())
+                );
+                if (matchedZone) setZone(matchedZone.name);
+              } catch {}
+            }
+          } catch {}
+        }
+      }
+    } catch {}
   };
 
   // Reverse geocode when map stops moving
@@ -334,11 +380,8 @@ export function LocationSearchPicker({
     });
   };
 
-  // When GPS auto-filled, only require landmark. Otherwise require all fields.
-  const isGpsAutoFilled = locationName === 'GPS Location';
-  const isAddressValid = isGpsAutoFilled
-    ? landmark.trim() && phone.trim()
-    : locationName.trim() && province && commune && zone && landmark.trim() && phone.trim();
+  // Require province/commune/zone only when not auto-filled
+  const isAddressValid = locationName.trim() && (province || !provinces.length) && (commune || !communes.length) && (zone || !zones.length) && landmark.trim() && phone.trim();
 
   // Search phase
   if (phase === 'search') {
@@ -550,11 +593,11 @@ export function LocationSearchPicker({
           </div>
         )}
 
-        {/* Province - only show if not GPS auto-filled */}
-        {locationName !== 'GPS Location' && (
+        {/* Province - show if not auto-filled */}
+        {!province && (
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-gray-700">
-              {tr('onboarding.province')}
+              {tr('onboarding.province')} <span className="text-red-500">*</span>
             </label>
             <select
               value={province}
@@ -569,11 +612,11 @@ export function LocationSearchPicker({
           </div>
         )}
 
-        {/* Commune - only show if not GPS auto-filled */}
-        {locationName !== 'GPS Location' && (
+        {/* Commune - show if not auto-filled */}
+        {!commune && (
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-gray-700">
-              {tr('onboarding.city')}
+              {tr('onboarding.city')} <span className="text-red-500">*</span>
             </label>
             <select
               value={commune}
@@ -589,11 +632,11 @@ export function LocationSearchPicker({
           </div>
         )}
 
-        {/* Zone - only show if not GPS auto-filled */}
-        {locationName !== 'GPS Location' && (
+        {/* Zone - show if not auto-filled */}
+        {!zone && (
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-gray-700">
-              {tr('onboarding.zone')}
+              {tr('onboarding.zone')} <span className="text-red-500">*</span>
             </label>
             <select
               value={zone}
@@ -612,7 +655,7 @@ export function LocationSearchPicker({
         {/* Landmark - always required */}
         <div>
           <label className="mb-1.5 block text-sm font-semibold text-gray-700">
-            {locale === 'fr' ? 'Repère le plus proche' : locale === 'rn' ? 'Ibimenyetso biri hejuru' : locale === 'sw' ? 'Kivinjari kilicho karibu' : 'Nearest landmark'}
+            {locale === 'fr' ? 'Repère le plus proche' : locale === 'rn' ? 'Ibimenyetso biri hejuru' : locale === 'sw' ? 'Kivinjari kilicho karibu' : 'Nearest landmark'} <span className="text-red-500">*</span>
           </label>
           <input
             value={landmark}
