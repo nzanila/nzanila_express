@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   marketplaceUsersTable,
@@ -11,6 +11,9 @@ import {
   sellerProductsTable,
   productPicturesTable,
   sellerDeliveryZonesTable,
+  ordersTable,
+  orderItemsTable,
+  cartItemsTable,
 } from "@workspace/db";
 
 const router: IRouter = Router();
@@ -533,6 +536,104 @@ router.delete("/account", requireAuth, async (req, res) => {
     console.error("Delete account error:", err);
     res.status(500).json({ error: err.message || "Failed to delete account" });
   }
+});
+
+// === BUYER DASHBOARD ENDPOINT ===
+
+router.get("/buyers/dashboard", requireAuth, async (req, res) => {
+  const buyerId = req.userId;
+
+  const [buyer] = await db
+    .select()
+    .from(marketplaceUsersTable)
+    .where(eq(marketplaceUsersTable.id, buyerId));
+
+  if (!buyer) {
+    return res.status(404).json({ error: "Buyer not found" });
+  }
+
+  // All orders for this buyer
+  const buyerOrders = await db
+    .select()
+    .from(ordersTable)
+    .where(eq(ordersTable.buyerName, buyer.name))
+    .orderBy(desc(ordersTable.date));
+
+  const activeOrders = buyerOrders.filter(
+    (o) => !["delivered", "cancelled"].includes(o.status)
+  );
+
+  const recentOrders = buyerOrders
+    .filter((o) => o.status === "delivered")
+    .slice(0, 5);
+
+  const totalSpent = buyerOrders
+    .filter((o) => o.status === "delivered")
+    .reduce((sum, o) => sum + Number(o.total), 0);
+
+  // Addresses count
+  const addresses = await db
+    .select()
+    .from(buyerAddressesTable)
+    .where(eq(buyerAddressesTable.buyerId, buyerId));
+
+  const defaultAddress = addresses.find((a) => a.isDefault) ?? addresses[0] ?? null;
+
+  // Reorderable products from delivered order items
+  const deliveredOrderIds = recentOrders.map((o) => o.id);
+  let reorderableProducts: { productName: string; quantity: number; unitPrice: number }[] = [];
+  if (deliveredOrderIds.length > 0) {
+    const allItems = await db.select().from(orderItemsTable);
+    const seen = new Set<string>();
+    reorderableProducts = allItems
+      .filter((item) => deliveredOrderIds.includes(item.orderId))
+      .filter((item) => {
+        if (seen.has(item.productName)) return false;
+        seen.add(item.productName);
+        return true;
+      })
+      .slice(0, 5)
+      .map((item) => ({
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice),
+      }));
+  }
+
+  res.json({
+    orderCount: buyerOrders.length,
+    activeOrderCount: activeOrders.length,
+    totalSpent: Number(totalSpent.toFixed(2)),
+    activeOrders: activeOrders.map((o) => ({
+      id: o.id,
+      date: o.date,
+      status: o.status,
+      total: Number(o.total),
+      itemCount: o.itemCount,
+      destination: o.destination,
+    })),
+    recentOrders: recentOrders.map((o) => ({
+      id: o.id,
+      date: o.date,
+      status: o.status,
+      total: Number(o.total),
+      itemCount: o.itemCount,
+    })),
+    addressCount: addresses.length,
+    defaultAddress: defaultAddress
+      ? {
+          id: defaultAddress.id,
+          addressName: defaultAddress.addressName,
+          province: defaultAddress.province,
+          commune: defaultAddress.commune,
+          zone: defaultAddress.zone,
+          landmark: defaultAddress.landmark,
+          latitude: defaultAddress.latitude,
+          longitude: defaultAddress.longitude,
+        }
+      : null,
+    reorderableProducts,
+  });
 });
 
 export default router;

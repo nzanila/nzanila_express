@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   cartItemsTable,
@@ -350,6 +350,79 @@ router.get("/supplier/dashboard", async (_req, res): Promise<void> => {
     recentOrders: orders.slice(0, 4),
     sales,
   }));
+});
+
+// Seller dashboard stats — real order counts by status, product performance, revenue
+router.get("/supplier/dashboard-stats", async (_req, res): Promise<void> => {
+  const products = await db.select().from(productsTable).where(eq(productsTable.supplierId, currentSupplierId));
+  const orders = await ordersDto(true);
+
+  const now = new Date();
+  const weekAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0);
+  const prevWeekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 13, 0, 0, 0);
+
+  const thisWeekOrders = orders.filter((o) => new Date(o.date) >= weekAgo);
+  const prevWeekOrders = orders.filter((o) => {
+    const d = new Date(o.date);
+    return d >= prevWeekStart && d < weekAgo;
+  });
+
+  const thisWeekRevenue = thisWeekOrders.reduce((s, o) => s + o.total, 0);
+  const prevWeekRevenue = prevWeekOrders.reduce((s, o) => s + o.total, 0);
+
+  function pctChange(current: number, previous: number): number {
+    if (previous === 0) return current === 0 ? 0 : 100;
+    return Number((((current - previous) / previous) * 100).toFixed(1));
+  }
+
+  // Real status counts from all orders
+  const statusCounts = {
+    new: orders.filter((o) => o.status === "new").length,
+    confirmed: orders.filter((o) => o.status === "confirmed").length,
+    processing: orders.filter((o) => o.status === "processing").length,
+    ready: orders.filter((o) => o.status === "ready").length,
+    out_for_delivery: orders.filter((o) => o.status === "out_for_delivery").length,
+    delivered: orders.filter((o) => o.status === "delivered").length,
+    cancelled: orders.filter((o) => o.status === "cancelled").length,
+  };
+
+  // Actionable orders (need seller attention)
+  const actionableOrders = orders
+    .filter((o) => o.status === "new" || o.status === "confirmed")
+    .slice(0, 5);
+
+  // Product performance — top 5 by views
+  const topProducts = products
+    .filter((p) => p.stock > 0)
+    .sort((a, b) => (b.stock ?? 0) - (a.stock ?? 0))
+    .slice(0, 5)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      price: Number(p.price),
+      stock: p.stock,
+      views: p.reviews ?? 0, // reuse reviews field as views proxy
+      category: p.category,
+    }));
+
+  const lowStockProducts = products.filter((p) => p.stock < 10).length;
+
+  res.json({
+    // KPI cards
+    revenue: Number(thisWeekRevenue.toFixed(2)),
+    revenueChange: pctChange(thisWeekRevenue, prevWeekRevenue),
+    ordersThisWeek: thisWeekOrders.length,
+    ordersChange: pctChange(thisWeekOrders.length, prevWeekOrders.length),
+    activeProducts: products.length,
+    lowStockProducts,
+    // Order queue
+    statusCounts,
+    actionableOrders,
+    // Product performance
+    topProducts,
+    // Recent orders for the list
+    recentOrders: orders.slice(0, 5),
+  });
 });
 
 router.get("/supplier/products", async (_req, res): Promise<void> => {

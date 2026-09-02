@@ -105,6 +105,37 @@ function dtoUser(u: Record<string, unknown>) {
   };
 }
 
+function dtoStore(s: Record<string, unknown>) {
+  return {
+    ...s,
+    sellerId: s.seller_id,
+    businessCategory: s.business_category,
+    operatingHours: s.operating_hours,
+    verificationType: s.verification_type,
+    yearsActive: s.years_active ?? 0,
+    mainCategories: s.main_categories ?? (s.business_category ? [s.business_category] : []),
+    badges: s.badges ?? [],
+    responseRate: s.response_rate ?? 0,
+    responseTime: s.response_time ?? "24 hours",
+    onTimeDelivery: s.on_time_delivery ?? 0,
+    employeeCount: s.employee_count ?? "",
+    yearEstablished: s.year_established,
+    certifications: s.certifications ?? [],
+    performanceMetrics: s.performance_metrics ?? {},
+    manufacturerCapabilities: s.manufacturer_capabilities ?? {},
+    customizations: s.customizations ?? [],
+    tradeCapabilities: s.trade_capabilities ?? {},
+    productionCapacity: s.production_capacity ?? {},
+    galleryImages: s.gallery_images ?? [],
+    videoItems: s.video_items ?? [],
+    eventImages: s.event_images ?? [],
+    contactInfo: s.contact_info ?? {},
+    storeTemplate: s.store_template ?? "showcase",
+    storeSections: s.store_sections ?? ["hero", "categories", "featured", "story", "videos", "certificates", "events"],
+    verified: Boolean(s.is_verified),
+  };
+}
+
 // ── Cart & Orders ──
 
 async function buildCart(env: Env, userId?: number) {
@@ -518,6 +549,110 @@ const whatsappUrl = buildWhatsAppUrl("+" + normalizedPhone, otp);
     }
 
     if (path === "/suppliers" && method === "GET") return json((await sbGet(env, "marketplace_suppliers", "order=rating.desc")).map(s => ({ ...s, verified: Boolean(s.verified) })));
+
+    // Stores and full supplier storefront content.
+    if (path === "/stores" && method === "POST") {
+      const body = await request.json() as Record<string, unknown>;
+      const sellerId = Number(body.sellerId);
+      const name = String(body.name || "").trim();
+      if (!sellerId || !name) return json({ error: "sellerId and name are required" }, 400);
+
+      const sellers = await sbGet(env, "marketplace_users", `id=eq.${sellerId}&role=eq.seller&limit=1`);
+      if (!sellers.length) return json({ error: "Only seller accounts can create stores" }, 403);
+
+      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `store-${sellerId}`;
+      const [store] = await sbPost(env, "stores", {
+        seller_id: sellerId,
+        name,
+        description: body.description || null,
+        slug,
+        status: "active",
+        province: body.province || null,
+        commune: body.commune || null,
+        zone: body.zone || null,
+        address: body.address || null,
+        phone: body.phone || null,
+        email: body.email || null,
+        business_category: body.category || null,
+        operating_hours: body.operatingHours ? { schedule: body.operatingHours } : null,
+        logo: body.logo || null,
+        banner: body.banner || null,
+        verification_type: body.verificationType || null,
+        years_active: body.yearsActive || 0,
+        main_categories: body.mainCategories || (body.category ? [body.category] : []),
+        badges: body.badges || [],
+        response_rate: body.responseRate || 0,
+        response_time: body.responseTime || null,
+        on_time_delivery: body.onTimeDelivery || 0,
+        employee_count: body.employeeCount || null,
+        year_established: body.yearEstablished || null,
+        certifications: body.certifications || [],
+        performance_metrics: body.performanceMetrics || {},
+        manufacturer_capabilities: body.manufacturerCapabilities || {},
+        customizations: body.customizations || [],
+        trade_capabilities: body.tradeCapabilities || {},
+        production_capacity: body.productionCapacity || {},
+        gallery_images: body.galleryImages || [],
+        video_items: body.videoItems || [],
+        event_images: body.eventImages || [],
+        contact_info: body.contactInfo || {},
+        store_template: body.storeTemplate || "showcase",
+        store_sections: body.storeSections || ["hero", "categories", "featured", "story", "videos", "certificates", "events"],
+      });
+      return json({ store: dtoStore(store) }, 201);
+    }
+
+    const sellerStoreMatch = path.match(/^\/stores\/seller\/(\d+)$/);
+    if (sellerStoreMatch && method === "GET") {
+      const stores = await sbGet(env, "stores", `seller_id=eq.${sellerStoreMatch[1]}&limit=1`);
+      if (!stores.length) return json({ error: "No store found for this seller" }, 404);
+      return json({ store: dtoStore(stores[0]) });
+    }
+
+    const storeIdGetMatch = path.match(/^\/stores\/(\d+)$/);
+    if (storeIdGetMatch && method === "GET") {
+      const stores = await sbGet(env, "stores", `id=eq.${storeIdGetMatch[1]}&limit=1`);
+      if (!stores.length) return json({ error: "Store not found" }, 404);
+      return json({ store: dtoStore(stores[0]) });
+    }
+
+    const storeSlugMatch = path.match(/^\/stores\/([^/]+)$/);
+    if (storeSlugMatch && method === "GET") {
+      const stores = await sbGet(env, "stores", `slug=eq.${encodeURIComponent(storeSlugMatch[1])}&limit=1`);
+      if (!stores.length) return json({ error: "Store not found" }, 404);
+      return json({ store: dtoStore(stores[0]) });
+    }
+
+    const storeIdMatch = path.match(/^\/stores\/(\d+)$/);
+    if (storeIdMatch && method === "PATCH") {
+      const user = await getUser();
+      const body = await request.json() as Record<string, unknown>;
+      const sellerId = Number(body.sellerId);
+      if (!user && !sellerId) return json({ error: "Seller authentication required" }, 401);
+      const ownerId = sellerId || Number(user?.profile.id);
+      const owners = await sbGet(env, "stores", `id=eq.${storeIdMatch[1]}&seller_id=eq.${ownerId}&limit=1`);
+      if (!owners.length) return json({ error: "Store not found" }, 404);
+
+      const update: Record<string, unknown> = {};
+      const fields: Record<string, string> = {
+        name: "name", description: "description", logo: "logo", banner: "banner",
+        province: "province", commune: "commune", zone: "zone", address: "address",
+        phone: "phone", email: "email", verificationType: "verification_type",
+        yearsActive: "years_active", mainCategories: "main_categories", badges: "badges",
+        responseRate: "response_rate", responseTime: "response_time", onTimeDelivery: "on_time_delivery",
+        employeeCount: "employee_count", yearEstablished: "year_established", certifications: "certifications",
+        performanceMetrics: "performance_metrics", manufacturerCapabilities: "manufacturer_capabilities",
+        customizations: "customizations", tradeCapabilities: "trade_capabilities",
+        productionCapacity: "production_capacity", galleryImages: "gallery_images",
+        videoItems: "video_items", eventImages: "event_images", contactInfo: "contact_info",
+        storeTemplate: "store_template", storeSections: "store_sections",
+      };
+      for (const [key, column] of Object.entries(fields)) if (body[key] !== undefined) update[column] = body[key];
+      if (body.operatingHours !== undefined) update.operating_hours = body.operatingHours ? { schedule: body.operatingHours } : null;
+      if (body.slug !== undefined) update.slug = body.slug;
+      const [updated] = await sbPatch(env, "stores", `id=eq.${storeIdMatch[1]}&seller_id=eq.${ownerId}`, update);
+      return json({ store: dtoStore(updated) });
+    }
 
     // ═══════════════════════════════════════
     // AUTHENTICATED ROUTES — Cart

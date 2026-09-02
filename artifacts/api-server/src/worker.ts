@@ -235,6 +235,49 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     return json(suppliers.map(dtoSupplier));
   }
 
+  // Store lookup and creation for Seller Central.
+  const sellerStoreMatch = path.match(/^\/api\/stores\/seller\/(\d+)$/);
+  if (sellerStoreMatch && method === "GET") {
+    const stores = await supabaseGet(env, "stores", `seller_id=eq.${sellerStoreMatch[1]}&limit=1`);
+    if (!stores.length) return json({ error: "No store found for this seller" }, 404);
+    return json({ store: stores[0] });
+  }
+
+  const storeSlugMatch = path.match(/^\/api\/stores\/([^/]+)$/);
+  if (storeSlugMatch && method === "GET") {
+    const stores = await supabaseGet(env, "stores", `slug=eq.${encodeURIComponent(storeSlugMatch[1])}&limit=1`);
+    if (!stores.length) return json({ error: "Store not found" }, 404);
+    return json({ store: stores[0] });
+  }
+
+  if (path === "/api/stores" && method === "POST") {
+    const body = await request.json() as Record<string, unknown>;
+    const sellerId = Number(body.sellerId);
+    const name = String(body.name || "").trim();
+    if (!sellerId || !name) return json({ error: "sellerId and name are required" }, 400);
+
+    const sellers = await supabaseGet(env, "marketplace_users", `id=eq.${sellerId}&role=eq.seller&limit=1`);
+    if (!sellers.length) return json({ error: "Only seller accounts can create stores" }, 403);
+
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `store-${sellerId}`;
+    const [store] = await supabasePost(env, "stores", {
+      seller_id: sellerId,
+      name,
+      description: body.description || null,
+      slug,
+      status: "active",
+      province: body.province || null,
+      commune: body.commune || null,
+      zone: body.zone || null,
+      address: body.address || null,
+      phone: body.phone || null,
+      email: body.email || null,
+      business_category: body.category || null,
+      operating_hours: body.operatingHours || null,
+    });
+    return json({ store }, 201);
+  }
+
   // GET /api/cart
   if (path === "/api/cart" && method === "GET") {
     return json(await buildCart(env));

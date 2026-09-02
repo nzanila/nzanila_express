@@ -1,0 +1,21 @@
+-- Storefront home content used by the buyer-facing supplier page.
+ALTER TABLE stores
+  ADD COLUMN IF NOT EXISTS verification_type TEXT,
+  ADD COLUMN IF NOT EXISTS years_active INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS main_categories TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS badges TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS response_rate INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS response_time TEXT,
+  ADD COLUMN IF NOT EXISTS on_time_delivery INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS employee_count TEXT,
+  ADD COLUMN IF NOT EXISTS year_established INTEGER,
+  ADD COLUMN IF NOT EXISTS certifications TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS performance_metrics JSONB DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS manufacturer_capabilities JSONB DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS customizations JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS trade_capabilities JSONB DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS production_capacity JSONB DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS gallery_images TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS video_items JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS event_images TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS contact_info JSONB DEFAULT '{}'::jsonb;

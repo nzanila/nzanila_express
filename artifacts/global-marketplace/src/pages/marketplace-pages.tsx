@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useMemo, useState, useEffect, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
@@ -99,6 +99,9 @@ function supplierYears(name: string) {
   };
   return map[name] ?? 5;
 }
+
+import { ProductCard as SellerProductCard, ProductCardGrid } from '@/components/product-card';
+import { SellerWorkspace } from '@/components/seller-workspace';
 
 function ProductImage({
   product,
@@ -1659,423 +1662,558 @@ function Kpi({
 }
 
 export function SupplierDashboardPage() {
-  const {
-    data,
-    isLoading,
-    isError,
-    refetch,
-  } = useGetSupplierDashboard();
-  if (isError)
+  const { user } = useAuth();
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Hardcoded mock data for preview
+    const mockData = {
+      revenue: 12450.80,
+      revenueChange: 12,
+      ordersThisWeek: 47,
+      ordersChange: -3,
+      activeProducts: 23,
+      lowStockProducts: 4,
+      statusCounts: {
+        new: 8,
+        confirmed: 5,
+        processing: 3,
+        ready: 2,
+        out_for_delivery: 12,
+        delivered: 156,
+        cancelled: 7,
+      },
+      actionableOrders: [
+        { id: 1847, status: 'new', buyerName: 'Kigali Fresh Market', itemCount: 12, total: 485.00, date: new Date(Date.now() - 1800000).toISOString() },
+        { id: 1846, status: 'new', buyerName: 'Nyamirambo Wholesalers', itemCount: 8, total: 320.50, date: new Date(Date.now() - 3600000).toISOString() },
+        { id: 1845, status: 'confirmed', buyerName: 'Huye Distributors', itemCount: 5, total: 195.00, date: new Date(Date.now() - 7200000).toISOString() },
+        { id: 1844, status: 'new', buyerName: 'Musanze Traders', itemCount: 3, total: 87.50, date: new Date(Date.now() - 10800000).toISOString() },
+      ],
+      topProducts: [
+        { id: 1, name: 'Premium Cassava Flour (50kg)', price: 45.00, stock: 120, category: 'Grains & Flour' },
+        { id: 2, name: 'Fresh Beans (25kg)', price: 32.00, stock: 8, category: 'Legumes' },
+        { id: 3, name: 'Vegetable Oil (20L)', price: 58.50, stock: 34, category: 'Oils & Fats' },
+        { id: 4, name: 'Maize Grain (100kg)', price: 67.00, stock: 5, category: 'Grains & Flour' },
+        { id: 5, name: 'Sugar (50kg)', price: 42.00, stock: 89, category: 'Sweeteners' },
+      ],
+      recentOrders: [
+        { id: 1842, status: 'delivered', buyerName: 'Rubavu Markets Ltd', total: 782.00, date: new Date(Date.now() - 86400000).toISOString() },
+        { id: 1838, status: 'delivered', buyerName: 'Kigali Fresh Market', total: 1245.50, date: new Date(Date.now() - 172800000).toISOString() },
+        { id: 1835, status: 'out_for_delivery', buyerName: 'Gisenyi Wholesalers', total: 340.00, date: new Date(Date.now() - 259200000).toISOString() },
+        { id: 1831, status: 'cancelled', buyerName: 'Muhanga Traders', total: 95.00, date: new Date(Date.now() - 345600000).toISOString() },
+        { id: 1829, status: 'delivered', buyerName: 'Nyamirambo Wholesalers', total: 567.25, date: new Date(Date.now() - 432000000).toISOString() },
+      ],
+    };
+
+    setTimeout(() => { setStats(mockData); setLoading(false); }, 600);
+  }, []);
+
+  if (loading || !stats)
     return (
-      <SupplierFrame title="Overview">
-        <ErrorState onRetry={() => refetch()} />
-      </SupplierFrame>
-    );
-  if (isLoading)
-    return (
-      <SupplierFrame title="Overview">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <SkeletonBlock key={i} className="h-36" />
-          ))}
+      <SupplierFrame title="Dashboard">
+        <div className="space-y-4">
+          <div className="flex gap-3 overflow-hidden">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <SkeletonBlock key={i} className="h-24 w-48 flex-shrink-0" />
+            ))}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <SkeletonBlock className="h-64" />
+            <SkeletonBlock className="h-64" />
+          </div>
         </div>
       </SupplierFrame>
     );
+
+  const businessName = (user as any)?.businessName || 'My Business';
+  const verificationStatus = (user as any)?.verificationStatus || 'not_submitted';
+  const isVerified = verificationStatus === 'verified';
+  const sc = stats.statusCounts || {};
+  const actionable = stats.actionableOrders || [];
+  const topProducts = stats.topProducts || [];
+  const recentOrders = stats.recentOrders || [];
+
+  const totalOpenOrders = (sc.new || 0) + (sc.confirmed || 0) + (sc.processing || 0);
+
+  function timeAgo(dateStr: string) {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  }
+
   return (
-    <SupplierFrame title="Overview">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi
-          label="Revenue this month"
-          value={money(data?.revenue ?? 0)}
-          change={`+${data?.revenueChange ?? 0}%`}
-          icon={DollarSign}
-        />
-        <Kpi
-          label="Orders to fulfill"
-          value={String(data?.orders ?? 0)}
-          change={`+${data?.ordersChange ?? 0}%`}
-          icon={Truck}
-        />
-        <Kpi
-          label="Live products"
-          value={String(data?.products ?? 0)}
-          icon={PackageCheck}
-        />
-        <Kpi
-          label="Low stock watch"
-          value={String(data?.lowStock ?? 0)}
-          icon={Layers3}
-        />
+    <SupplierFrame title="Dashboard">
+      {/* Account Health Bar */}
+      <div className="mb-4 flex items-center gap-3">
+        <span className="text-xs font-bold text-gray-700">Account Health:</span>
+        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${
+          isVerified ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'
+        }`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${isVerified ? 'bg-emerald-500' : 'bg-yellow-500'}`} />
+          {isVerified ? 'Healthy' : 'Needs attention'}
+        </span>
       </div>
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.25fr_.75fr]">
-        <section className="rounded-2xl border border-border bg-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
-                Sales performance
-              </p>
-              <h2 className="mt-1 font-display text-xl font-bold">
-                Revenue rhythm
-              </h2>
+
+      {/* Top Metric Bar — horizontal scroll, Amazon style */}
+      <div className="mb-5 flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-thin">
+        {[
+          {
+            label: "Today's Sales",
+            value: money(stats.revenue || 0),
+            sub: stats.revenueChange > 0 ? `↑ ${stats.revenueChange}%` : stats.revenueChange < 0 ? `↓ ${Math.abs(stats.revenueChange)}%` : 'No change',
+            subColor: stats.revenueChange > 0 ? 'text-emerald-600' : stats.revenueChange < 0 ? 'text-red-500' : 'text-gray-500',
+            icon: DollarSign,
+            border: 'border-l-4 border-l-[#ff6a00]',
+          },
+          {
+            label: 'Open Orders',
+            value: String(totalOpenOrders),
+            sub: `${sc.new || 0} new, ${sc.confirmed || 0} confirmed`,
+            subColor: 'text-gray-500',
+            icon: ShoppingBag,
+            border: '',
+          },
+          {
+            label: 'Products',
+            value: String(stats.activeProducts || 0),
+            sub: (stats.lowStockProducts || 0) > 0 ? `${stats.lowStockProducts} low stock` : 'All in stock',
+            subColor: (stats.lowStockProducts || 0) > 0 ? 'text-orange-500' : 'text-gray-500',
+            icon: PackageCheck,
+            border: '',
+          },
+          {
+            label: 'Completed',
+            value: String(sc.delivered || 0),
+            sub: 'orders delivered',
+            subColor: 'text-gray-500',
+            icon: Check,
+            border: '',
+          },
+          {
+            label: 'Response Rate',
+            value: '95%',
+            sub: 'Avg 2h response',
+            subColor: 'text-gray-500',
+            icon: Clock3,
+            border: '',
+          },
+        ].map((card, i) => (
+          <div
+            key={i}
+            className={`flex-shrink-0 w-44 rounded-lg border border-gray-200 bg-white p-4 ${card.border}`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <card.icon size={14} className="text-gray-400" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{card.label}</span>
             </div>
-            <BarChart3 size={19} className="text-muted-foreground" />
+            <p className="text-xl font-bold text-gray-900">{card.value}</p>
+            <p className={`text-[10px] font-semibold mt-1 ${card.subColor}`}>{card.sub}</p>
           </div>
-          <div className="mt-8 flex h-48 items-end gap-2 border-b border-border pb-0">
-            {(data?.sales ?? []).map((point, i) => (
-              <div
-                key={point.label}
-                className="group flex flex-1 flex-col items-center gap-2"
-              >
-                <div
-                  className="relative w-full max-w-8 rounded-t-md bg-accent transition-all duration-500 group-hover:bg-primary"
-                  style={{
-                    height: `${Math.max(
-                      8,
-                      (point.value /
-                        Math.max(
-                          ...(data?.sales ?? [{ value: 1 }]).map(
-                            (x) => x.value
-                          )
-                        )) *
-                        100
-                    )}%`,
-                  }}
-                  title={money(point.value)}
-                />
-                <span className="font-mono text-[9px] text-muted-foreground">
-                  {point.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-        <section className="rounded-2xl border border-border bg-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
-                Action queue
-              </p>
-              <h2 className="mt-1 font-display text-xl font-bold">
-                Recent orders
-              </h2>
-            </div>
-            <Link
-              href="/supplier/orders"
-              className="text-xs font-bold text-primary"
-              data-testid="link-dashboard-orders"
-            >
-              View all
-            </Link>
-          </div>
-          <div className="mt-5 space-y-4">
-            {(Array.isArray(data?.recentOrders) ? data.recentOrders : []).slice(0, 4).map((order) => (
-              <div
-                key={order.id}
-                className="flex items-center justify-between gap-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-bold">
-                    #{order.id} · {order.destination}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {order.itemCount} items · {order.status}
-                  </p>
-                </div>
-                <p className="font-display font-bold">
-                  {money(order.total)}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
+        ))}
       </div>
+
+      {/* Quick Action Pills */}
+      <div className="mb-5 flex flex-wrap gap-2">
+        <Link href="/supplier/orders" className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-gray-700 hover:border-[#ff6a00] hover:text-[#ff6a00] transition-colors">
+          <ShoppingBag size={12} /> Manage Orders
+        </Link>
+        <Link href="/supplier/products" className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-gray-700 hover:border-[#ff6a00] hover:text-[#ff6a00] transition-colors">
+          <PackageCheck size={12} /> Manage Products
+        </Link>
+        <Link href="/seller/profile/edit" className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-gray-700 hover:border-[#ff6a00] hover:text-[#ff6a00] transition-colors">
+          <Store size={12} /> Store Settings
+        </Link>
+        <Link href="/messages" className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-gray-700 hover:border-[#ff6a00] hover:text-[#ff6a00] transition-colors">
+          <MessageSquare size={12} /> Messages
+        </Link>
+      </div>
+
+      {/* Widget Grid — Amazon-style cards */}
+      <div className="grid gap-4 sm:grid-cols-2 mb-5">
+
+        {/* Orders Widget */}
+        <div className="rounded-xl border border-gray-200 bg-white">
+          <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
+            <h3 className="text-sm font-bold text-gray-900">Orders</h3>
+            <Link href="/supplier/orders" className="text-xs font-semibold text-[#ff6a00] hover:underline">View all</Link>
+          </div>
+          <div className="p-5">
+            {/* Status breakdown */}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="text-center rounded-lg bg-gray-50 p-3">
+                <p className="text-lg font-bold text-orange-600">{sc.new || 0}</p>
+                <p className="text-[10px] font-semibold text-gray-500 mt-0.5">New</p>
+              </div>
+              <div className="text-center rounded-lg bg-gray-50 p-3">
+                <p className="text-lg font-bold text-blue-600">{sc.confirmed || 0}</p>
+                <p className="text-[10px] font-semibold text-gray-500 mt-0.5">Confirmed</p>
+              </div>
+              <div className="text-center rounded-lg bg-gray-50 p-3">
+                <p className="text-lg font-bold text-purple-600">{sc.out_for_delivery || 0}</p>
+                <p className="text-[10px] font-semibold text-gray-500 mt-0.5">In Transit</p>
+              </div>
+            </div>
+            {/* Recent orders list */}
+            {actionable.length > 0 ? (
+              <div className="space-y-2">
+                {actionable.slice(0, 3).map((order: any) => (
+                  <Link
+                    key={order.id}
+                    href={`/supplier/orders/${order.id}`}
+                    className="flex items-center justify-between rounded-lg border border-gray-100 p-2.5 hover:border-[#ff6a00]/30 hover:bg-orange-50/30 transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-gray-900">#{order.id}</span>
+                        <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
+                          order.status === 'new' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {order.status === 'new' ? 'New' : 'Confirmed'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-500 mt-0.5">{order.buyerName || 'Buyer'} · {money(order.total)}</p>
+                    </div>
+                    <span className="text-[10px] text-gray-400">{timeAgo(order.date)}</span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 text-center py-4">No pending orders</p>
+            )}
+          </div>
+        </div>
+
+        {/* Inventory Widget */}
+        <div className="rounded-xl border border-gray-200 bg-white">
+          <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
+            <h3 className="text-sm font-bold text-gray-900">Inventory</h3>
+            <Link href="/supplier/products" className="text-xs font-semibold text-[#ff6a00] hover:underline">Manage</Link>
+          </div>
+          <div className="p-5">
+            {topProducts.length > 0 ? (
+              <div className="space-y-2">
+                {topProducts.slice(0, 4).map((p: any) => (
+                  <SellerProductCard
+                    key={p.id}
+                    product={{ ...p, unit: 'unit' }}
+                    variant="compact"
+                    showCategory={false}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 text-center py-4">No products yet</p>
+            )}
+            {(stats.lowStockProducts || 0) > 0 && (
+              <div className="mt-3 rounded-lg bg-orange-50 border border-orange-200 p-2.5">
+                <p className="text-[10px] font-bold text-orange-700">⚠ {stats.lowStockProducts} product{stats.lowStockProducts > 1 ? 's' : ''} running low on stock</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Top Products Widget */}
+        <div className="rounded-xl border border-gray-200 bg-white">
+          <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
+            <h3 className="text-sm font-bold text-gray-900">Top Products</h3>
+            <Link href="/supplier/products" className="text-xs font-semibold text-[#ff6a00] hover:underline">View all</Link>
+          </div>
+          <div className="p-5">
+            {topProducts.length > 0 ? (
+              <div className="space-y-2">
+                {topProducts.slice(0, 4).map((p: any, i: number) => (
+                  <div key={p.id} className="flex items-center gap-3">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-[10px] font-bold text-gray-500">
+                      {i + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <Link href={`/supplier/products/${p.id}/edit`} className="text-xs font-semibold text-gray-900 hover:text-[#ff6a00] truncate block">
+                        {p.name}
+                      </Link>
+                      <p className="text-[10px] text-gray-500">{p.stock} in stock</p>
+                    </div>
+                    <span className="text-xs font-bold text-gray-900">{money(p.price)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-xs text-gray-400 mb-2">No products yet</p>
+                <Link href="/supplier/products/new" className="inline-flex items-center gap-1 text-xs font-bold text-[#ff6a00] hover:underline">
+                  <Plus size={12} /> Add your first product
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Actions Widget */}
+        <div className="rounded-xl border border-gray-200 bg-white">
+          <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
+            <h3 className="text-sm font-bold text-gray-900">Quick Actions</h3>
+          </div>
+          <div className="p-5">
+            <div className="grid grid-cols-2 gap-3">
+              <Link href="/supplier/products/new" className="flex flex-col items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-center hover:border-[#ff6a00] hover:bg-orange-50 transition-colors">
+                <Plus size={18} className="text-[#ff6a00]" />
+                <span className="text-[11px] font-semibold text-gray-900">Add product</span>
+              </Link>
+              <Link href="/supplier/orders" className="flex flex-col items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-center hover:border-[#ff6a00] hover:bg-orange-50 transition-colors">
+                <Truck size={18} className="text-[#ff6a00]" />
+                <span className="text-[11px] font-semibold text-gray-900">Orders</span>
+              </Link>
+              <Link href="/seller/profile" className="flex flex-col items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-center hover:border-[#ff6a00] hover:bg-orange-50 transition-colors">
+                <Store size={18} className="text-[#ff6a00]" />
+                <span className="text-[11px] font-semibold text-gray-900">Store profile</span>
+              </Link>
+              <Link href="/seller/verify" className="flex flex-col items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-center hover:border-[#ff6a00] hover:bg-orange-50 transition-colors">
+                <ShieldCheck size={18} className="text-[#ff6a00]" />
+                <span className="text-[11px] font-semibold text-gray-900">Verification</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Orders — full width */}
+      {recentOrders.length > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white">
+          <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
+            <h3 className="text-sm font-bold text-gray-900">Recent Orders</h3>
+            <Link href="/supplier/orders" className="text-xs font-semibold text-[#ff6a00] hover:underline">View all</Link>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">Order</th>
+                  <th className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">Buyer</th>
+                  <th className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">Status</th>
+                  <th className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right">Total</th>
+                  <th className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentOrders.slice(0, 5).map((order: any) => (
+                  <tr key={order.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+                    <td className="px-5 py-3">
+                      <Link href={`/supplier/orders/${order.id}`} className="text-xs font-bold text-[#ff6a00] hover:underline">
+                        #{order.id}
+                      </Link>
+                    </td>
+                    <td className="px-5 py-3 text-xs text-gray-700">{order.buyerName || '—'}</td>
+                    <td className="px-5 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        order.status === 'delivered' ? 'bg-emerald-50 text-emerald-700' :
+                        order.status === 'cancelled' ? 'bg-red-50 text-red-600' :
+                        order.status === 'new' ? 'bg-orange-50 text-orange-700' :
+                        'bg-blue-50 text-blue-700'
+                      }`}>
+                        {order.status}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-xs font-semibold text-gray-900 text-right">{money(order.total)}</td>
+                    <td className="px-5 py-3 text-[10px] text-gray-500 text-right">{timeAgo(order.date)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </SupplierFrame>
   );
 }
 
 export function SupplierProductsPage() {
-  const queryClient = useQueryClient();
-  const {
-    data: products,
-    isLoading,
-    isError,
-    refetch,
-  } = useListMySupplierProducts();
-  const create = useCreateSupplierProduct();
-  const update = useUpdateSupplierProduct();
-  const [editing, setEditing] = useState<Product | null>(null);
-  const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({
-    name: '',
-    category: '',
-    price: '',
-    moq: '1',
-    stock: '0',
-    unit: 'unit',
-    description: '',
-  });
-  const openCreate = () => {
-    setEditing(null);
-    setForm({
-      name: '',
-      category: '',
-      price: '',
-      moq: '1',
-      stock: '0',
-      unit: 'unit',
-      description: '',
-    });
-    setModal(true);
-  };
-  const openEdit = (product: Product) => {
-    setEditing(product);
-    setForm({
-      name: product.name,
-      category: product.category,
-      price: String(product.price),
-      moq: String(product.moq),
-      stock: String(product.stock),
-      unit: product.unit,
-      description: product.description ?? '',
-    });
-    setModal(true);
-  };
-  const save = (e: FormEvent) => {
-    e.preventDefault();
-    if (editing)
-      update.mutate(
-        {
-          id: editing.id,
-          data: {
-            name: form.name,
-            price: Number(form.price),
-            moq: Number(form.moq),
-            stock: Number(form.stock),
-            description: form.description,
-          },
-        },
-        {
-          onSuccess: () => {
-            queryClient.invalidateQueries({
-              queryKey: getListMySupplierProductsQueryKey(),
-            });
-            queryClient.invalidateQueries({
-              queryKey: getGetSupplierDashboardQueryKey(),
-            });
-            setModal(false);
-          },
-        }
+  const [products, setProducts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<string>('newest');
+
+  useEffect(() => {
+    // Hardcoded mock products
+    const mockProducts = [
+      { id: 1, name: 'Premium Cassava Flour (50kg)', category: 'Grains & Flour', price: 45.00, unit: 'bag', stock: 120, verified: true, reviews: 24, imageUrl: '/placeholder-product.jpg' },
+      { id: 2, name: 'Fresh Beans (25kg)', category: 'Legumes', price: 32.00, unit: 'bag', stock: 8, verified: true, reviews: 18, imageUrl: '/placeholder-product.jpg' },
+      { id: 3, name: 'Vegetable Oil (20L)', category: 'Oils & Fats', price: 58.50, unit: 'tin', stock: 34, verified: true, reviews: 31, imageUrl: '/placeholder-product.jpg' },
+      { id: 4, name: 'Maize Grain (100kg)', category: 'Grains & Flour', price: 67.00, unit: 'bag', stock: 5, verified: true, reviews: 12, imageUrl: '/placeholder-product.jpg' },
+      { id: 5, name: 'Sugar (50kg)', category: 'Sweeteners', price: 42.00, unit: 'bag', stock: 89, verified: true, reviews: 28, imageUrl: '/placeholder-product.jpg' },
+      { id: 6, name: 'Rice (25kg)', category: 'Grains & Flour', price: 38.00, unit: 'bag', stock: 0, verified: true, reviews: 15, imageUrl: '/placeholder-product.jpg' },
+      { id: 7, name: 'Salt (20kg)', category: 'Seasonings', price: 12.00, unit: 'bag', stock: 150, verified: true, reviews: 9, imageUrl: '/placeholder-product.jpg' },
+      { id: 8, name: 'Onions (10kg)', category: 'Vegetables', price: 15.00, unit: 'bag', stock: 0, verified: false, reviews: 6, imageUrl: '/placeholder-product.jpg' },
+      { id: 9, name: 'Tomatoes (5kg)', category: 'Vegetables', price: 8.00, unit: 'bag', stock: 25, verified: true, reviews: 21, imageUrl: '/placeholder-product.jpg' },
+      { id: 10, name: 'Cooking Gas (12kg)', category: 'Fuel', price: 35.00, unit: 'cylinder', stock: 15, verified: true, reviews: 33, imageUrl: '/placeholder-product.jpg' },
+    ];
+    setTimeout(() => { setProducts(mockProducts); setIsLoading(false); }, 400);
+  }, []);
+
+  const statusFilters = [
+    { value: 'all', label: 'All' },
+    { value: 'active', label: 'Active' },
+    { value: 'draft', label: 'Drafts' },
+    { value: 'out_of_stock', label: 'Out of stock' },
+    { value: 'needs_review', label: 'Needs review' },
+  ];
+
+  const sortOptions = [
+    { value: 'newest', label: 'Newest' },
+    { value: 'oldest', label: 'Oldest' },
+    { value: 'price_high', label: 'Price: High to Low' },
+    { value: 'price_low', label: 'Price: Low to High' },
+    { value: 'stock', label: 'Stock' },
+    { value: 'sales', label: 'Sales' },
+  ];
+
+  const filteredAndSortedProducts = useMemo(() => {
+    let filtered = products || [];
+    
+    // Apply search filter
+    if (searchQuery) {
+      filtered = filtered.filter(product =>
+        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        product.category.toLowerCase().includes(searchQuery.toLowerCase())
       );
-    else
-      create.mutate(
-        {
-          data: {
-            name: form.name,
-            category: form.category,
-            price: Number(form.price),
-            moq: Number(form.moq),
-            stock: Number(form.stock),
-            unit: form.unit,
-            description: form.description,
-          },
-        },
-        {
-          onSuccess: () => {
-            queryClient.invalidateQueries({
-              queryKey: getListMySupplierProductsQueryKey(),
-            });
-            queryClient.invalidateQueries({
-              queryKey: getGetSupplierDashboardQueryKey(),
-            });
-            setModal(false);
-          },
-        }
-      );
+    }
+    
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(product => {
+        if (statusFilter === 'active') return product.stock > 0 && product.verified;
+        if (statusFilter === 'out_of_stock') return product.stock === 0;
+        if (statusFilter === 'draft') return !product.verified;
+        if (statusFilter === 'needs_review') return !product.verified;
+        return true;
+      });
+    }
+    
+    // Apply sorting
+    filtered = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'newest':
+          return b.id - a.id;
+        case 'oldest':
+          return a.id - b.id;
+        case 'price_high':
+          return b.price - a.price;
+        case 'price_low':
+          return a.price - b.price;
+        case 'stock':
+          return b.stock - a.stock;
+        case 'sales':
+          return (b.reviews || 0) - (a.reviews || 0);
+        default:
+          return 0;
+      }
+    });
+    
+    return filtered;
+  }, [products, searchQuery, statusFilter, sortBy]);
+
+  const getProductStatus = (product: Product) => {
+    if (product.stock === 0) return { label: 'Out of stock', color: 'bg-red-100 text-red-700' };
+    if (!product.verified) return { label: 'Needs review', color: 'bg-yellow-100 text-yellow-700' };
+    return { label: 'Active', color: 'bg-emerald-100 text-emerald-700' };
   };
+
   return (
-    <SupplierFrame title="My products">
-      <div className="mb-5 flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {products?.length ?? 0} active listings
+    <SupplierFrame title="Products" action={
+      <Link
+        href="/supplier/products/new"
+        className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground"
+      >
+        <Plus size={15} /> Add product
+      </Link>
+    }>
+      <div className="mb-5">
+        <p className="text-sm text-muted-foreground mb-4">
+          Add, edit, pause, and update your products.
         </p>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground"
-          data-testid="button-create-product"
-        >
-          <Plus size={15} /> Add product
-        </button>
+        
+        {/* Search and Filters */}
+        <div className="mb-4 flex flex-col sm:flex-row gap-3">
+          <div className="flex h-11 flex-1 items-center rounded-lg border border-border bg-card px-3">
+            <Search size={16} className="text-muted-foreground" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 bg-transparent px-3 text-sm outline-none"
+              placeholder="Search products"
+            />
+          </div>
+          
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="h-11 rounded-lg border border-border bg-card px-3 text-sm outline-none"
+          >
+            {sortOptions.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Status Filters */}
+        <div className="flex flex-wrap gap-2">
+          {statusFilters.map(filter => (
+            <button
+              key={filter.value}
+              onClick={() => setStatusFilter(filter.value)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-bold transition-all ${
+                statusFilter === filter.value
+                  ? 'border-[#ff6a00] bg-[#ff6a00] text-white'
+                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
       </div>
-      {isError ? (
-        <ErrorState onRetry={() => refetch()} />
-      ) : isLoading ? (
+
+      {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
             <SkeletonBlock key={i} className="h-20" />
           ))}
         </div>
-      ) : !products?.length ? (
+      ) : !filteredAndSortedProducts.length ? (
         <div className="rounded-2xl border border-dashed p-12 text-center">
           <PackageCheck
             className="mx-auto text-muted-foreground"
             size={28}
           />
           <p className="mt-3 font-display text-lg font-bold">
-            Your storefront is waiting
+            {products.length === 0 ? 'Your storefront is waiting' : 'No products match your filters'}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Add your first product to open the lane.
+            {products.length === 0 ? 'Add your first product to open the lane.' : 'Try adjusting your filters.'}
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border bg-card">
-          <table className="w-full min-w-[700px] text-left text-sm">
-            <thead className="border-b border-border bg-secondary/50 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-5 py-4">Product</th>
-                <th className="px-5 py-4">Price</th>
-                <th className="px-5 py-4">MOQ</th>
-                <th className="px-5 py-4">Stock</th>
-                <th className="px-5 py-4">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((product) => (
-                <tr
-                  key={product.id}
-                  className="border-b border-border last:border-0"
-                  data-testid={`row-supplier-product-${product.id}`}
-                >
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <ProductImage
-                        product={product}
-                        className="h-11 w-11 rounded-lg"
-                      />
-                      <div>
-                        <p className="font-bold">{product.name}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {product.category}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4 font-bold">
-                    {money(product.price)} / {product.unit}
-                  </td>
-                  <td className="px-5 py-4">{product.moq}</td>
-                  <td className="px-5 py-4">
-                    <span
-                      className={
-                        product.stock < 20
-                          ? 'font-bold text-destructive'
-                          : ''
-                      }
-                    >
-                      {product.stock.toLocaleString()}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4">
-                    <button
-                      onClick={() => openEdit(product)}
-                      className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-bold hover:bg-secondary"
-                      data-testid={`button-edit-product-${product.id}`}
-                    >
-                      <Pencil size={13} /> Edit
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {modal && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-primary/30 p-4 backdrop-blur-sm">
-          <form
-            onSubmit={save}
-            className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl"
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Catalog editor
-                </p>
-                <h2 className="mt-1 font-display text-2xl font-bold">
-                  {editing ? 'Edit product' : 'Add product'}
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setModal(false)}
-                className="rounded-lg p-1.5 text-muted-foreground"
-                aria-label="Close product editor"
-                data-testid="button-close-product-editor"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              {[
-                ['name', 'Product name'],
-                ['category', 'Category'],
-                ['price', 'Price'],
-                ['moq', 'Minimum order'],
-                ['stock', 'Stock'],
-                ['unit', 'Unit'],
-              ].map(([key, label]) => (
-                <label key={key} className="text-xs font-bold">
-                  {label}
-                  <input
-                    required={['name', 'category', 'price'].includes(
-                      key
-                    )}
-                    type={
-                      ['price', 'moq', 'stock'].includes(key)
-                        ? 'number'
-                        : 'text'
-                    }
-                    value={
-                      form[key as keyof typeof form]
-                    }
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        [key]: e.target.value,
-                      })
-                    }
-                    className="mt-2 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm font-normal outline-none focus:border-primary"
-                    data-testid={`input-product-${key}`}
-                  />
-                </label>
-              ))}
-              <label className="text-xs font-bold sm:col-span-2">
-                Description
-                <textarea
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      description: e.target.value,
-                    })
-                  }
-                  className="mt-2 min-h-20 w-full rounded-lg border border-border bg-background p-3 text-sm font-normal outline-none focus:border-primary"
-                  data-testid="input-product-description"
-                />
-              </label>
-            </div>
-            <button
-              disabled={create.isPending || update.isPending}
-              className="mt-6 flex w-full justify-center rounded-xl bg-primary py-3 text-xs font-bold text-primary-foreground"
-              data-testid="button-save-product"
-            >
-              {create.isPending || update.isPending
-                ? 'Saving…'
-                : editing
-                  ? 'Save changes'
-                  : 'Publish product'}
-            </button>
-          </form>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filteredAndSortedProducts.map((product) => (
+            <SellerProductCard
+              key={product.id}
+              product={{
+                id: product.id,
+                name: product.name,
+                price: product.price,
+                stock: product.stock,
+                category: product.category,
+                image: product.imageUrl,
+                verified: product.verified,
+                unit: product.unit,
+              }}
+              variant="seller"
+              showEdit={true}
+            />
+          ))}
         </div>
       )}
     </SupplierFrame>
@@ -2083,130 +2221,164 @@ export function SupplierProductsPage() {
 }
 
 export function SupplierOrdersPage() {
-  const queryClient = useQueryClient();
-  const {
-    data: orders,
-    isLoading,
-    isError,
-    refetch,
-  } = useListSupplierOrders();
-  const update = useUpdateSupplierOrderStatus();
-  const setStatus = (id: number, status: OrderStatusUpdateStatus) =>
-    update.mutate(
-      { id, data: { status } },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({
-            queryKey: getListSupplierOrdersQueryKey(),
-          });
-          queryClient.invalidateQueries({
-            queryKey: getGetSupplierDashboardQueryKey(),
-          });
-        },
-      }
-    );
+  const [orders, setOrders] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  useEffect(() => {
+    // Hardcoded mock orders
+    const mockOrders = [
+      { id: 1847, status: 'new', buyerName: 'Kigali Fresh Market', destination: 'Nyarugenge, Kigali', itemCount: 12, total: 485.00, date: new Date(Date.now() - 1800000).toISOString(), deliveryMethod: 'seller_delivery' },
+      { id: 1846, status: 'new', buyerName: 'Nyamirambo Wholesalers', destination: 'Nyamirambo, Kigali', itemCount: 8, total: 320.50, date: new Date(Date.now() - 3600000).toISOString(), deliveryMethod: 'buyer_pickup' },
+      { id: 1845, status: 'confirmed', buyerName: 'Huye Distributors', destination: 'Huye Town', itemCount: 5, total: 195.00, date: new Date(Date.now() - 7200000).toISOString(), deliveryMethod: 'seller_delivery' },
+      { id: 1844, status: 'new', buyerName: 'Musanze Traders', destination: 'Musanze Town', itemCount: 3, total: 87.50, date: new Date(Date.now() - 10800000).toISOString(), deliveryMethod: 'buyer_pickup' },
+      { id: 1842, status: 'delivered', buyerName: 'Rubavu Markets Ltd', destination: 'Rubavu Town', itemCount: 15, total: 782.00, date: new Date(Date.now() - 86400000).toISOString(), deliveryMethod: 'seller_delivery' },
+      { id: 1838, status: 'delivered', buyerName: 'Kigali Fresh Market', destination: 'Nyarugenge, Kigali', itemCount: 6, total: 275.00, date: new Date(Date.now() - 172800000).toISOString(), deliveryMethod: 'seller_delivery' },
+      { id: 1835, status: 'out_for_delivery', buyerName: 'Gisenyi Wholesalers', destination: 'Gisenyi Town', itemCount: 10, total: 456.00, date: new Date(Date.now() - 259200000).toISOString(), deliveryMethod: 'seller_delivery' },
+      { id: 1831, status: 'cancelled', buyerName: 'Muhanga Traders', destination: 'Muhanga Town', itemCount: 2, total: 95.00, date: new Date(Date.now() - 345600000).toISOString(), deliveryMethod: 'buyer_pickup' },
+      { id: 1829, status: 'delivered', buyerName: 'Nyamirambo Wholesalers', destination: 'Nyamirambo, Kigali', itemCount: 8, total: 567.25, date: new Date(Date.now() - 432000000).toISOString(), deliveryMethod: 'seller_delivery' },
+    ];
+    setTimeout(() => { setOrders(mockOrders); setIsLoading(false); }, 400);
+  }, []);
+
+  const statusFilters = [
+    { value: 'all', label: 'All' },
+    { value: 'new', label: 'New' },
+    { value: 'confirmed', label: 'Confirmed' },
+    { value: 'preparing', label: 'Preparing' },
+    { value: 'ready', label: 'Pickup' },
+    { value: 'out_for_delivery', label: 'Delivery' },
+    { value: 'delivered', label: 'Completed' },
+    { value: 'cancelled', label: 'Cancelled' },
+  ];
+
+  const filteredOrders = orders.filter(order => {
+    const matchesSearch = 
+      (order.buyerName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (order.destination || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      String(order.id).includes(searchQuery);
+    
+    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
+
   return (
     <SupplierFrame title="Orders">
-      <div className="mb-5 flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Keep buyers moving with clear updates.
+      <div className="mb-5">
+        <p className="text-sm text-muted-foreground mb-4">
+          Manage buyer requests, preparation, pickup, and delivery.
         </p>
-        <span className="flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
-          <RefreshCw size={13} /> Auto-synced
-        </span>
+        
+        {/* Search Bar */}
+        <div className="mb-4 flex h-11 items-center rounded-lg border border-border bg-card px-3">
+          <Search size={16} className="text-muted-foreground" />
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex-1 bg-transparent px-3 text-sm outline-none"
+            placeholder="Search orders by buyer, location, or order number"
+          />
+        </div>
+
+        {/* Status Filters */}
+        <div className="flex flex-wrap gap-2">
+          {statusFilters.map(filter => (
+            <button
+              key={filter.value}
+              onClick={() => setStatusFilter(filter.value)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-bold transition-all ${
+                statusFilter === filter.value
+                  ? 'border-[#ff6a00] bg-[#ff6a00] text-white'
+                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
       </div>
-      {isError ? (
-        <ErrorState onRetry={() => refetch()} />
-      ) : isLoading ? (
+
+      {isLoading ? (
         <div className="space-y-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <SkeletonBlock
               key={i}
-              className="h-48 rounded-2xl"
+              className="h-40 rounded-2xl"
             />
           ))}
         </div>
-      ) : !orders?.length ? (
+      ) : !filteredOrders.length ? (
         <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center">
           <Truck
             className="mx-auto text-muted-foreground"
             size={28}
           />
           <p className="mt-3 font-display text-lg font-bold">
-            No orders in the queue
+            {orders.length === 0 ? 'No orders in the queue' : 'No orders match your filters'}
           </p>
         </div>
       ) : (
         <div className="space-y-4">
-          {orders.map((order) => (
+          {filteredOrders.map((order) => (
             <article
               key={order.id}
-              className="rounded-2xl border border-border bg-card p-6 transition-all duration-300 hover:shadow-md hover:border-border/80"
+              className="rounded-2xl border border-border bg-card p-5 transition-all duration-300 hover:shadow-md hover:border-border/80"
               data-testid={`card-supplier-order-${order.id}`}
             >
               <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p className="font-mono text-xs font-bold text-muted-foreground">
-                    ORDER #{String(order.id).padStart(5, '0')}
-                  </p>
-                  <p className="mt-2 text-sm font-bold text-card-foreground">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-2">
+                    <p className="font-mono text-xs font-bold text-muted-foreground">
+                      ORDER #{String(order.id).padStart(5, '0')}
+                    </p>
+                    <span className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${
+                      order.status === 'new' ? 'bg-blue-100 text-blue-700' :
+                      order.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
+                      order.status === 'preparing' ? 'bg-yellow-100 text-yellow-700' :
+                      order.status === 'ready' ? 'bg-purple-100 text-purple-700' :
+                      order.status === 'out_for_delivery' ? 'bg-orange-100 text-orange-700' :
+                      order.status === 'delivered' ? 'bg-green-100 text-green-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {order.status.replace('_', ' ')}
+                    </span>
+                  </div>
+                  
+                  <p className="text-sm font-bold text-card-foreground">
                     {order.buyerName}
                   </p>
-                  <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                  
+                  <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
                     <MapPin size={13} />
-                    {order.destination} · {formatDate(order.date)}
+                    <span className="truncate">
+                      {(order as any).deliveryMethod === 'seller_delivery' ? 'Seller delivery' : 'Buyer pickup'} · {order.destination}
+                    </span>
+                  </div>
+                  
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Received {formatDate(order.date)}
                   </p>
                 </div>
-                <div className="text-right">
-                  <p className="font-display text-2xl font-bold text-card-foreground">
+                
+                <div className="text-right flex-shrink-0">
+                  <p className="font-display text-xl font-bold text-card-foreground">
                     {money(order.total)}
                   </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {order.itemCount} items
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {order.itemCount} product{order.itemCount !== 1 ? 's' : ''}
                   </p>
                 </div>
               </div>
-              <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-                <span className="rounded-full bg-secondary px-3 py-1.5 font-mono text-[10px] font-bold uppercase">
-                  {order.status}
-                </span>
-                <div className="flex gap-2">
-                  {order.status !== 'processing' &&
-                    order.status !== 'shipped' &&
-                    order.status !== 'delivered' && (
-                      <button
-                        onClick={() =>
-                          setStatus(order.id, 'processing')
-                        }
-                        className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground"
-                        data-testid={`button-process-order-${order.id}`}
-                      >
-                        Start processing
-                      </button>
-                    )}
-                  {order.status === 'processing' && (
-                    <button
-                      onClick={() =>
-                        setStatus(order.id, 'shipped')
-                      }
-                      className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground"
-                      data-testid={`button-ship-order-${order.id}`}
-                    >
-                      Mark shipped
-                    </button>
-                  )}
-                  {order.status === 'shipped' && (
-                    <button
-                      onClick={() =>
-                        setStatus(order.id, 'delivered')
-                      }
-                      className="rounded-lg bg-accent px-3 py-2 text-xs font-bold text-accent-foreground"
-                      data-testid={`button-deliver-order-${order.id}`}
-                    >
-                      Mark delivered
-                    </button>
-                  )}
-                </div>
+              
+              <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+                <Link 
+                  href={`/supplier/orders/${order.id}`}
+                  className="text-xs font-bold text-[#ff6a00] hover:underline"
+                >
+                  Review
+                </Link>
               </div>
             </article>
           ))}

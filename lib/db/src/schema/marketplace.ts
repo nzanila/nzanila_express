@@ -234,6 +234,241 @@ export const sellerDeliveryZonesTable = pgTable("seller_delivery_zones", {
   isAvailable: boolean("is_available").default(true),
 });
 
+// Seller stores (multi-store support)
+export const storesTable = pgTable("stores", {
+  id: serial("id").primaryKey(),
+  sellerId: integer("seller_id").notNull().references(() => marketplaceUsersTable.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  slug: text("slug").notNull().unique(),
+  logo: text("logo"),
+  banner: text("banner"),
+  status: text("status").notNull().default("active"), // active, inactive, pending
+  province: text("province"),
+  commune: text("commune"),
+  zone: text("zone"),
+  address: text("address"),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  phone: text("phone"),
+  email: text("email"),
+  businessCategory: text("business_category"),
+  operatingHours: jsonb("operating_hours"),
+  verificationType: text("verification_type"),
+  yearsActive: integer("years_active").default(0),
+  mainCategories: text("main_categories").array().default([]),
+  badges: text("badges").array().default([]),
+  responseRate: integer("response_rate").default(0),
+  responseTime: text("response_time"),
+  onTimeDelivery: integer("on_time_delivery").default(0),
+  employeeCount: text("employee_count"),
+  yearEstablished: integer("year_established"),
+  certifications: text("certifications").array().default([]),
+  performanceMetrics: jsonb("performance_metrics").default({}),
+  manufacturerCapabilities: jsonb("manufacturer_capabilities").default({}),
+  customizations: jsonb("customizations").default([]),
+  tradeCapabilities: jsonb("trade_capabilities").default({}),
+  productionCapacity: jsonb("production_capacity").default({}),
+  galleryImages: text("gallery_images").array().default([]),
+  videoItems: jsonb("video_items").default([]),
+  eventImages: text("event_images").array().default([]),
+  contactInfo: jsonb("contact_info").default({}),
+  storeTemplate: text("store_template").notNull().default("showcase"),
+  storeSections: jsonb("store_sections").notNull().default(["hero", "categories", "featured", "story", "videos", "certificates", "events"]),
+  rating: real("rating").default(0),
+  totalSales: integer("total_sales").default(0),
+  totalRevenue: numeric("total_revenue").default("0"),
+  isVerified: boolean("is_verified").default(false),
+  commissionRate: numeric("commission_rate").default("0.05"), // 5% default
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Store products (link products to stores)
+export const storeProductsTable = pgTable("store_products", {
+  id: serial("id").primaryKey(),
+  storeId: integer("store_id").notNull().references(() => storesTable.id, { onDelete: "cascade" }),
+  sellerProductId: integer("seller_product_id").notNull().references(() => sellerProductsTable.id, { onDelete: "cascade" }),
+  customPrice: numeric("custom_price"), // Override seller price for this store
+  customStock: integer("custom_stock"), // Override stock for this store
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Store orders (link orders to stores)
+export const storeOrdersTable = pgTable("store_orders", {
+  id: serial("id").primaryKey(),
+  storeId: integer("store_id").notNull().references(() => storesTable.id, { onDelete: "cascade" }),
+  orderId: integer("order_id").notNull().references(() => ordersTable.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Store followers/customers
+export const storeCustomersTable = pgTable("store_customers", {
+  id: serial("id").primaryKey(),
+  storeId: integer("store_id").notNull().references(() => storesTable.id, { onDelete: "cascade" }),
+  buyerId: integer("buyer_id").notNull().references(() => marketplaceUsersTable.id, { onDelete: "cascade" }),
+  isFavorite: boolean("is_favorite").default(false),
+  totalOrders: integer("total_orders").default(0),
+  totalSpent: numeric("total_spent").default("0"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Store reviews
+export const storeReviewsTable = pgTable("store_reviews", {
+  id: serial("id").primaryKey(),
+  storeId: integer("store_id").notNull().references(() => storesTable.id, { onDelete: "cascade" }),
+  buyerId: integer("buyer_id").notNull().references(() => marketplaceUsersTable.id, { onDelete: "cascade" }),
+  orderId: integer("order_id").references(() => ordersTable.id),
+  rating: integer("rating").notNull(),
+  comment: text("comment"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Categories (Nzanila-controlled, hierarchical)
+export const categoriesTable = pgTable("categories", {
+  id: serial("id").primaryKey(),
+  parentId: integer("parent_id").references((): any => categoriesTable.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  nameEn: text("name_en"),
+  nameFr: text("name_fr"),
+  nameRn: text("name_rn"),
+  slug: text("slug").notNull().unique(),
+  icon: text("icon"),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Category suggestions from sellers
+export const categorySuggestionsTable = pgTable("category_suggestions", {
+  id: serial("id").primaryKey(),
+  sellerId: integer("seller_id").notNull().references(() => marketplaceUsersTable.id, { onDelete: "cascade" }),
+  suggestedName: text("suggested_name").notNull(),
+  reason: text("reason"),
+  parentId: integer("parent_id").references((): any => categoriesTable.id),
+  status: text("status").notNull().default("pending"), // pending, approved, rejected
+  adminNote: text("admin_note"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Product units enum
+export const productUnits = [
+  "piece", "pair", "set", "pack", "box", "bag", "bottle", "carton",
+  "kilogram", "gram", "litre", "millilitre", "metre", "square_metre",
+  "dozen", "service", "other"
+] as const;
+
+// Product condition
+export const productConditions = ["new", "used", "refurbished"] as const;
+
+// Product status
+export const productStatuses = ["draft", "pending_review", "approved", "rejected", "inactive"] as const;
+
+// Products (new system - linked to stores and categories)
+export const newProductsTable = pgTable("new_products", {
+  id: serial("id").primaryKey(),
+  sellerId: integer("seller_id").notNull().references(() => marketplaceUsersTable.id, { onDelete: "cascade" }),
+  storeId: integer("store_id").references(() => storesTable.id, { onDelete: "set null" }),
+  categoryId: integer("category_id").references(() => categoriesTable.id, { onDelete: "set null" }),
+  customCategorySuggestion: text("custom_category_suggestion"), // When "Other" is selected
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  description: text("description").notNull(),
+  basePrice: numeric("base_price").notNull(),
+  currency: text("currency").notNull().default("BIF"),
+  unitType: text("unit_type").notNull().default("piece"), // from productUnits
+  customUnit: text("custom_unit"), // When unitType is "other"
+  unitQuantity: numeric("unit_quantity"), // e.g. 25 for "25 kg"
+  unitMeasurement: text("unit_measurement"), // e.g. "kg", "litre"
+  stockQuantity: integer("stock_quantity").notNull().default(0),
+  minimumOrderQuantity: integer("minimum_order_quantity").notNull().default(1),
+  condition: text("condition").notNull().default("new"), // new, used, refurbished
+  status: text("status").notNull().default("draft"), // draft, pending_review, approved, rejected, inactive
+  deliveryAvailable: boolean("delivery_available").default(true),
+  pickupAvailable: boolean("pickup_available").default(false),
+  deliveryAreas: text("delivery_areas").array(),
+  preparationTime: text("preparation_time"), // e.g. "1-2 days"
+  // Category-specific fields
+  brand: text("brand"),
+  model: text("model"),
+  storageCapacity: text("storage_capacity"),
+  warranty: text("warranty"),
+  includedAccessories: text("included_accessories").array(),
+  material: text("material"),
+  color: text("color"),
+  size: text("size"),
+  lengthCm: numeric("length_cm"),
+  widthCm: numeric("width_cm"),
+  heightCm: numeric("height_cm"),
+  serviceDescription: text("service_description"),
+  priceType: text("price_type"), // fixed, contact
+  serviceArea: text("service_area"),
+  availability: text("availability"),
+  estimatedCompletionTime: text("estimated_completion_time"),
+  // Media
+  primaryImage: text("primary_image"),
+  // Stats
+  views: integer("views").default(0),
+  totalSales: integer("total_sales").default(0),
+  rating: real("rating").default(0),
+  reviewCount: integer("review_count").default(0),
+  // Timestamps
+  submittedAt: timestamp("submitted_at"),
+  approvedAt: timestamp("approved_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Product variants (size, color, weight, flavor, capacity, etc.)
+export const productVariantsTable = pgTable("product_variants", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => newProductsTable.id, { onDelete: "cascade" }),
+  name: text("name").notNull(), // e.g. "25 kg bag", "Small - Black"
+  sku: text("sku"),
+  price: numeric("price").notNull(),
+  stockQuantity: integer("stock_quantity").notNull().default(0),
+  attributesJson: jsonb("attributes_json"), // e.g. {size: "M", color: "Black"}
+  imageUrl: text("image_url"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Product variant options (the individual option values)
+export const variantOptionsTable = pgTable("variant_options", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => newProductsTable.id, { onDelete: "cascade" }),
+  optionType: text("option_type").notNull(), // size, color, weight, flavor, capacity, other
+  optionValue: text("option_value").notNull(), // e.g. "Small", "Black", "25 kg"
+  displayOrder: integer("display_order").default(0),
+});
+
+// Bulk/wholesale pricing tiers
+export const productPriceTiersTable = pgTable("product_price_tiers", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => newProductsTable.id, { onDelete: "cascade" }),
+  variantId: integer("variant_id").references(() => productVariantsTable.id, { onDelete: "cascade" }),
+  minimumQuantity: integer("minimum_quantity").notNull(),
+  maximumQuantity: integer("maximum_quantity"),
+  pricePerUnit: numeric("price_per_unit").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Product pictures (new system)
+export const newProductPicturesTable = pgTable("new_product_pictures", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => newProductsTable.id, { onDelete: "cascade" }),
+  variantId: integer("variant_id").references(() => productVariantsTable.id, { onDelete: "cascade" }),
+  pictureUrl: text("picture_url").notNull(),
+  altText: text("alt_text"),
+  isPrimary: boolean("is_primary").default(false),
+  displayOrder: integer("display_order").default(0),
+  uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
+});
+
 export type BurundiProvince = typeof burundiProvincesTable.$inferSelect;
 export type BurundiCommune = typeof burundiCommunesTable.$inferSelect;
 export type BurundiZone = typeof burundiZonesTable.$inferSelect;
@@ -242,3 +477,15 @@ export type BuyerAddress = typeof buyerAddressesTable.$inferSelect;
 export type SellerProduct = typeof sellerProductsTable.$inferSelect;
 export type ProductPicture = typeof productPicturesTable.$inferSelect;
 export type SellerDeliveryZone = typeof sellerDeliveryZonesTable.$inferSelect;
+export type Store = typeof storesTable.$inferSelect;
+export type StoreProduct = typeof storeProductsTable.$inferSelect;
+export type StoreOrder = typeof storeOrdersTable.$inferSelect;
+export type StoreCustomer = typeof storeCustomersTable.$inferSelect;
+export type StoreReview = typeof storeReviewsTable.$inferSelect;
+export type Category = typeof categoriesTable.$inferSelect;
+export type CategorySuggestion = typeof categorySuggestionsTable.$inferSelect;
+export type NewProduct = typeof newProductsTable.$inferSelect;
+export type ProductVariant = typeof productVariantsTable.$inferSelect;
+export type VariantOption = typeof variantOptionsTable.$inferSelect;
+export type ProductPriceTier = typeof productPriceTiersTable.$inferSelect;
+export type NewProductPicture = typeof newProductPicturesTable.$inferSelect;

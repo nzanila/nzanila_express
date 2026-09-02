@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation, Link } from 'wouter';
-import { ArrowLeft, MapPin, Clock, Truck, ShoppingBag, Star, Phone, ShieldCheck, Camera, Edit, Save, X, ChevronDown, Trash2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, MapPin, Clock, Truck, ShoppingBag, Star, Phone, ShieldCheck, Camera, Edit, Eye, ChevronRight, Pencil, Save, X, ChevronDown, Trash2, AlertTriangle } from 'lucide-react';
 import { AppShell } from '@/components/marketplace-shell';
 import { useAuth } from '@/lib/auth-context';
 import { LocationMapPickerModal } from '@/components/location-map-picker';
@@ -79,8 +79,10 @@ export function SellerProfilePage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <div className="px-4 py-8 sm:px-6 lg:px-10">
+          <div className="flex items-center justify-center py-20">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          </div>
         </div>
       </AppShell>
     );
@@ -89,191 +91,393 @@ export function SellerProfilePage() {
   if (error || !profile) {
     return (
       <AppShell>
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-muted-foreground">{error || 'Seller not found'}</p>
-          <Link href="/suppliers" className="mt-4 text-sm text-primary hover:underline">Back to suppliers</Link>
+        <div className="px-4 py-8 sm:px-6 lg:px-10">
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <p className="text-muted-foreground">{error || 'Seller not found'}</p>
+            <Link href="/suppliers" className="mt-4 text-sm text-primary hover:underline">Back to suppliers</Link>
+          </div>
         </div>
       </AppShell>
     );
   }
 
-  return (
-    <AppShell hideSearch>
-      <div className="mx-auto max-w-5xl px-3 py-4 sm:px-5 sm:py-8 lg:px-10">
-        <Link href="/suppliers" className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft size={16} /> Back to suppliers
-        </Link>
+  const ProfileContent = () => (
+    <div className="mx-auto max-w-5xl">
+      {isOwnProfile && (
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-gray-900">Store profile</h1>
+          <Link 
+            href="/seller/profile/edit" 
+            className="flex items-center gap-2 rounded-xl bg-[#ff6a00] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#e55f00]"
+          >
+            <Edit size={14} /> Edit profile
+          </Link>
+        </div>
+      )}
 
-        <div className="rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-6">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-primary/10 shadow-inner">
+      {/* Public Profile Preview */}
+      <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 mb-6">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-[#ff6a00]/10 shadow-inner">
+              {profile.profilePicture ? (
+                <img src={profile.profilePicture} alt={profile.businessName} className="h-full w-full object-cover" />
+              ) : (
+                <ShoppingBag size={40} className="text-[#ff6a00]/60" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-gray-900">{profile.businessName || 'Seller'}</h1>
+                {profile.verificationStatus === 'verified' && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                    <ShieldCheck size={12} /> Verified
+                  </span>
+                )}
+              </div>
+              {profile.sellerFullName && <p className="mt-1 text-sm text-gray-600">{profile.sellerFullName}</p>}
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                {profile.province && <span className="flex items-center gap-1"><MapPin size={14} /> {profile.city || profile.province}</span>}
+                <span className="flex items-center gap-1"><Clock size={14} /> Responds in {profile.responseTimeHours}h</span>
+                {profile.rating > 0 && <span className="flex items-center gap-1"><Star size={14} className="text-yellow-500" /> {profile.rating.toFixed(1)}</span>}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {profile.phone && (
+              <a href={`tel:${profile.phone}`} className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-900 hover:bg-gray-50">
+                <Phone size={14} /> Call seller
+              </a>
+            )}
+            {!isOwnProfile && (
+              <Link 
+                href={`/seller/${sellerId}`}
+                className="flex items-center gap-2 rounded-xl border border-[#ff6a00] bg-[#ff6a00]/10 px-3 py-2 text-xs font-bold text-[#ff6a00] hover:bg-[#ff6a00]/20"
+              >
+                <Eye size={14} /> View public shop
+              </Link>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-4">
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600">Rating</p>
+            <p className="mt-2 text-2xl font-bold text-gray-900">{profile.rating > 0 ? profile.rating.toFixed(1) : 'New'}</p>
+          </div>
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600">Response</p>
+            <p className="mt-2 text-2xl font-bold text-gray-900">{profile.responseTimeHours}h</p>
+          </div>
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600">Orders</p>
+            <p className="mt-2 text-2xl font-bold text-gray-900">{profile.totalOrders || 0}</p>
+          </div>
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600">Service</p>
+            <p className="mt-2 text-sm font-bold text-gray-900">{[profile.offersDelivery ? 'Delivery' : '', profile.offersPickup ? 'Pickup' : ''].filter(Boolean).join(' / ') || 'Online only'}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Store Preview Section */}
+      {isOwnProfile && (
+        <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 mb-6">
+          <h2 className="text-lg font-bold text-gray-900 mb-4">STORE PREVIEW</h2>
+          <p className="text-sm text-gray-600 mb-4">This is how buyers see your shop.</p>
+          
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#ff6a00]/10">
                 {profile.profilePicture ? (
-                  <img src={profile.profilePicture} alt={profile.businessName} className="h-full w-full object-cover" />
+                  <img src={profile.profilePicture} alt="" className="h-full w-full object-cover rounded-lg" />
                 ) : (
-                  <ShoppingBag size={40} className="text-primary/60" />
+                  <ShoppingBag size={24} className="text-[#ff6a00]/60" />
                 )}
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-bold text-foreground">{profile.businessName || 'Seller'}</h1>
-                  {profile.verificationStatus === 'verified' && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                      <ShieldCheck size={12} /> Verified
-                    </span>
-                  )}
-                </div>
-                {profile.sellerFullName && <p className="mt-1 text-sm text-muted-foreground">{profile.sellerFullName}</p>}
-                <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                  {profile.province && <span className="flex items-center gap-1"><MapPin size={14} /> {profile.city || profile.province}</span>}
-                  <span className="flex items-center gap-1"><Clock size={14} /> Responds in {profile.responseTimeHours}h</span>
-                  {profile.rating > 0 && <span className="flex items-center gap-1"><Star size={14} className="text-yellow-500" /> {profile.rating.toFixed(1)}</span>}
+                <p className="font-bold text-gray-900">{profile.businessName}</p>
+                <div className="flex items-center gap-2 text-xs text-gray-600">
+                  <span className="flex items-center gap-1"><Star size={12} className="text-yellow-500" /> {profile.rating > 0 ? profile.rating.toFixed(1) : 'New'}</span>
+                  <span>·</span>
+                  <span>Responds in {profile.responseTimeHours}h</span>
+                  <span>·</span>
+                  <span>{profile.totalOrders || 0} completed orders</span>
                 </div>
               </div>
             </div>
-
-            <div className="flex items-center gap-2">
-              {profile.phone && (
-                <a href={`tel:${profile.phone}`} className="inline-flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-xs font-bold text-foreground hover:bg-secondary">
-                  <Phone size={14} /> Call seller
-                </a>
-              )}
+            
+            <div className="flex flex-wrap gap-2 text-xs text-gray-600 mb-3">
+              {profile.offersDelivery && <span className="flex items-center gap-1"><Truck size={12} /> Delivery</span>}
+              {profile.offersPickup && <span className="flex items-center gap-1"><ShoppingBag size={12} /> Pickup</span>}
+              <span>·</span>
+              <span>Opening hours: 9AM - 6PM</span>
             </div>
-          </div>
-
-          <div className="mt-6 grid gap-3 sm:grid-cols-4">
-            <div className="rounded-2xl border border-border bg-secondary/40 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Rating</p>
-              <p className="mt-2 text-2xl font-bold text-foreground">{profile.rating > 0 ? profile.rating.toFixed(1) : 'New'}</p>
-            </div>
-            <div className="rounded-2xl border border-border bg-secondary/40 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Response</p>
-              <p className="mt-2 text-2xl font-bold text-foreground">{profile.responseTimeHours}h</p>
-            </div>
-            <div className="rounded-2xl border border-border bg-secondary/40 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Orders</p>
-              <p className="mt-2 text-2xl font-bold text-foreground">{profile.totalOrders || 0}</p>
-            </div>
-            <div className="rounded-2xl border border-border bg-secondary/40 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Service</p>
-              <p className="mt-2 text-sm font-bold text-foreground">{[profile.offersDelivery ? 'Delivery' : '', profile.offersPickup ? 'Pickup' : ''].filter(Boolean).join(' / ') || 'Online only'}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-6">
-            {isOwnProfile && (
-              <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Profile actions</p>
-                    <h3 className="mt-1 text-base font-bold text-foreground">Manage this profile</h3>
+            
+            <div className="rounded-lg bg-white p-3">
+              <p className="text-xs font-medium text-gray-700 mb-2">Public product list</p>
+              <div className="space-y-2">
+                {products.slice(0, 3).map(product => (
+                  <div key={product.id} className="flex items-center justify-between text-xs">
+                    <span className="text-gray-900">{product.name}</span>
+                    <span className="font-medium text-[#ff6a00]">{product.price} BIF/{product.unit}</span>
                   </div>
-                  <Link href="/seller/profile/edit" className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90">
-                    <Edit size={14} /> Edit profile
-                  </Link>
-                </div>
-              </div>
-            )}
-
-            {profile.businessDescription && (
-              <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
-                <h3 className="text-lg font-bold text-foreground">About this supplier</h3>
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">{profile.businessDescription}</p>
-              </div>
-            )}
-
-            {products.length > 0 && (
-              <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-foreground">Featured products</h2>
-                  <span className="text-xs font-bold text-muted-foreground">{products.filter(p => p.is_active !== false).length} items</span>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {products.filter(p => p.is_active !== false).map(product => (
-                    <Link key={product.id} href={`/products/${product.id}`} className="group overflow-hidden rounded-2xl border border-border bg-secondary/30 p-3 transition-all hover:border-primary/40 hover:bg-white">
-                      <div className="mb-3 flex h-28 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-secondary text-primary/60">
-                        <ShoppingBag size={30} />
-                      </div>
-                      <h3 className="font-semibold text-sm text-foreground">{product.name}</h3>
-                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{product.description}</p>
-                      <div className="mt-3 flex items-center justify-between">
-                        <span className="text-sm font-bold text-primary">{product.price} BIF/{product.unit}</span>
-                        <span className="text-xs text-muted-foreground">MOQ: {product.minimumOrderQuantity}</span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-6">
-            <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
-              <h3 className="text-lg font-bold text-foreground">Business details</h3>
-              <div className="mt-4 space-y-3 text-sm">
-                <div className="flex items-center justify-between gap-3 rounded-xl bg-secondary/30 px-3 py-2">
-                  <span className="text-muted-foreground">Location</span>
-                  <span className="font-medium text-foreground">{profile.city || profile.province || 'Not provided'}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3 rounded-xl bg-secondary/30 px-3 py-2">
-                  <span className="text-muted-foreground">Delivery</span>
-                  <span className="font-medium text-foreground">{profile.offersDelivery ? 'Available' : 'Not available'}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3 rounded-xl bg-secondary/30 px-3 py-2">
-                  <span className="text-muted-foreground">Pickup</span>
-                  <span className="font-medium text-foreground">{profile.offersPickup ? 'Available' : 'Not available'}</span>
-                </div>
+                ))}
+                {products.length === 0 && <p className="text-gray-500 text-xs">No products yet</p>}
               </div>
             </div>
-
-            {profile.productCategories?.length ? (
-              <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
-                <h3 className="text-lg font-bold text-foreground">Categories</h3>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {profile.productCategories.map(cat => (
-                    <span key={cat} className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">{cat}</span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {profile.shopLatitude && profile.shopLongitude && (
-              <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
-                <h3 className="text-lg font-bold text-foreground">Location</h3>
-                <div className="mt-3 overflow-hidden rounded-2xl bg-gray-100">
-                  <iframe
-                    width="100%"
-                    height="180"
-                    frameBorder="0"
-                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${profile.shopLongitude - 0.01},${profile.shopLatitude - 0.01},${profile.shopLongitude + 0.01},${profile.shopLatitude + 0.01}&layer=mapnik&marker=${profile.shopLatitude},${profile.shopLongitude}`}
-                    style={{ border: 0 }}
-                    loading="lazy"
-                  />
-                </div>
-                <a href={`https://www.google.com/maps?q=${profile.shopLatitude},${profile.shopLongitude}`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline">
-                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
-                  Open in Google Maps
-                </a>
-              </div>
-            )}
-
-            {profile.deliveryAreas && (
-              <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
-                <h3 className="text-lg font-bold text-foreground">Delivery areas</h3>
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">{profile.deliveryAreas}</p>
-              </div>
-            )}
           </div>
         </div>
+      )}
+
+      {/* Store Health — profile completeness for own profile */}
+      {isOwnProfile && (
+        <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 mb-6">
+          <h2 className="text-lg font-bold text-gray-900 mb-4">STORE HEALTH</h2>
+          <div className="space-y-3">
+            {[
+              { label: 'Business name', done: !!profile.businessName },
+              { label: 'Business description', done: !!profile.businessDescription },
+              { label: 'Profile picture', done: !!profile.profilePicture },
+              { label: 'Shop location', done: !!(profile.province || profile.shopLatitude) },
+              { label: 'Phone number', done: !!profile.phone },
+              { label: 'At least 1 product', done: products.length > 0 },
+              { label: 'ID verified', done: profile.verificationStatus === 'verified' },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
+                <span className="text-sm text-gray-700">{item.label}</span>
+                <span className={`text-xs font-bold ${item.done ? 'text-emerald-600' : 'text-orange-500'}`}>
+                  {item.done ? '✓ Done' : 'Add'}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-bold text-gray-700">Profile completeness</span>
+              <span className="text-xs font-bold text-gray-900">
+                {Math.round(
+                  ([
+                    !!profile.businessName,
+                    !!profile.businessDescription,
+                    !!profile.profilePicture,
+                    !!(profile.province || profile.shopLatitude),
+                    !!profile.phone,
+                    products.length > 0,
+                    profile.verificationStatus === 'verified',
+                  ].filter(Boolean).length / 7) * 100
+                )}%
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-[#ff6a00] transition-all"
+                style={{
+                  width: `${Math.round(
+                    ([
+                      !!profile.businessName,
+                      !!profile.businessDescription,
+                      !!profile.profilePicture,
+                      !!(profile.province || profile.shopLatitude),
+                      !!profile.phone,
+                      products.length > 0,
+                      profile.verificationStatus === 'verified',
+                    ].filter(Boolean).length / 7) * 100
+                  )}%`,
+                }}
+              />
+            </div>
+          </div>
+          <Link href="/seller/profile/edit" className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#ff6a00] px-4 py-2 text-xs font-bold text-white hover:bg-[#e55f00]">
+            <Pencil size={12} /> Complete profile
+          </Link>
+        </div>
+      )}
+
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="space-y-6">
+          {profile.businessDescription && (
+            <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h3 className="text-lg font-bold text-gray-900">About this supplier</h3>
+              <p className="mt-3 text-sm leading-6 text-gray-600">{profile.businessDescription}</p>
+            </div>
+          )}
+
+          {products.length > 0 && (
+            <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-gray-900">Featured products</h2>
+                <span className="text-xs font-bold text-gray-600">{products.filter(p => p.is_active !== false).length} items</span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {products.filter(p => p.is_active !== false).map(product => (
+                  <Link key={product.id} href={`/products/${product.id}`} className="group overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 p-3 transition-all hover:border-[#ff6a00]/40 hover:bg-white">
+                    <div className="mb-3 flex h-28 items-center justify-center rounded-xl bg-gradient-to-br from-[#ff6a00]/10 to-gray-100 text-[#ff6a00]/60">
+                      <ShoppingBag size={30} />
+                    </div>
+                    <h3 className="font-semibold text-sm text-gray-900">{product.name}</h3>
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-600">{product.description}</p>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="text-sm font-bold text-[#ff6a00]">{product.price} BIF/{product.unit}</span>
+                      <span className="text-xs text-gray-600">MOQ: {product.minimumOrderQuantity}</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-6">
+          {isOwnProfile && (
+            <>
+              <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-gray-900">BUSINESS INFORMATION</h3>
+                  <Link href="/seller/profile/edit" className="text-xs font-bold text-[#ff6a00] hover:underline">Edit</Link>
+                </div>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-600">Business name</span>
+                    <span className="font-medium text-gray-900">{profile.businessName}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-600">Business description</span>
+                    <span className="font-medium text-gray-900 max-w-[150px] truncate">{profile.businessDescription || 'Not set'}</span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-gray-600">Logo/profile picture</span>
+                    <span className="font-medium text-gray-900">{profile.profilePicture ? 'Set' : 'Not set'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-gray-900">SHOP LOCATION</h3>
+                  <Link href="/seller/profile/edit" className="text-xs font-bold text-[#ff6a00] hover:underline">Edit</Link>
+                </div>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-600">General location</span>
+                    <span className="font-medium text-gray-900">{profile.city || profile.province || 'Not set'}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-600">Nearest landmark</span>
+                    <span className="font-medium text-gray-900">{profile.landmark || 'Not set'}</span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-gray-600">Directions</span>
+                    <span className="font-medium text-gray-900 max-w-[150px] truncate">{profile.businessDescription || 'Not set'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-gray-900">SERVICES</h3>
+                  <Link href="/seller/profile/edit" className="text-xs font-bold text-[#ff6a00] hover:underline">Edit</Link>
+                </div>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-600">Seller delivery</span>
+                    <span className={`font-medium ${profile.offersDelivery ? 'text-emerald-600' : 'text-gray-400'}`}>
+                      {profile.offersDelivery ? 'Available' : 'Not available'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-600">Buyer pickup</span>
+                    <span className={`font-medium ${profile.offersPickup ? 'text-emerald-600' : 'text-gray-400'}`}>
+                      {profile.offersPickup ? 'Available' : 'Not available'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-gray-600">Delivery areas</span>
+                    <span className="font-medium text-gray-900 max-w-[150px] truncate">{profile.deliveryAreas || 'Not set'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-gray-900">VERIFICATION</h3>
+                  <Link href="/seller/verify" className="text-xs font-bold text-[#ff6a00] hover:underline">View status</Link>
+                </div>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-600">Phone</span>
+                    <span className="font-medium text-emerald-600">Verified</span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-gray-600">Seller profile</span>
+                    <span className={`font-medium ${profile.verificationStatus === 'verified' ? 'text-emerald-600' : 'text-yellow-600'}`}>
+                      {profile.verificationStatus === 'verified' ? 'Approved' : 'Pending'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {!isOwnProfile && (
+            <>
+              <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h3 className="text-lg font-bold text-gray-900">Business details</h3>
+                <div className="mt-4 space-y-3 text-sm">
+                  <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
+                    <span className="text-gray-600">Location</span>
+                    <span className="font-medium text-gray-900">{profile.city || profile.province || 'Not provided'}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
+                    <span className="text-gray-600">Delivery</span>
+                    <span className="font-medium text-gray-900">{profile.offersDelivery ? 'Available' : 'Not available'}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
+                    <span className="text-gray-600">Pickup</span>
+                    <span className="font-medium text-gray-900">{profile.offersPickup ? 'Available' : 'Not available'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {profile.productCategories?.length ? (
+                <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+                  <h3 className="text-lg font-bold text-gray-900">Categories</h3>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {profile.productCategories.map(cat => (
+                      <span key={cat} className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-900">{cat}</span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <AppShell>
+      <div className="px-4 py-6 sm:px-6 lg:px-10">
+        {isOwnProfile && (
+          <Link href="/supplier" className="mb-4 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900">
+            <ArrowLeft size={16} /> Back to dashboard
+          </Link>
+        )}
+        {!isOwnProfile && (
+          <Link href="/suppliers" className="mb-4 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900">
+            <ArrowLeft size={16} /> Back to suppliers
+          </Link>
+        )}
+        <ProfileContent />
       </div>
     </AppShell>
   );
 }
 
 export function SellerProfileEditPage() {
-  const { user, session, logout } = useAuth();
+  const { user, session } = useAuth();
   const [, setLocation] = useLocation();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -395,221 +599,207 @@ export function SellerProfileEditPage() {
 
   if (loading) {
     return (
-      <AppShell mode="supplier">
-        <div className="flex items-center justify-center py-20">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <AppShell>
+        <div className="px-4 py-8 sm:px-6 lg:px-10">
+          <div className="flex items-center justify-center py-20">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          </div>
         </div>
       </AppShell>
     );
   }
 
   return (
-    <AppShell mode="supplier" activeTab="profile">
-      <div className="bg-background px-3 py-4 sm:px-5 sm:py-8 lg:px-10 max-w-2xl mx-auto">
+    <AppShell>
+      <div className="px-4 py-6 sm:px-6 lg:px-10 max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-bold">Edit Business Profile</h1>
-          <button onClick={() => setLocation('/supplier')} className="text-sm text-muted-foreground hover:text-foreground">Cancel</button>
+          <div className="flex items-center gap-3">
+            <Link href="/seller/profile" className="text-gray-500 hover:text-gray-900">
+              <ArrowLeft size={20} />
+            </Link>
+            <h1 className="text-xl font-bold">Edit store profile</h1>
+          </div>
+          <Link href="/seller/profile" className="text-sm text-gray-600 hover:text-gray-900">Cancel</Link>
         </div>
 
         {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
         {success && <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">{success}</div>}
 
-        <div className="space-y-4">
-          <div>
-            <label className="mb-1.5 block text-sm font-semibold">Business Name</label>
-            <input value={businessName} onChange={e => setBusinessName(e.target.value)} className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-semibold">Your Full Name</label>
-            <input value={sellerFullName} onChange={e => setSellerFullName(e.target.value)} className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-semibold">Business Description</label>
-            <textarea value={businessDescription} onChange={e => setBusinessDescription(e.target.value)} rows={3} className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1.5 block text-sm font-semibold">Province</label>
-              <input value={province} onChange={e => setProvince(e.target.value)} className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-semibold">Commune / City</label>
-              <input value={city} onChange={e => setCity(e.target.value)} className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1.5 block text-sm font-semibold">Zone / Quartier</label>
-              <input value={zone} onChange={e => setZone(e.target.value)} className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-semibold">Landmark</label>
-              <input value={landmark} onChange={e => setLandmark(e.target.value)} className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-semibold">Shop Location (optional)</label>
-            <button onClick={() => setShowMap(true)} className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm text-left text-muted-foreground hover:border-primary/50">
-              {shopLatitude ? `📍 ${shopLatitude.toFixed(4)}, ${shopLongitude?.toFixed(4)}` : 'Click to pin on map'}
-            </button>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-semibold">Product Categories</label>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {productCategories.map(cat => (
-                <span key={cat} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-                  {cat}
-                  <button onClick={() => setProductCategories(productCategories.filter(c => c !== cat))}><X size={12} /></button>
-                </span>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <input value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="Add category" className="h-10 flex-1 rounded-xl border border-border bg-card px-3 text-sm outline-none" onKeyDown={e => { if (e.key === 'Enter' && newCategory.trim()) { setProductCategories([...productCategories, newCategory.trim()]); setNewCategory(''); } }} />
-              <button onClick={() => { if (newCategory.trim()) { setProductCategories([...productCategories, newCategory.trim()]); setNewCategory(''); } }} className="h-10 rounded-xl bg-primary/10 px-3 text-sm font-medium text-primary hover:bg-primary/20">Add</button>
-            </div>
-          </div>
-
-          <div className="flex gap-4">
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={offersDelivery} onChange={e => setOffersDelivery(e.target.checked)} className="rounded" />
-              Offers Delivery
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={offersPickup} onChange={e => setOffersPickup(e.target.checked)} className="rounded" />
-              Offers Pickup
-            </label>
-          </div>
-
-          {offersDelivery && (
-            <div>
-              <label className="mb-1.5 block text-sm font-semibold">Delivery Areas</label>
-              <input value={deliveryAreas} onChange={e => setDeliveryAreas(e.target.value)} placeholder="e.g. Bujumbura Mairie, Gitega" className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
-            </div>
-          )}
-
-          {offersDelivery && (
-            <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-8">
+          {/* BUSINESS IDENTITY */}
+          <section className="rounded-xl border border-gray-200 bg-white p-6">
+            <h2 className="text-sm font-bold text-gray-900 mb-4">BUSINESS IDENTITY</h2>
+            
+            <div className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-sm font-semibold">Delivery Fee (BIF)</label>
-                <input type="number" value={deliveryFee} onChange={e => setDeliveryFee(e.target.value)} placeholder="e.g. 2000" className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Business name</label>
+                <input value={businessName} onChange={e => setBusinessName(e.target.value)} className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]" />
               </div>
+              
               <div>
-                <label className="mb-1.5 block text-sm font-semibold">Free Delivery Min (BIF)</label>
-                <input type="number" value={freeDeliveryMinOrder} onChange={e => setFreeDeliveryMinOrder(e.target.value)} placeholder="e.g. 50000" className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Business description</label>
+                <textarea value={businessDescription} onChange={e => setBusinessDescription(e.target.value)} rows={3} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]" />
               </div>
-            </div>
-          )}
 
-          <div>
-            <label className="mb-1.5 block text-sm font-semibold">Profile Picture / Logo</label>
-            <div className="flex items-center gap-4">
-              <div className="h-20 w-20 flex-shrink-0 rounded-xl bg-primary/10 flex items-center justify-center overflow-hidden">
-                {profilePicture ? (
-                  <img src={profilePicture} alt="Profile" className="h-full w-full object-cover" />
-                ) : (
-                  <Camera size={28} className="text-primary/40" />
-                )}
-              </div>
-              <div className="flex-1">
-                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleProfilePictureUpload} className="hidden" />
-                <button onClick={() => fileInputRef.current?.click()} className="rounded-xl border border-border px-4 py-2 text-xs font-semibold hover:bg-gray-50">
-                  Choose Image
-                </button>
-                {profilePicture && (
-                  <button onClick={() => setProfilePicture('')} className="ml-2 rounded-xl px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-50">
-                    Remove
-                  </button>
-                )}
-                <p className="mt-1 text-[10px] text-muted-foreground">Shop, business, or logo. Max 2MB.</p>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-semibold">Opening Hours</label>
-            <div className="space-y-2">
-              {Object.entries(openingHours).map(([day, hours]) => (
-                <div key={day} className="flex items-center gap-2">
-                  <span className="w-10 text-xs font-semibold">{day}</span>
-                  <label className="flex items-center gap-1">
-                    <input type="checkbox" checked={!hours.closed} onChange={e => setOpeningHours({ ...openingHours, [day]: { ...hours, closed: !e.target.checked } })} className="rounded" />
-                    <span className="text-xs">{hours.closed ? 'Closed' : 'Open'}</span>
-                  </label>
-                  {!hours.closed && (
-                    <>
-                      <input type="time" value={hours.open} onChange={e => setOpeningHours({ ...openingHours, [day]: { ...hours, open: e.target.value } })} className="h-8 rounded-lg border border-border px-2 text-xs outline-none" />
-                      <span className="text-xs text-muted-foreground">to</span>
-                      <input type="time" value={hours.close} onChange={e => setOpeningHours({ ...openingHours, [day]: { ...hours, close: e.target.value } })} className="h-8 rounded-lg border border-border px-2 text-xs outline-none" />
-                    </>
-                  )}
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Logo or profile picture</label>
+                <div className="flex items-center gap-4">
+                  <div className="h-16 w-16 flex-shrink-0 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
+                    {profilePicture ? (
+                      <img src={profilePicture} alt="Profile" className="h-full w-full object-cover" />
+                    ) : (
+                      <Camera size={24} className="text-gray-400" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleProfilePictureUpload} className="hidden" />
+                    <button onClick={() => fileInputRef.current?.click()} className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold hover:bg-gray-50">
+                      Upload image
+                    </button>
+                    {profilePicture && (
+                      <button onClick={() => setProfilePicture('')} className="ml-2 rounded-lg px-2 py-2 text-xs font-semibold text-red-500 hover:bg-red-50">
+                        Remove
+                      </button>
+                    )}
+                  </div>
                 </div>
-              ))}
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Shop/business picture</label>
+                <div className="flex items-center gap-4">
+                  <div className="h-16 w-16 flex-shrink-0 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
+                    <Camera size={24} className="text-gray-400" />
+                  </div>
+                  <div className="flex-1">
+                    <button className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold hover:bg-gray-50">
+                      Upload shop image
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          </section>
 
-          <button onClick={handleSave} disabled={saving || !businessName.trim()} className="h-12 w-full rounded-xl bg-primary text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-40">
-            {saving ? 'Saving…' : 'Save Profile'}
-          </button>
+          {/* BUSINESS LOCATION */}
+          <section className="rounded-xl border border-gray-200 bg-white p-6">
+            <h2 className="text-sm font-bold text-gray-900 mb-4">BUSINESS LOCATION</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Choose shop location on map</label>
+                <button onClick={() => setShowMap(true)} className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-left text-gray-600 hover:border-[#ff6a00]">
+                  {shopLatitude ? `📍 ${shopLatitude.toFixed(4)}, ${shopLongitude?.toFixed(4)}` : 'Click to set location on map'}
+                </button>
+              </div>
 
-          {/* Delete Account Section */}
-          <div className="mt-6 pt-6 border-t border-border">
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="flex items-center gap-2 text-sm font-semibold text-red-500 hover:text-red-600 transition-colors"
-            >
-              <Trash2 size={16} />
-              Delete my account
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">General location</label>
+                <input value={city || province} onChange={e => { setCity(e.target.value); setProvince(e.target.value); }} className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]" />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Nearest landmark</label>
+                <input value={landmark} onChange={e => setLandmark(e.target.value)} className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]" />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Directions</label>
+                <textarea value={businessDescription} onChange={e => setBusinessDescription(e.target.value)} rows={2} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]" placeholder="How to find your shop..." />
+              </div>
+            </div>
+          </section>
+
+          {/* SERVICES */}
+          <section className="rounded-xl border border-gray-200 bg-white p-6">
+            <h2 className="text-sm font-bold text-gray-900 mb-4">SERVICES</h2>
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                <div>
+                  <p className="font-medium text-gray-900">Seller delivery</p>
+                  <p className="text-xs text-gray-600">Offer delivery to customers</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked={offersDelivery} onChange={e => setOffersDelivery(e.target.checked)} className="sr-only peer" />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#ff6a00] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#ff6a00]" />
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                <div>
+                  <p className="font-medium text-gray-900">Buyer pickup</p>
+                  <p className="text-xs text-gray-600">Allow customers to pick up orders</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked={offersPickup} onChange={e => setOffersPickup(e.target.checked)} className="sr-only peer" />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#ff6a00] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#ff6a00]" />
+                </label>
+              </div>
+
+              {offersDelivery && (
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-gray-700">Delivery areas</label>
+                  <input value={deliveryAreas} onChange={e => setDeliveryAreas(e.target.value)} placeholder="e.g. Bujumbura, Gitega, Bubanza" className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]" />
+                </div>
+              )}
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Delivery fee rule</label>
+                <input value={deliveryFee} onChange={e => setDeliveryFee(e.target.value)} placeholder="Base delivery fee in BIF" className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]" />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Opening hours</label>
+                <div className="space-y-2">
+                  {Object.entries(openingHours).slice(0, 3).map(([day, hours]) => (
+                    <div key={day} className="flex items-center gap-2">
+                      <span className="w-12 text-xs font-medium">{day}</span>
+                      <label className="flex items-center gap-1">
+                        <input type="checkbox" checked={!hours.closed} onChange={e => setOpeningHours({ ...openingHours, [day]: { ...hours, closed: !e.target.checked } })} className="rounded" />
+                        <span className="text-xs">{hours.closed ? 'Closed' : 'Open'}</span>
+                      </label>
+                      {!hours.closed && (
+                        <>
+                          <input type="time" value={hours.open} onChange={e => setOpeningHours({ ...openingHours, [day]: { ...hours, open: e.target.value } })} className="h-8 rounded-lg border border-gray-300 px-2 text-xs outline-none" />
+                          <span className="text-xs text-gray-600">to</span>
+                          <input type="time" value={hours.close} onChange={e => setOpeningHours({ ...openingHours, [day]: { ...hours, close: e.target.value } })} className="h-8 rounded-lg border border-gray-300 px-2 text-xs outline-none" />
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* STORE AVAILABILITY */}
+          <section className="rounded-xl border border-gray-200 bg-white p-6">
+            <h2 className="text-sm font-bold text-gray-900 mb-4">STORE AVAILABILITY</h2>
+            
+            <div className="flex items-center justify-between py-3">
+              <div>
+                <p className="font-medium text-gray-900">Store status</p>
+                <p className="text-xs text-gray-600">Control if your store is visible to buyers</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" defaultChecked={true} className="sr-only peer" />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#ff6a00] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#ff6a00]" />
+              </label>
+            </div>
+          </section>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <Link href="/seller/profile" className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-3 text-xs font-bold text-gray-700 hover:bg-gray-50 text-center">
+              Cancel
+            </Link>
+            <button onClick={handleSave} disabled={saving || !businessName.trim()} className="flex-1 rounded-lg bg-[#ff6a00] px-4 py-3 text-xs font-bold text-white hover:bg-[#e55f00] disabled:opacity-50">
+              {saving ? 'Saving...' : 'Save changes'}
             </button>
-            <p className="mt-1 text-xs text-muted-foreground">Permanently delete your account and all data</p>
           </div>
         </div>
       </div>
-
-      {/* Delete Account Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
-                <AlertTriangle size={20} className="text-red-600" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">Delete Account?</h3>
-            </div>
-            <p className="text-sm text-gray-500 mb-6">
-              This action cannot be undone. All your products, shop data, and order history will be permanently deleted.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                disabled={deleting}
-                className="flex-1 h-11 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  setDeleting(true);
-                  try {
-                    await fetch(`${API}/api/profiles/account`, {
-                      method: 'DELETE',
-                      headers: { 'Authorization': `Bearer ${session?.accessToken || ''}` },
-                    });
-                    await logout();
-                    setLocation('/auth');
-                  } catch { setDeleting(false); }
-                }}
-                disabled={deleting}
-                className="flex-1 h-11 rounded-xl bg-red-500 text-sm font-bold text-white hover:bg-red-600 disabled:opacity-40"
-              >
-                {deleting ? 'Deleting…' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <LocationMapPickerModal
         isOpen={showMap}

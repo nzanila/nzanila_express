@@ -167,7 +167,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
   const { tr } = useLocale();
   const { user, isAuthenticated, logout } = useAuth();
   const ordersHref = isAuthenticated && user?.role === 'seller' ? '/supplier/orders' : '/orders';
-  const accountHref = isAuthenticated ? (user?.role === 'seller' ? '/seller/profile' : '/buyer/profile') : '/onboarding';
+  const accountHref = isAuthenticated ? (user?.role === 'seller' ? '/seller/profile' : '/buyer/dashboard') : '/onboarding';
 
   useEffect(() => {
     setPwa(isPwaMode());

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
-import { ArrowLeft, MapPin, Plus, Trash2, Edit, Home, Building, Map, X, Check, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, MapPin, Plus, Trash2, Edit, Home, Building, Map, X, Check, AlertTriangle, LayoutDashboard } from 'lucide-react';
 import { AppShell } from '@/components/marketplace-shell';
 import { useAuth } from '@/lib/auth-context';
 import { LocationSearchPicker, type LocationData } from '@/components/location-search-picker';
@@ -24,7 +24,7 @@ interface BuyerAddress {
 }
 
 export function BuyerProfilePage() {
-  const { user, session, logout } = useAuth();
+  const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
   const [addresses, setAddresses] = useState<BuyerAddress[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,55 +32,76 @@ export function BuyerProfilePage() {
   const [deleting, setDeleting] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [editingAddress, setEditingAddress] = useState<BuyerAddress | null>(null);
+  const [dashStats, setDashStats] = useState<any>(null);
 
-  const fetchAddresses = () => {
-    if (!user) return;
-    fetch(`${API}/api/profiles/buyers/addresses`, {
-      headers: { 'Authorization': `Bearer ${session?.accessToken || ''}` },
-    })
-      .then(r => r.json())
-      .then(data => { setAddresses(Array.isArray(data) ? data : []); setLoading(false); })
-      .catch(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchAddresses(); }, [user]);
+  useEffect(() => {
+    // Hardcoded mock data
+    const mockAddresses: BuyerAddress[] = [
+      {
+        id: 1,
+        addressName: 'Main Warehouse',
+        recipientName: user?.name || 'John Doe',
+        phoneNumber: user?.phone || '+257 79 123 456',
+        province: 'Kigali City',
+        commune: 'Nyarugenge',
+        zone: 'Nyamirambo',
+        landmark: 'Near the main market',
+        detailedDirections: 'Third building on the left after the roundabout',
+        latitude: -1.9403,
+        longitude: 29.8739,
+        isDefault: true,
+        approximateAddress: 'Nyamirambo, Nyarugenge, Kigali City',
+      },
+      {
+        id: 2,
+        addressName: 'Branch Office',
+        recipientName: user?.name || 'John Doe',
+        phoneNumber: user?.phone || '+257 79 123 456',
+        province: 'Southern Province',
+        commune: 'Huye',
+        zone: 'Town Center',
+        landmark: 'Next to the bank',
+        detailedDirections: 'Across from the post office',
+        latitude: -2.5965,
+        longitude: 29.5396,
+        isDefault: false,
+        approximateAddress: 'Town Center, Huye, Southern Province',
+      },
+    ];
+    
+    const mockDashStats = {
+      orderCount: 18,
+      totalSpent: 8450.00,
+      addressCount: 2,
+    };
+    
+    setTimeout(() => {
+      setAddresses(mockAddresses);
+      setDashStats(mockDashStats);
+      setLoading(false);
+    }, 400);
+  }, [user]);
 
   const defaultAddress = addresses.find((address) => address.isDefault) ?? addresses[0];
 
   const handleDeleteAccount = async () => {
     setDeleting(true);
-    try {
-      await fetch(`${API}/api/profiles/account`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${session?.accessToken || ''}` },
-      });
-      await logout();
-      setLocation('/auth');
-    } catch {
-      setDeleting(false);
-    }
+    await logout();
+    setLocation('/auth');
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this address?')) return;
-    await fetch(`${API}/api/profiles/buyers/addresses/${id}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${session?.accessToken || ''}` },
-    });
     setAddresses(addresses.filter(a => a.id !== id));
   };
 
   const handleSetDefault = async (id: number) => {
-    await fetch(`${API}/api/profiles/buyers/addresses/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.accessToken || ''}` },
-      body: JSON.stringify({ isDefault: true }),
-    });
-    fetchAddresses();
+    setAddresses(addresses.map(a => ({ ...a, isDefault: a.id === id })));
   };
 
   const handleLocationConfirm = async (data: LocationData) => {
-    const body = {
+    const newAddress: BuyerAddress = {
+      id: editingAddress ? editingAddress.id : Date.now(),
       addressName: data.locationName || 'Home',
       recipientName: user?.name || '',
       phoneNumber: data.phone || user?.phone || '',
@@ -89,34 +110,30 @@ export function BuyerProfilePage() {
       zone: data.zone || '',
       landmark: data.landmark || '',
       detailedDirections: data.directions || '',
-      latitude: data.latitude || null,
-      longitude: data.longitude || null,
+      latitude: data.latitude || 0,
+      longitude: data.longitude || 0,
       isDefault: !editingAddress && addresses.length === 0,
       approximateAddress: data.approximateAddress || '',
     };
 
-    const url = editingAddress ? `${API}/api/profiles/buyers/addresses/${editingAddress.id}` : `${API}/api/profiles/buyers/addresses`;
-    const method = editingAddress ? 'PATCH' : 'POST';
-
-    try {
-      await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.accessToken || ''}` },
-        body: JSON.stringify(body),
-      });
-      fetchAddresses();
-    } catch (err) {
-      console.error('Failed to save address:', err);
+    if (editingAddress) {
+      setAddresses(addresses.map(a => a.id === editingAddress.id ? newAddress : a));
+    } else {
+      setAddresses([...addresses, newAddress]);
     }
     setShowLocationPicker(false);
     setEditingAddress(null);
   };
 
+  function money(amount: number) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'BIF', maximumFractionDigits: 0 }).format(amount);
+  }
+
   return (
     <AppShell>
       <div className="mx-auto max-w-4xl px-3 py-4 sm:px-5 sm:py-8 lg:px-10">
-        <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft size={16} /> Back
+        <Link href="/buyer/dashboard" className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft size={16} /> Dashboard
         </Link>
 
         <div className="mb-6 rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-6">
@@ -136,20 +153,24 @@ export function BuyerProfilePage() {
             </button>
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-border bg-secondary/40 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Saved</p>
-              <p className="mt-2 text-2xl font-bold text-foreground">{addresses.length}</p>
+          {/* Stats row */}
+          {dashStats && (
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-border bg-secondary/40 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Total orders</p>
+                <p className="mt-2 text-2xl font-bold text-foreground">{dashStats.orderCount || 0}</p>
+              </div>
+              <div className="rounded-2xl border border-border bg-secondary/40 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Total spent</p>
+                <p className="mt-2 text-2xl font-bold text-foreground">{money(dashStats.totalSpent || 0)}</p>
+              </div>
+              <div className="rounded-2xl border border-border bg-secondary/40 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Saved addresses</p>
+                <p className="mt-2 text-2xl font-bold text-foreground">{dashStats.addressCount || addresses.length}</p>
+              </div>
             </div>
-            <div className="rounded-2xl border border-border bg-secondary/40 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Default</p>
-              <p className="mt-2 text-sm font-bold text-foreground">{defaultAddress?.addressName || 'None yet'}</p>
-            </div>
-            <div className="rounded-2xl border border-border bg-secondary/40 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Status</p>
-              <p className="mt-2 text-sm font-bold text-emerald-600">Verified buyer</p>
-            </div>
-          </div>
+          )}
+
         </div>
 
         <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">

@@ -26,8 +26,15 @@ import {
 } from '@/pages/marketplace-pages';
 import { SellerProfilePage, SellerProfileEditPage } from '@/pages/seller-profile-page';
 import { BuyerProfilePage } from '@/pages/buyer-profile-page';
+import { BuyerDashboardPage } from '@/pages/buyer-dashboard-page';
 import { SellerProductsPage as SellerProductsPageNew } from '@/pages/seller-products-page';
+import { InventoryDashboardPage } from '@/pages/inventory-page';
+import { StoresPage } from '@/pages/stores-page';
 import { SellerVerificationPage } from '@/pages/seller-verification-page';
+import { SellerSettingsPage } from '@/pages/seller-settings-page';
+import { SellerOrderDetailPage } from '@/pages/seller-order-detail-page';
+import { SellerProductFormPage } from '@/pages/seller-product-form-page';
+import StoreProfilePage from '@/pages/store-profile-page';
 import {
   Route,
   Switch,
@@ -117,20 +124,15 @@ function Router() {
         <Route path="/products" component={ProductsPage} />
         <Route path="/products/:id" component={ProductDetailPage} />
         <Route path="/suppliers" component={SuppliersPage} />
-        <Route path="/seller/profile" component={() => <RequireRole role="seller" redirectTo="/auth"> <SellerProfilePage /> </RequireRole>} />
-        <Route path="/seller/:id" component={SellerProfilePage} />
+        <Route path="/store/:slug" component={StoreProfilePage} />
 
         <Route path="/cart" component={() => <RequireRole role="buyer" redirectTo="/"> <CartPage /> </RequireRole>} />
         <Route path="/orders" component={() => <RequireAnyRole redirectTo="/auth"> <OrdersPage /> </RequireAnyRole>} />
         <Route path="/messages" component={() => <RequireAnyRole redirectTo="/auth"> <MessagesPage /> </RequireAnyRole>} />
         <Route path="/buyer/profile" component={() => <RequireRole role="buyer" redirectTo="/"> <BuyerProfilePage /> </RequireRole>} />
+        <Route path="/buyer/dashboard" component={() => <RequireRole role="buyer" redirectTo="/"> <BuyerDashboardPage /> </RequireRole>} />
 
-        <Route path="/supplier" component={() => <RequireRole role="seller" redirectTo="/auth"> <SupplierDashboardPage /> </RequireRole>} />
-        <Route path="/supplier/products" component={() => <RequireRole role="seller" redirectTo="/auth"> <SupplierProductsPage /> </RequireRole>} />
-        <Route path="/supplier/orders" component={() => <RequireRole role="seller" redirectTo="/auth"> <SupplierOrdersPage /> </RequireRole>} />
-        <Route path="/seller/profile/edit" component={() => <RequireRole role="seller" redirectTo="/auth"> <SellerProfileEditPage /> </RequireRole>} />
-        <Route path="/seller/products" component={() => <RequireRole role="seller" redirectTo="/auth"> <SellerProductsPageNew /> </RequireRole>} />
-        <Route path="/seller/verify" component={() => <RequireRole role="seller" redirectTo="/auth"> <SellerVerificationPage /> </RequireRole>} />
+        <Route path="/seller/:id" component={SellerProfilePage} />
 
         <Route component={NotFound} />
       </Switch>

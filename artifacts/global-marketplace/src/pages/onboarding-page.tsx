@@ -69,7 +69,7 @@ function StepProgress({ currentStep }: { currentStep: OnboardingStep }) {
 
 export function OnboardingPage() {
   const { locale, setLocale, tr } = useLocale();
-  const { signUp, isAuthenticated, user, session, refreshUser } = useAuth();
+  const { signUp, isAuthenticated, user, session, refreshUser, logout } = useAuth();
   const [, setLocation] = useLocation();
 
   const [step, setStep] = useState<OnboardingStep>(() => {
@@ -126,6 +126,36 @@ export function OnboardingPage() {
     setLoading(false);
     if (result.error) { setError(result.error); return; }
     setStep(accountType === 'buyer' ? 'buyer-location' : 'seller-business');
+  };
+
+  const handleCancelOnboarding = async () => {
+    const confirmed = window.confirm('Cancel onboarding and delete your account? This cannot be undone.');
+    if (!confirmed) return;
+
+    setError('');
+    setLoading(true);
+
+    try {
+      if (isAuthenticated && session?.accessToken) {
+        const res = await fetch(`${API}/api/profiles/account`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${session.accessToken}` },
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data?.error) throw new Error(data.error);
+          throw new Error('Could not cancel onboarding. Please try again.');
+        }
+      }
+
+      await logout();
+      setLocation('/auth');
+    } catch (cancelError) {
+      setError(cancelError instanceof Error ? cancelError.message : 'Unable to cancel your account right now.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleBuyerComplete = async () => {
@@ -231,7 +261,17 @@ export function OnboardingPage() {
           <div className="flex-1 text-center">
             <p className="text-sm font-bold text-gray-800">{STEP_LABELS[step]}</p>
           </div>
-          <div className="relative">
+          <div className="relative flex items-center gap-2">
+            {step !== 'welcome' && (
+              <button
+                type="button"
+                onClick={handleCancelOnboarding}
+                disabled={loading}
+                className="rounded-full border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            )}
             <button
               onClick={() => setLanguageSelectorOpen(!languageSelectorOpen)}
               className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-black/5 border border-gray-200 bg-white"
@@ -369,11 +409,21 @@ export function OnboardingPage() {
                 </div>
               )}
 
-              <button onClick={handleCreateAccount}
-                disabled={!fullName.trim() || !phoneNumber.trim() || password.length < 6 || loading}
-                className="h-13 w-full rounded-xl bg-[#1a5f4a] text-base font-bold text-white hover:bg-[#154a3a] disabled:opacity-40">
-                {loading ? (locale === 'fr' ? 'Création…' : locale === 'rn' ? 'Kubanga…' : locale === 'sw' ? 'Inaunda…' : 'Creating…') : tr('onboarding.continue')}
-              </button>
+              <div className="space-y-3">
+                <button onClick={handleCreateAccount}
+                  disabled={!fullName.trim() || !phoneNumber.trim() || password.length < 6 || loading}
+                  className="h-13 w-full rounded-xl bg-[#1a5f4a] text-base font-bold text-white hover:bg-[#154a3a] disabled:opacity-40">
+                  {loading ? (locale === 'fr' ? 'Création…' : locale === 'rn' ? 'Kubanga…' : locale === 'sw' ? 'Inaunda…' : 'Creating…') : tr('onboarding.continue')}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelOnboarding}
+                  disabled={loading}
+                  className="w-full text-center text-xs font-medium text-gray-400 transition hover:text-red-500 disabled:opacity-50"
+                >
+                  Cancel & delete account
+                </button>
+              </div>
             </div>
           )}
 

@@ -45,7 +45,12 @@ export function AuthPage() {
   };
 
   if (isAuthenticated && user) {
-    setLocation(user.role === 'seller' ? '/supplier' : '/');
+    // Sellers should use seller-central app
+    if (user.role === 'seller') {
+      window.location.href = 'https://seller-central.pages.dev';
+      return null;
+    }
+    setLocation('/');
     return null;
   }
 

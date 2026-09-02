@@ -137,7 +137,7 @@ export function SignupPage() {
               <div className="rounded-3xl bg-white p-8 shadow-2xl border border-gray-100">
                 <div className="text-center mb-6">
                   <p className="text-2xl font-extrabold text-gray-900">{tr('auth.title')}</p>
-                  <p className="mt-2 text-base text-gray-500">{tr('auth.chooseRole')}</p>
+                  <p className="mt-2 text-base text-gray-500">Create your buyer account</p>
                 </div>
                 <div className="space-y-4">
                   <button
@@ -153,19 +153,17 @@ export function SignupPage() {
                     </div>
                     <ChevronRight size={20} className="text-gray-300 group-hover:text-[#1a5f4a] transition-colors" />
                   </button>
-                  <button
-                    onClick={() => { setSignUpRole('seller'); setSignUpStep('form'); }}
-                    className="group flex w-full items-center gap-5 rounded-2xl border-2 border-gray-200 p-5 text-left transition-all hover:border-[#ff6a00] hover:bg-[#ff6a00]/5 active:scale-[0.98]"
+                </div>
+                
+                <div className="mt-6 pt-6 border-t border-gray-100">
+                  <p className="text-sm text-gray-500 text-center mb-3">Want to sell on Nzanila?</p>
+                  <a 
+                    href="https://seller-central.pages.dev" 
+                    className="flex items-center justify-center gap-2 w-full rounded-2xl border-2 border-[#ff9900] bg-[#ff9900]/5 p-4 text-left transition-all hover:bg-[#ff9900]/10 active:scale-[0.98]"
                   >
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#ff6a00]/10 group-hover:bg-[#ff6a00]/20 transition-colors">
-                      <Store size={26} className="text-[#ff6a00]" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-lg font-bold text-gray-800">{tr('auth.seller')}</p>
-                      <p className="text-sm text-gray-500 mt-0.5">{tr('auth.sellerDesc')}</p>
-                    </div>
-                    <ChevronRight size={20} className="text-gray-300 group-hover:text-[#ff6a00] transition-colors" />
-                  </button>
+                    <Store size={20} className="text-[#ff9900]" />
+                    <span className="text-sm font-bold text-[#ff9900]">Open Seller Central →</span>
+                  </a>
                 </div>
               </div>
 
