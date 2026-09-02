@@ -623,6 +623,36 @@ const whatsappUrl = buildWhatsAppUrl("+" + normalizedPhone, otp);
       return json({ store: dtoStore(stores[0]) });
     }
 
+    // Storefront builder config
+    const storefrontMatch = path.match(/^\/stores\/(\d+)\/storefront$/);
+    if (storefrontMatch && method === "GET") {
+      const sellerId = Number(storefrontMatch[1]);
+      const stores = await sbGet(env, "stores", `seller_id=eq.${sellerId}&select=storefront_config,store_template&limit=1`);
+      if (!stores.length) return json({ error: "No store found for this seller" }, 404);
+      const config = stores[0].storefront_config as Record<string, unknown> | null;
+      return json(config || { sections: [], shopSign: null, template: "showcase", storeId: sellerId });
+    }
+
+    if (storefrontMatch && method === "PUT") {
+      const sellerId = Number(storefrontMatch[1]);
+      const body = await request.json() as Record<string, unknown>;
+
+      if (!body.sections || !Array.isArray(body.sections)) {
+        return json({ error: "Invalid storefront config: sections must be an array" }, 400);
+      }
+
+      const stores = await sbGet(env, "stores", `seller_id=eq.${sellerId}&select=id&limit=1`);
+      if (!stores.length) return json({ error: "No store found for this seller" }, 404);
+
+      const update: Record<string, unknown> = {
+        storefront_config: body,
+        store_template: body.template || "showcase",
+      };
+      await sbPatch(env, "stores", `id=eq.${stores[0].id}`, update);
+
+      return json({ success: true, config: body });
+    }
+
     const storeIdMatch = path.match(/^\/stores\/(\d+)$/);
     if (storeIdMatch && method === "PATCH") {
       const user = await getUser();

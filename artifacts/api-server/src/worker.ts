@@ -278,6 +278,34 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     return json({ store }, 201);
   }
 
+  // GET /api/stores/:sellerId/storefront - Load storefront config
+  const storefrontMatch = path.match(/^\/api\/stores\/(\d+)\/storefront$/);
+  if (storefrontMatch && method === "GET") {
+    const sellerId = Number(storefrontMatch[1]);
+    const stores = await supabaseGet(env, "stores", `seller_id=eq.${sellerId}&select=storefront_config,store_template&limit=1`);
+    if (!stores.length) return json({ error: "No store found for this seller" }, 404);
+    const config = stores[0].storefront_config;
+    return json(config || { sections: [], shopSign: null, template: "showcase", storeId: sellerId });
+  }
+
+  // PUT /api/stores/:sellerId/storefront - Save storefront config
+  if (storefrontMatch && method === "PUT") {
+    const sellerId = Number(storefrontMatch[1]);
+    const body = await request.json() as Record<string, unknown>;
+
+    const stores = await supabaseGet(env, "stores", `seller_id=eq.${sellerId}&select=id,storefront_config,store_template&limit=1`);
+    if (!stores.length) return json({ error: "No store found for this seller" }, 404);
+
+    const update: Record<string, unknown> = {
+      storefront_config: body,
+    };
+    if (typeof body.template === 'string') update.store_template = body.template;
+
+    await supabasePatch(env, "stores", `id=eq.${stores[0].id}`, update);
+
+    return json({ success: true, config: body });
+  }
+
   // GET /api/cart
   if (path === "/api/cart" && method === "GET") {
     return json(await buildCart(env));
