@@ -6,6 +6,7 @@ import profilesRouter from "./profiles";
 import categoriesRouter from "./categories";
 import productsRouter from "./products";
 import storesRouter from "./stores";
+import storefrontRouter from "./storefront";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use("/profiles", profilesRouter);
 router.use("/categories", categoriesRouter);
 router.use("/products", productsRouter);
 router.use("/stores", storesRouter);
+router.use("/stores", storefrontRouter);
 
 export default router;

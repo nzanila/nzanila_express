@@ -26,6 +26,7 @@ import {
 } from '@/pages/marketplace-pages';
 import { SellerProfilePage, SellerProfileEditPage } from '@/pages/seller-profile-page';
 import { BuyerProfilePage } from '@/pages/buyer-profile-page';
+import { StorefrontBuilderPage } from '@/pages/storefront-builder-page';
 import { BuyerDashboardPage } from '@/pages/buyer-dashboard-page';
 import { SellerProductsPage as SellerProductsPageNew } from '@/pages/seller-products-page';
 import { InventoryDashboardPage } from '@/pages/inventory-page';
@@ -133,6 +134,7 @@ function Router() {
         <Route path="/buyer/dashboard" component={() => <RequireRole role="buyer" redirectTo="/"> <BuyerDashboardPage /> </RequireRole>} />
 
         <Route path="/seller/:id" component={SellerProfilePage} />
+        <Route path="/seller/:id/storefront" component={StorefrontBuilderPage} />
 
         <Route component={NotFound} />
       </Switch>

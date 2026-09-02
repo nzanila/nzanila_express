@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation, Link } from 'wouter';
-import { ArrowLeft, MapPin, Clock, Truck, ShoppingBag, Star, Phone, ShieldCheck, Camera, Edit, Eye, ChevronRight, Pencil, Save, X, ChevronDown, Trash2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, MapPin, Clock, Truck, ShoppingBag, Star, Phone, ShieldCheck, Camera, Edit, Eye, ChevronRight, Pencil, Save, X, ChevronDown, Trash2, AlertTriangle, Settings } from 'lucide-react';
 import { AppShell } from '@/components/marketplace-shell';
 import { useAuth } from '@/lib/auth-context';
 import { LocationMapPickerModal } from '@/components/location-map-picker';
@@ -460,11 +460,16 @@ export function SellerProfilePage() {
   return (
     <AppShell>
       <div className="px-4 py-6 sm:px-6 lg:px-10">
-        {isOwnProfile && (
-          <Link href="/supplier" className="mb-4 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900">
-            <ArrowLeft size={16} /> Back to dashboard
-          </Link>
-        )}
+         {isOwnProfile && (
+           <>
+             <Link href="/supplier" className="mb-4 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900">
+               <ArrowLeft size={16} /> Back to dashboard
+             </Link>
+             <Link href={`/seller/${sellerId}/storefront`} className="mb-4 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900">
+               <Settings size={16} /> Customize Storefront
+             </Link>
+           </>
+         )}
         {!isOwnProfile && (
           <Link href="/suppliers" className="mb-4 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900">
             <ArrowLeft size={16} /> Back to suppliers

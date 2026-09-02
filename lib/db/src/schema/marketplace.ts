@@ -275,6 +275,7 @@ export const storesTable = pgTable("stores", {
   contactInfo: jsonb("contact_info").default({}),
   storeTemplate: text("store_template").notNull().default("showcase"),
   storeSections: jsonb("store_sections").notNull().default(["hero", "categories", "featured", "story", "videos", "certificates", "events"]),
+  storefrontConfig: jsonb("storefront_config").default({}),
   rating: real("rating").default(0),
   totalSales: integer("total_sales").default(0),
   totalRevenue: numeric("total_revenue").default("0"),
