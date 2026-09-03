@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "../../db";
+import { db } from "@workspace/db";
 import { categoriesTable, categorySuggestionsTable } from "@workspace/db/schema";
 import { eq, and, isNull, asc } from "drizzle-orm";
 

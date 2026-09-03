@@ -259,7 +259,8 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     const sellers = await supabaseGet(env, "marketplace_users", `id=eq.${sellerId}&role=eq.seller&limit=1`);
     if (!sellers.length) return json({ error: "Only seller accounts can create stores" }, 403);
 
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `store-${sellerId}`;
+    const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `store`;
+    const slug = `${baseSlug}-${sellerId}-${Date.now().toString(36)}`;
     const [store] = await supabasePost(env, "stores", {
       seller_id: sellerId,
       name,

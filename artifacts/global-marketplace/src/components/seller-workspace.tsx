@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { 
-  Menu, X, Home, Package, ShoppingCart, DollarSign, BarChart3, 
+import {
+  Menu, X, Home, Package, ShoppingCart, DollarSign, BarChart3,
   Store, Settings, HelpCircle, Bell, Search, ChevronDown, ChevronRight,
   Plus, FileText, TrendingUp, Users, Box, Tag, Truck, MessageSquare,
   Shield, CreditCard, Globe, Layers, Star, AlertTriangle
@@ -62,12 +62,13 @@ const MENU_ITEMS: MenuItem[] = [
       { label: 'Price Rules', href: '/supplier/pricing/rules' },
     ]
   },
-  { 
-    label: 'Stores', 
+  {
+    label: 'Stores',
     icon: Store,
     children: [
       { label: 'My Stores', href: '/supplier/stores' },
       { label: 'Create Store', href: '/supplier/stores/new' },
+      { label: 'Storefront Builder', href: '/seller/1/storefront' },
       { label: 'Store Settings', href: '/supplier/stores/settings' },
     ]
   },

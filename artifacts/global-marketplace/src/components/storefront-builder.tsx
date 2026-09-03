@@ -25,6 +25,7 @@ import {
 import {
   MODULE_DEFINITIONS,
   MODULE_CATEGORIES,
+  TEMPLATE_DEFINITIONS,
   type ModuleDefinition,
   type ModuleType,
   type StorefrontConfig,
@@ -34,7 +35,7 @@ import {
 } from '@/lib/storefront-types';
 import { useAuth } from '@/lib/auth-context';
 
-const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : '');
+const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-api.pages.dev');
 
 interface DraggedModule {
   type: ModuleType;
@@ -52,6 +53,18 @@ function ModuleIcon({ type }: { type: ModuleType }) {
     'product-category': <LayoutGrid size={20} className="text-teal-500" />,
     'double-row-products': <Columns size={20} className="text-cyan-500" />,
     'store-sign': <ImageIcon size={20} className="text-orange-500" />,
+    'category-cards': <LayoutGrid size={20} className="text-blue-500" />,
+    'stats': <Users size={20} className="text-green-500" />,
+    'features': <Building size={20} className="text-indigo-500" />,
+    'company-capacity': <Building size={20} className="text-purple-500" />,
+    'certifications': <ShieldCheck size={20} className="text-yellow-500" />,
+    'company-performance': <Clock size={20} className="text-orange-500" />,
+    'warehouse-info': <Building size={20} className="text-blue-600" />,
+    'shipping-info': <Globe size={20} className="text-teal-600" />,
+    'trust-badges': <ShieldCheck size={20} className="text-green-600" />,
+    'promo-banner': <Sparkles size={20} className="text-red-500" />,
+    'hot-products': <Package size={20} className="text-orange-500" />,
+    'new-arrivals': <Package size={20} className="text-pink-500" />,
   };
   return iconMap[type] || <FileText size={20} />;
 }
@@ -618,6 +631,142 @@ function StorefrontModulePreview({ mod }: { mod: StorefrontModule }) {
         </div>
       );
 
+    case 'category-cards':
+      return (
+        <div className="grid grid-cols-2 gap-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="h-20 rounded bg-blue-500 flex items-center justify-center text-white text-xs">
+              Category {i + 1}
+            </div>
+          ))}
+        </div>
+      );
+
+    case 'stats':
+      return (
+        <div className="grid grid-cols-4 gap-2 p-3 bg-blue-600 rounded text-white text-center">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i}>
+              <p className="text-sm font-bold">99%</p>
+              <p className="text-[10px] opacity-80">Stat {i + 1}</p>
+            </div>
+          ))}
+        </div>
+      );
+
+    case 'features':
+      return (
+        <div className="grid grid-cols-4 gap-2 p-3 bg-gray-50 rounded">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="text-center">
+              <div className="w-8 h-8 mx-auto mb-1 rounded-full bg-orange-100 flex items-center justify-center">
+                <Building size={16} className="text-orange-500" />
+              </div>
+              <p className="text-[10px] font-medium">Feature {i + 1}</p>
+            </div>
+          ))}
+        </div>
+      );
+
+    case 'company-capacity':
+      return (
+        <div className="rounded-lg border border-gray-200 p-3">
+          <h3 className="text-sm font-bold text-gray-900 mb-2">{String(p('title') || 'Company Capacity')}</h3>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="bg-gray-50 p-2 rounded"><p className="text-[10px] text-gray-500">Years</p><p className="text-sm font-bold">15+</p></div>
+            <div className="bg-gray-50 p-2 rounded"><p className="text-[10px] text-gray-500">Export</p><p className="text-sm font-bold">80%</p></div>
+            <div className="bg-gray-50 p-2 rounded"><p className="text-[10px] text-gray-500">Size</p><p className="text-sm font-bold">50K m²</p></div>
+          </div>
+        </div>
+      );
+
+    case 'certifications':
+      return (
+        <div className="rounded-lg border border-gray-200 p-3">
+          <h3 className="text-sm font-bold text-gray-900 mb-2">{String(p('title') || 'Certifications')}</h3>
+          <div className="flex flex-wrap gap-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-1 px-2 py-1 bg-gray-50 rounded border border-gray-200 text-xs">
+                <ShieldCheck size={14} className="text-green-500" />
+                <span>Cert {i + 1}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+    case 'company-performance':
+      return (
+        <div className="rounded-lg border border-gray-200 p-3">
+          <h3 className="text-sm font-bold text-gray-900 mb-2">{String(p('title') || 'Performance')}</h3>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="bg-green-50 p-2 rounded"><p className="text-[10px] text-gray-500">Response</p><p className="text-sm font-bold text-green-600">&lt;24h</p></div>
+            <div className="bg-blue-50 p-2 rounded"><p className="text-[10px] text-gray-500">On-time</p><p className="text-sm font-bold text-blue-600">98.5%</p></div>
+            <div className="bg-orange-50 p-2 rounded"><p className="text-[10px] text-gray-500">Level</p><p className="text-sm font-bold text-orange-600">AAA</p></div>
+          </div>
+        </div>
+      );
+
+    case 'warehouse-info':
+      return (
+        <div className="rounded-lg border border-gray-200 p-3">
+          <h3 className="text-sm font-bold text-gray-900 mb-2">{String(p('title') || 'Warehouses')}</h3>
+          <div className="text-xs text-gray-600">
+            <p>📍 Multiple locations worldwide</p>
+            <p>📦 Large capacity inventory</p>
+          </div>
+        </div>
+      );
+
+    case 'shipping-info':
+      return (
+        <div className="rounded-lg border border-gray-200 p-3">
+          <h3 className="text-sm font-bold text-gray-900 mb-2">{String(p('title') || 'Shipping')}</h3>
+          <div className="space-y-1 text-xs text-gray-600">
+            <p>🚚 Express: 3-5 days</p>
+            <p>📦 Standard: 7-14 days</p>
+          </div>
+        </div>
+      );
+
+    case 'trust-badges':
+      return (
+        <div className="rounded-lg border border-gray-200 p-3">
+          <h3 className="text-sm font-bold text-gray-900 mb-2">{String(p('title') || 'Trust Badges')}</h3>
+          <div className="flex flex-wrap gap-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="px-2 py-1 bg-gray-50 rounded text-xs text-gray-600">
+                ✓ Badge {i + 1}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+    case 'promo-banner':
+      return (
+        <div
+          className="rounded-lg p-4 text-center"
+          style={{ backgroundColor: String(p('backgroundColor') || '#ff5a36') }}
+        >
+          <h3 className="text-sm font-bold text-white">{String(p('title') || 'Promo')}</h3>
+          {p('subtitle') && <p className="text-xs text-white/80">{String(p('subtitle'))}</p>}
+        </div>
+      );
+
+    case 'hot-products':
+    case 'new-arrivals':
+      return (
+        <div className="rounded-lg border border-gray-200 p-3">
+          <h3 className="text-sm font-bold text-gray-900 mb-2">{String(p('title') || 'Products')}</h3>
+          <div className="grid grid-cols-4 gap-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="aspect-square bg-gray-100 rounded animate-pulse" />
+            ))}
+          </div>
+        </div>
+      );
+
     default:
       return (
         <div className="rounded-lg border border-gray-200 p-4">
@@ -627,7 +776,7 @@ function StorefrontModulePreview({ mod }: { mod: StorefrontModule }) {
   }
 }
 
-export function StorefrontBuilder() {
+export function StorefrontBuilder({ sellerId }: { sellerId: number }) {
   const { user } = useAuth();
   const [config, setConfig] = useState<StorefrontConfig>(DEFAULT_STOREFRONT_CONFIG);
   const [selectedSection, setSelectedSection] = useState('home');
@@ -637,26 +786,20 @@ export function StorefrontBuilder() {
   const [isSaving, setIsSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const dragItem = useRef<{ type: ModuleType } | null>(null);
 
   useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
     const loadConfig = async () => {
       try {
-        const res = await fetch(`${API}/api/stores/${user.id}/storefront`, {
-          headers: { Authorization: `Bearer ${user.session?.accessToken || ''}` },
-        });
+        const res = await fetch(`${API}/api/stores/${sellerId}/storefront`);
         if (res.ok) {
           const data = await res.json();
           if (data && data.sections) {
             setConfig({
               ...DEFAULT_STOREFRONT_CONFIG,
               ...data,
-              storeId: user.id,
+              storeId: sellerId,
             });
           }
         }
@@ -668,7 +811,7 @@ export function StorefrontBuilder() {
     };
 
     loadConfig();
-  }, [user]);
+  }, [sellerId]);
 
   const handleDragStart = useCallback((def: ModuleDefinition) => {
     dragItem.current = { type: def.type };
@@ -759,16 +902,15 @@ export function StorefrontBuilder() {
   );
 
   const handleSave = async () => {
-    if (!user) return;
     setIsSaving(true);
     try {
-      const res = await fetch(`${API}/api/stores/${user.id}/storefront`, {
+      const res = await fetch(`${API}/api/stores/${sellerId}/storefront`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${user.session?.accessToken || ''}`,
+          ...(user?.session?.accessToken ? { Authorization: `Bearer ${user.session.accessToken}` } : {}),
         },
-        body: JSON.stringify({ ...config, storeId: user.id }),
+        body: JSON.stringify({ ...config, storeId: sellerId }),
       });
       if (!res.ok) throw new Error('Failed to save');
       alert('Storefront saved successfully');
@@ -778,6 +920,24 @@ export function StorefrontBuilder() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleApplyTemplate = (templateId: string) => {
+    const template = TEMPLATE_DEFINITIONS.find((t) => t.id === templateId);
+    if (!template) return;
+
+    setConfig({
+      ...config,
+      template: templateId,
+      sections: template.sections.map((section) => ({
+        ...section,
+        modules: section.modules.map((module) => ({
+          ...module,
+          id: `${module.id}-${Date.now()}`,
+        })),
+      })),
+    });
+    setShowTemplateSelector(false);
   };
 
   const selectedModuleData =
@@ -791,9 +951,17 @@ export function StorefrontBuilder() {
         <div className="border-b border-gray-200 p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold text-gray-900">Storefront Builder</h2>
-            <button className="rounded-lg border border-gray-200 p-1.5 text-gray-600 hover:bg-gray-50">
-              <Eye size={18} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowTemplateSelector(true)}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Templates
+              </button>
+              <button className="rounded-lg border border-gray-200 p-1.5 text-gray-600 hover:bg-gray-50">
+                <Eye size={18} />
+              </button>
+            </div>
           </div>
 
           <input
@@ -880,6 +1048,51 @@ export function StorefrontBuilder() {
             </div>
             <div className="p-4">
               <StorefrontPreview config={config} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTemplateSelector && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="h-[80vh] w-[90vw] max-w-5xl overflow-y-auto rounded-xl bg-white shadow-xl">
+            <div className="border-b border-gray-200 p-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold">Choose a Template</h3>
+              <button
+                onClick={() => setShowTemplateSelector(false)}
+                className="rounded-lg p-1 text-gray-500 hover:bg-gray-100"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {TEMPLATE_DEFINITIONS.map((template) => (
+                  <div
+                    key={template.id}
+                    className="border border-gray-200 rounded-lg overflow-hidden hover:border-orange-500 transition-colors cursor-pointer"
+                    onClick={() => handleApplyTemplate(template.id)}
+                  >
+                    <div className="aspect-video bg-gray-100 relative">
+                      <img
+                        src={template.previewImage}
+                        alt={template.name}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute top-2 right-2 bg-orange-500 text-white text-xs px-2 py-1 rounded">
+                        {template.category}
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <h4 className="font-bold text-gray-900 mb-1">{template.name}</h4>
+                      <p className="text-sm text-gray-600 mb-3">{template.description}</p>
+                      <button className="w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-semibold hover:bg-orange-600">
+                        Use Template
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

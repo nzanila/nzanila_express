@@ -22,6 +22,10 @@ interface SellerProduct {
   is_verified: boolean;
   views: number;
   createdAt: string;
+  warehouseLocation?: string;
+  sku?: string;
+  stockStatus?: string;
+  reorderLevel?: number;
 }
 
 const CATEGORIES = [
@@ -31,6 +35,17 @@ const CATEGORIES = [
 ];
 
 const UNITS = ['piece', 'kg', 'g', 'L', 'mL', 'bag', 'box', 'carton', 'bundle', 'dozen'];
+
+const WAREHOUSE_LOCATIONS = [
+  'Bujumbura Main Warehouse',
+  'Gitega Distribution Center',
+  'Bubanza Storage Facility',
+  'Bururi Warehouse',
+  'Cibitoke Distribution Hub',
+  'International Warehouse - USA',
+  'International Warehouse - Europe',
+  'International Warehouse - Asia',
+];
 
 export function SellerProductsPage() {
   const { user, session } = useAuth();
@@ -109,6 +124,21 @@ export function SellerProductsPage() {
                       <span className="font-bold text-primary">{product.price} BIF/{product.unit}</span>
                       <span>MOQ: {product.minimumOrderQuantity}</span>
                       <span>Stock: {product.availableStock}</span>
+                      {product.stockStatus && (
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          product.stockStatus === 'In Stock' ? 'bg-green-100 text-green-700' :
+                          product.stockStatus === 'Low Stock' ? 'bg-yellow-100 text-yellow-700' :
+                          product.stockStatus === 'Out of Stock' ? 'bg-red-100 text-red-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {product.stockStatus}
+                        </span>
+                      )}
+                      {product.warehouseLocation && (
+                        <span className="flex items-center gap-1">
+                          🏭 {product.warehouseLocation.split(' - ')[0] || product.warehouseLocation}
+                        </span>
+                      )}
                       <span>{product.views} views</span>
                     </div>
                   </div>
@@ -149,13 +179,24 @@ function ProductFormModal({ product, onClose, onSaved }: { product: SellerProduc
   const [condition, setCondition] = useState(product?.condition || 'new');
   const [deliveryAvailable, setDeliveryAvailable] = useState(product?.deliveryAvailable ?? true);
   const [pickupAvailable, setPickupAvailable] = useState(product?.pickupAvailable ?? false);
+  const [warehouseLocation, setWarehouseLocation] = useState(product?.warehouseLocation || '');
+  const [sku, setSku] = useState(product?.sku || '');
+  const [stockStatus, setStockStatus] = useState(product?.stockStatus || 'In Stock');
+  const [reorderLevel, setReorderLevel] = useState(product?.reorderLevel || 10);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const handleSave = async () => {
     setSaving(true);
     setError('');
-    const body = { name, category, description, price: parseFloat(price) || 0, unit, minimumOrderQuantity: moq, availableStock: stock, condition, deliveryAvailable, pickupAvailable };
+    const body = {
+      name, category, description,
+      price: parseFloat(price) || 0,
+      unit, minimumOrderQuantity: moq,
+      availableStock: stock, condition,
+      deliveryAvailable, pickupAvailable,
+      warehouseLocation, sku, stockStatus, reorderLevel
+    };
     const url = product ? `${API}/api/profiles/sellers/products/${product.id}` : `${API}/api/profiles/sellers/products`;
     const method = product ? 'PATCH' : 'POST';
     try {
@@ -236,6 +277,42 @@ function ProductFormModal({ product, onClose, onSaved }: { product: SellerProduc
               <input type="checkbox" checked={pickupAvailable} onChange={e => setPickupAvailable(e.target.checked)} className="rounded" />
               Pickup Available
             </label>
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <h4 className="text-xs font-semibold mb-3">Warehouse & Inventory</h4>
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold">Warehouse Location</label>
+                <select value={warehouseLocation} onChange={e => setWarehouseLocation(e.target.value)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none bg-white">
+                  <option value="">Select warehouse</option>
+                  {WAREHOUSE_LOCATIONS.map(loc => (
+                    <option key={loc} value={loc}>{loc}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold">SKU</label>
+                  <input value={sku} onChange={e => setSku(e.target.value)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none" placeholder="PROD-001" />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold">Stock Status</label>
+                  <select value={stockStatus} onChange={e => setStockStatus(e.target.value)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none bg-white">
+                    <option value="In Stock">In Stock</option>
+                    <option value="Low Stock">Low Stock</option>
+                    <option value="Out of Stock">Out of Stock</option>
+                    <option value="Pre-order">Pre-order</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold">Reorder Level</label>
+                <input type="number" value={reorderLevel} onChange={e => setReorderLevel(parseInt(e.target.value) || 10)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none" min="0" />
+              </div>
+            </div>
           </div>
 
           <button onClick={handleSave} disabled={!name.trim() || !category || !description.trim() || !price || saving} className="h-12 w-full rounded-xl bg-primary text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-40">

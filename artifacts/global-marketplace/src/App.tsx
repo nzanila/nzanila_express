@@ -135,6 +135,7 @@ function Router() {
 
         <Route path="/seller/:id" component={SellerProfilePage} />
         <Route path="/seller/:id/storefront" component={StorefrontBuilderPage} />
+        <Route path="/supplier/stores/new" component={() => <RequireRole role="seller" redirectTo="/"> <StoresPage /> </RequireRole>} />
 
         <Route component={NotFound} />
       </Switch>

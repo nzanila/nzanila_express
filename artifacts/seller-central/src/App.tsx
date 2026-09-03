@@ -5,8 +5,10 @@ import {
   HelpCircle, Bell, Search, Menu, X, ChevronDown, ChevronRight,
   Plus, FileText, TrendingUp, Users, Box, Tag, Truck, MessageSquare,
   Shield, CreditCard, Globe, Layers, Star, AlertTriangle, CheckCircle,
-  Edit, Trash2, Eye, Download, Upload, Filter, RefreshCw, ShoppingBag
+  Edit, Trash2, Eye, Download, Upload, Filter, RefreshCw, ShoppingBag, Palette,
+  ExternalLink
 } from 'lucide-react';
+import { StorefrontBuilder } from './components/storefront-builder';
 
 // Types
 interface User {
@@ -71,6 +73,7 @@ interface Order {
 
 // API Base URL - points to the same backend
 const API_BASE = (import.meta as any).env?.VITE_API_URL || 'https://nzanila-api.pages.dev';
+const STORE_BASE_URL = (import.meta as any).env?.VITE_STORE_URL || 'https://nzanila-express.pages.dev';
 
 // Auth Context
 function useAuth() {
@@ -178,22 +181,27 @@ function useAuth() {
   };
 
   const createStore = async (data: { name: string; description: string; category: string; phone: string; email?: string }) => {
-    if (!user) return { success: false };
+    if (!user) return { success: false, error: 'Not logged in' };
     try {
       const res = await fetch(`${API_BASE}/api/stores`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...data, sellerId: user.id }),
       });
-      if (!res.ok) return { success: false };
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        return { success: false, error: errData.error || `Server error ${res.status}` };
+      }
+
+      const responseData = await res.json().catch(() => ({}));
+      const createdStore = responseData.store || responseData;
 
       const updatedUser = { ...user, storeCreated: true };
       setUser(updatedUser);
       localStorage.setItem('sc_user', JSON.stringify(updatedUser));
-      return { success: true };
-    } catch {
-      // Keep the hardcoded preview available when the API is unavailable.
-      return { success: false };
+      return { success: true, store: createdStore };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Network error' };
     }
   };
 
@@ -734,22 +742,47 @@ function OrdersPage() {
   );
 }
 
-// Products Page
+// Products Page — per-account/store, no hardcoded mocks
 function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    const mockProducts: Product[] = [
-      { id: 1, name: 'Premium Cassava Flour (50kg)', price: 45.00, stock: 120, category: 'Grains & Flour', unit: 'bag' },
-      { id: 2, name: 'Fresh Beans (25kg)', price: 32.00, stock: 8, category: 'Legumes', unit: 'bag' },
-      { id: 3, name: 'Vegetable Oil (20L)', price: 58.50, stock: 34, category: 'Oils & Fats', unit: 'tin' },
-      { id: 4, name: 'Maize Grain (100kg)', price: 67.00, stock: 5, category: 'Grains & Flour', unit: 'bag' },
-      { id: 5, name: 'Sugar (50kg)', price: 42.00, stock: 89, category: 'Sweeteners', unit: 'bag' },
-      { id: 6, name: 'Rice (25kg)', price: 38.00, stock: 0, category: 'Grains & Flour', unit: 'bag' },
-    ];
-    setTimeout(() => { setProducts(mockProducts); setLoading(false); }, 400);
+    const load = async () => {
+      try {
+        const userData = localStorage.getItem('sc_user');
+        const user = userData ? JSON.parse(userData) : null;
+        if (!user) { setLoading(false); return; }
+        // find seller's store
+        const sRes = await fetch(`${API_BASE}/api/stores/seller/${user.id}`);
+        let storeId: number | null = null;
+        if (sRes.ok) {
+          const sData = await sRes.json();
+          if (sData.store) storeId = sData.store.id;
+        }
+        if (!storeId) { setProducts([]); setLoading(false); return; }
+        const pRes = await fetch(`${API_BASE}/api/stores/${storeId}/products`);
+        if (pRes.ok) {
+          const rows = await pRes.json();
+          const mapped: Product[] = rows.map((r:any)=>({
+            id: r.id,
+            name: r.name,
+            price: Number(r.base_price),
+            stock: Number(r.stock_quantity ?? 0),
+            category: r.category_id ? String(r.category_id) : (r.unit_type || 'General'),
+            image: r.primary_image,
+            unit: r.unit_type || 'piece',
+            verified: r.status === 'approved',
+          }));
+          setProducts(mapped);
+        } else {
+          setProducts([]);
+        }
+      } catch { setProducts([]); }
+      setLoading(false);
+    };
+    load();
   }, []);
 
   const money = (value: number) => `${value.toLocaleString()} BIF`;
@@ -796,8 +829,8 @@ function ProductsPage() {
         ) : (
           filteredProducts.map((product) => (
             <div key={product.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
-              <div className="h-32 bg-gradient-to-br from-orange-50 to-gray-100 flex items-center justify-center">
-                <Package size={40} className="text-orange-300" />
+              <div className="h-32 bg-gradient-to-br from-orange-50 to-gray-100 flex items-center justify-center overflow-hidden">
+                {product.image ? <img src={product.image} alt={product.name} className="h-full w-full object-cover" /> : <Package size={40} className="text-orange-300" />}
               </div>
               <div className="p-4">
                 <div className="flex items-start justify-between mb-2">
@@ -1071,16 +1104,14 @@ function StoresPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <a
-                    href={`https://nzanila-express.pages.dev/store/${store.slug}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-xs font-semibold hover:bg-gray-50"
-                  >
-                    <Eye size={12} /> View Store
+                  <Link href={`/seller-central/stores/${store.id}/storefront`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-[#ff9900] text-white rounded-lg text-xs font-semibold hover:bg-[#e68a00]">
+                    <Palette size={12} /> {store.id === 0 ? 'Design Storefront' : 'Edit Design'}
+                  </Link>
+                  <a href={`${STORE_BASE_URL}/store/${store.slug}`} target="_blank" rel="noopener noreferrer" title="View store page" className="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <ExternalLink size={14} className="text-gray-600" />
                   </a>
-                  <Link href={`/seller-central/stores/${store.id}/edit`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-xs font-semibold hover:bg-gray-50">
-                    <Edit size={12} /> Edit
+                  <Link href={`/seller-central/stores/${store.id}`} title="Edit store details" className="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <Edit size={14} className="text-gray-600" />
                   </Link>
                 </div>
               </div>
@@ -1396,11 +1427,47 @@ function AddProductPage() {
 
   const handleSubmit = async () => {
     setSubmitting(true);
-    // Mock API call
-    await new Promise(r => setTimeout(r, 1500));
+    try {
+      const userData = localStorage.getItem('sc_user');
+      const token = localStorage.getItem('sc_token');
+      const user = userData ? JSON.parse(userData) : null;
+      if (!user) throw new Error('Not logged in');
+      const sRes = await fetch(`${API_BASE}/api/stores/seller/${user.id}`, {
+        headers: { Authorization: `Bearer ${token || ''}` },
+      });
+      let storeId: number | null = null;
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        if (sData.store) storeId = sData.store.id;
+      }
+      if (!storeId) throw new Error('No store found — create a store first');
+      const res = await fetch(`${API_BASE}/api/stores/${storeId}/products`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token || ''}`,
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          description: formData.description,
+          base_price: formData.basePrice || 0,
+          unit_type: formData.unitType || 'piece',
+          stock_quantity: formData.stockQuantity ? Number(formData.stockQuantity) : 0,
+          minimum_order_quantity: formData.minimumOrderQuantity ? Number(formData.minimumOrderQuantity) : 1,
+          category_id: formData.categoryId || null,
+          primary_image: formData.primaryImage || null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      alert('Product saved to your store — visible in Manage Products and storefront Featured Products.');
+      window.location.href = '/seller-central/products';
+    } catch (e:any) {
+      alert('Failed to save product: ' + (e.message || 'error'));
+    }
     setSubmitting(false);
-    alert('Product created successfully! It will appear on the marketplace after admin review.');
-    window.location.href = '/seller-central/products';
   };
 
   const totalSteps = formData.unitType === 'service' ? 6 : 7;
@@ -2163,328 +2230,245 @@ function ProfileCompletionPage({ onComplete }: { onComplete: (data: any) => Prom
   );
 }
 
-// Create Store Page
+// Create Store Page - Template Selection
 function CreateStorePage({ onComplete }: { onComplete: (data: any) => Promise<any> }) {
-  const [step, setStep] = useState(1);
+  const [, setLocation] = useLocation();
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    category: '',
-    phone: '',
-    email: '',
-    province: '',
-    commune: '',
-    zone: '',
-    address: '',
-    operatingHours: '8:00 - 17:00',
-  });
 
-  const categories = [
-    'Food and groceries',
-    'Clothing and shoes',
-    'Phones and electronics',
-    'Beauty and personal care',
-    'Home and furniture',
-    'Building materials',
-    'Agriculture and farming',
-    'Vehicles and spare parts',
-    'Books and school supplies',
-    'Services',
-    'Multiple categories',
+  const templates = [
+    {
+      id: 'electronics',
+      name: 'Alibaba US Warehouse',
+      description: 'Professional template with blue accents, hero banner, category cards, stats, and company profile',
+      category: 'Professional',
+      previewImage: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=400&h=300&q=80',
+      features: ['Hero banner', 'Category cards', 'Statistics', 'Company profile', 'Warehouse info'],
+    },
+    {
+      id: 'blank',
+      name: 'Modern Minimal',
+      description: 'Clean and minimalist design with focus on products',
+      category: 'Minimal',
+      previewImage: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=400&h=300&q=80',
+      features: ['Clean design', 'Product-focused', 'Minimal distractions', 'Fast loading'],
+    },
+    {
+      id: 'general-showcase',
+      name: 'Industrial',
+      description: 'Bold industrial design for manufacturing and B2B suppliers',
+      category: 'Industrial',
+      previewImage: 'https://images.unsplash.com/photo-1565008447742-97f6f38c985c?auto=format&fit=crop&w=400&h=300&q=80',
+      features: ['Bold typography', 'Manufacturing focus', 'B2B optimized', 'Capacity showcase'],
+    },
   ];
 
-  const provinces = [
-    'Bujumbura Mairie', 'Bujumbura Rural', 'Gitega', 'Muyinga', 'Rumonge',
-    'Ngozi', 'Kayanza', 'Bubanza', 'Cibitoke', 'Bururi', 'Makamba',
-    'Rutana', 'Mwaro', 'Muramvya',
-  ];
-
-  const handleSubmit = async () => {
+  const handleSelectTemplate = async (templateId: string) => {
     setLoading(true);
-    await onComplete(formData);
-    setLoading(false);
+    setSelectedTemplate(templateId);
+    try {
+      const userData = localStorage.getItem('sc_user');
+      const user = userData ? JSON.parse(userData) : null;
+      if (!user) throw new Error('Not logged in');
+
+      const template = templates.find(t => t.id === templateId);
+      if (!template) throw new Error('Template not found');
+
+      const storeData = {
+        sellerId: user.id,
+        name: `${template.name} Store`,
+        description: template.description,
+        category: 'Multiple categories',
+        phone: user.phone || '+257 79 000 000',
+        storeTemplate: templateId,
+      };
+
+      const res = await onComplete(storeData);
+      if (res.success) {
+      } else {
+        alert('Failed to create store: ' + (res.error || 'Unknown error'));
+      }
+    } catch (e: any) {
+      alert('Failed to create store: ' + (e.message || 'error'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-[#232f3e] flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Pattern */}
       <div className="absolute inset-0 opacity-10">
         <div className="absolute inset-0" style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
         }} />
       </div>
-      
-      <div className="w-full max-w-2xl relative z-10">
-        {/* Logo */}
+
+      <div className="w-full max-w-4xl relative z-10">
         <div className="text-center mb-8">
           <div className="h-16 w-16 rounded-2xl bg-[#ff9900] flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#ff9900]/30">
             <Store size={32} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">Create Your Store</h1>
-          <p className="text-gray-400 mt-2">Step {step} of 2</p>
+          <h1 className="text-2xl font-bold text-white">Choose Your Store Template</h1>
+          <p className="text-gray-400 mt-2">Select a professional template to get started. You can customize it later.</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
-          {/* Progress */}
-          <div className="flex items-center gap-4 mb-8">
-            <div className={`flex-1 h-2 rounded-full ${step >= 1 ? 'bg-[#ff9900]' : 'bg-gray-200'}`} />
-            <div className={`flex-1 h-2 rounded-full ${step >= 2 ? 'bg-[#ff9900]' : 'bg-gray-200'}`} />
-          </div>
-
-          {/* Step 1: Basic Info */}
-          {step === 1 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Store Details</h3>
-              
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Store Name *</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Kigali Fresh Store"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]"
-                  required
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {templates.map((template) => (
+            <div
+              key={template.id}
+              onClick={() => handleSelectTemplate(template.id)}
+              className={`relative cursor-pointer rounded-xl border-2 overflow-hidden transition-all ${
+                selectedTemplate === template.id
+                  ? 'border-[#ff9900] ring-2 ring-[#ff9900]/20'
+                  : 'border-gray-600 hover:border-gray-500'
+              }`}
+            >
+              <div className="aspect-video relative overflow-hidden">
+                <img
+                  src={template.previewImage}
+                  alt={template.name}
+                  className="w-full h-full object-cover"
                 />
+                <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full text-[10px] font-semibold text-gray-700">
+                  {template.category}
+                </div>
+                {selectedTemplate === template.id && (
+                  <div className="absolute top-2 left-2 bg-[#ff9900] text-white p-1.5 rounded-full">
+                    <CheckCircle size={14} />
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Store Description *</label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="What do you sell? Why should buyers choose your store?"
-                  rows={3}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Main Category *</label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]"
-                  required
-                >
-                  <option value="">Select a category</option>
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
+              <div className="p-4 bg-white">
+                <h3 className="font-bold text-gray-900 mb-1">{template.name}</h3>
+                <p className="text-xs text-gray-600 mb-3 line-clamp-2">{template.description}</p>
+                <div className="flex flex-wrap gap-1">
+                  {template.features.slice(0, 3).map((feature, index) => (
+                    <span
+                      key={index}
+                      className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded"
+                    >
+                      {feature}
+                    </span>
                   ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Store Phone</label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="+257 79 123 456"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]"
-                  />
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Email (optional)</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="store@example.com"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]"
-                  />
-                </div>
-              </div>
-
-              <button
-                onClick={() => setStep(2)}
-                disabled={!formData.name || !formData.description || !formData.category}
-                className="w-full py-3 bg-[#ff9900] text-white rounded-xl font-bold hover:bg-[#e68a00] disabled:opacity-50 mt-4"
-              >
-                Continue
-              </button>
-            </div>
-          )}
-
-          {/* Step 2: Location */}
-          {step === 2 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Store Location</h3>
-              
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Province *</label>
-                <select
-                  value={formData.province}
-                  onChange={(e) => setFormData({ ...formData, province: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]"
-                  required
-                >
-                  <option value="">Select province</option>
-                  {provinces.map(p => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Commune</label>
-                  <input
-                    type="text"
-                    value={formData.commune}
-                    onChange={(e) => setFormData({ ...formData, commune: e.target.value })}
-                    placeholder="Commune"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Zone</label>
-                  <input
-                    type="text"
-                    value={formData.zone}
-                    onChange={(e) => setFormData({ ...formData, zone: e.target.value })}
-                    placeholder="Zone"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Address / Landmark</label>
-                <input
-                  type="text"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  placeholder="Near Bujumbura Central Market"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Operating Hours</label>
-                <input
-                  type="text"
-                  value={formData.operatingHours}
-                  onChange={(e) => setFormData({ ...formData, operatingHours: e.target.value })}
-                  placeholder="8:00 - 17:00"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]"
-                />
-              </div>
-
-              {/* Preview */}
-              <div className="p-4 bg-gray-50 rounded-xl mt-4">
-                <p className="text-sm font-semibold text-gray-900 mb-2">Store Preview</p>
-                <p className="text-sm text-gray-600">
-                  <span className="font-bold">{formData.name || 'Store Name'}</span>
-                  <br />
-                  {formData.category} • {formData.province || 'Location'}
-                  <br />
-                  {formData.description || 'Store description'}
-                </p>
-              </div>
-
-              <div className="flex gap-4 mt-4">
                 <button
-                  onClick={() => setStep(1)}
-                  className="flex-1 py-3 border border-gray-200 rounded-xl font-semibold hover:bg-gray-50"
+                  onClick={(e) => { e.stopPropagation(); handleSelectTemplate(template.id); }}
+                  disabled={loading}
+                  className="w-full mt-3 py-2 bg-[#ff9900] text-white rounded-lg text-sm font-bold hover:bg-[#e68a00] disabled:opacity-50"
                 >
-                  Back
-                </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading || !formData.province}
-                  className="flex-1 py-3 bg-[#ff9900] text-white rounded-xl font-bold hover:bg-[#e68a00] disabled:opacity-50"
-                >
-                  {loading ? 'Creating...' : 'Create Store'}
+                  {loading && selectedTemplate === template.id ? 'Creating...' : 'Use Template'}
                 </button>
               </div>
             </div>
-          )}
+          ))}
+        </div>
+
+        <div className="mt-6 text-center">
+          <Link href="/seller-central/stores" className="text-sm text-gray-400 hover:text-white">
+            Cancel and go back
+          </Link>
         </div>
       </div>
     </div>
   );
 }
 
-function StoreBuilderPage() {
-  const { id } = useParams<{ id?: string }>();
+// Storefront Builder Page Wrapper
+function StorefrontBuilderPage() {
+  const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
-  const userData = localStorage.getItem('sc_user');
-  const seller = userData ? JSON.parse(userData) : null;
-  const [loading, setLoading] = useState(Boolean(id));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [template, setTemplate] = useState('showcase');
-  const [sections, setSections] = useState(['hero', 'categories', 'featured', 'story', 'videos', 'certificates', 'events']);
-  const [form, setForm] = useState({
-    name: '', description: '', category: '', logo: '', banner: '', province: '', commune: '', zone: '', address: '', phone: '', email: '', operatingHours: '8:00 - 17:00',
-    mainCategories: '', badges: '', certifications: '', galleryImages: '', employeeCount: '', yearEstablished: '', responseRate: '0', responseTime: '24 hours', onTimeDelivery: '0',
-  });
-  const setField = (key: string, value: string) => setForm((current) => ({ ...current, [key]: value }));
-  const split = (value: string) => value.split(/[,\n]/).map((item) => item.trim()).filter(Boolean);
-  const sectionLabels: Record<string, string> = { hero: 'Hero banner', categories: 'Product categories', featured: 'Featured products', story: 'Company story', videos: 'Product videos', certificates: 'Certificates', events: 'Events and exhibitions' };
-  const templates = [{ id: 'brand-story', name: 'Brand story', desc: 'Tell your story and show categories' }, { id: 'product-highlight', name: 'Product highlight', desc: 'Feature a flagship product' }, { id: 'product-grid', name: 'Product grid', desc: 'Display products from your catalog' }, { id: 'blank', name: 'Blank', desc: 'Build from scratch' }];
-  const moveSection = (index: number, direction: -1 | 1) => {
-    const nextIndex = index + direction;
-    if (nextIndex < 0 || nextIndex >= sections.length) return;
-    const next = [...sections];
-    [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
-    setSections(next);
-  };
-
-  useEffect(() => {
-    if (!id) return;
-    fetch(`${API_BASE}/api/stores/${id}`)
-      .then((res) => res.ok ? res.json() : Promise.reject(new Error('Store not found')))
-      .then(({ store }) => {
-        setForm((current) => ({
-          ...current,
-          name: store.name || '', description: store.description || '', category: store.business_category || store.businessCategory || '', logo: store.logo || '', banner: store.banner || '', province: store.province || '', commune: store.commune || '', zone: store.zone || '', address: store.address || '', phone: store.phone || '', email: store.email || '', operatingHours: store.operating_hours?.schedule || '',
-          mainCategories: (store.mainCategories || []).join(', '), badges: (store.badges || []).join(', '), certifications: (store.certifications || []).join(', '), galleryImages: (store.galleryImages || []).join('\n'), employeeCount: store.employeeCount || '', yearEstablished: String(store.yearEstablished || ''), responseRate: String(store.responseRate || 0), responseTime: store.responseTime || '24 hours', onTimeDelivery: String(store.onTimeDelivery || 0),
-        }));
-        setTemplate(store.storeTemplate || 'showcase');
-        setSections(store.storeSections?.length ? store.storeSections : ['hero', 'categories', 'featured', 'story', 'videos', 'certificates', 'events']);
-      })
-      .catch(() => setError('Unable to load this store'))
-      .finally(() => setLoading(false));
-  }, [id]);
-
-  const save = async (event: FormEvent) => {
-    event.preventDefault();
-    setSaving(true); setError('');
-    const payload = {
-      sellerId: seller?.id, name: form.name, description: form.description, category: form.category, logo: form.logo || null, banner: form.banner || null, province: form.province, commune: form.commune, zone: form.zone, address: form.address, phone: form.phone, email: form.email, operatingHours: form.operatingHours,
-      mainCategories: split(form.mainCategories || form.category), badges: split(form.badges), certifications: split(form.certifications), galleryImages: split(form.galleryImages), employeeCount: form.employeeCount, yearEstablished: form.yearEstablished ? Number(form.yearEstablished) : null, responseRate: Number(form.responseRate) || 0, responseTime: form.responseTime, onTimeDelivery: Number(form.onTimeDelivery) || 0, storeTemplate: template, storeSections: sections,
-    };
-    try {
-      const res = await fetch(`${API_BASE}/api/stores${id ? `/${id}` : ''}`, { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error('Save failed');
-      setLocation('/seller-central/stores');
-    } catch { setError('Could not save the store. Check the API connection and try again.'); }
-    finally { setSaving(false); }
-  };
-
-  if (loading) return <div className="p-8 text-sm text-gray-500">Loading store builder...</div>;
+  const storeId = id ? parseInt(id) : 0;
 
   return (
-    <div className="min-h-full bg-[#f4f6f8] p-4 sm:p-6">
-      <div className="mb-5 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#ff9900]">Seller Central</p><h1 className="mt-1 text-2xl font-bold text-gray-900">{id ? 'Edit store' : 'Create store'}</h1><p className="mt-1 text-sm text-gray-500">Build your buyer-facing storefront without code.</p></div><Link href="/seller-central/stores" className="text-sm font-semibold text-gray-600 hover:text-gray-900">Cancel</Link></div>
-      {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-      <form onSubmit={save} className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-5">
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><h2 className="text-base font-bold text-gray-900">Choose a template</h2><p className="mt-1 text-sm text-gray-500">Start with a layout, then arrange your content tiles.</p><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{templates.map((item) => <button type="button" key={item.id} onClick={() => { setTemplate(item.id); if (item.id === 'brand-story') setSections(['hero', 'story', 'categories', 'featured', 'videos', 'certificates', 'events']); if (item.id === 'product-highlight') setSections(['hero', 'featured', 'categories', 'story', 'videos', 'certificates', 'events']); if (item.id === 'product-grid') setSections(['hero', 'categories', 'featured', 'story', 'videos', 'certificates', 'events']); if (item.id === 'blank') setSections([]); }} className={`rounded-lg border-2 p-3 text-left ${template === item.id ? 'border-[#ff9900] bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}><div className="mb-3 grid h-12 grid-cols-3 gap-1 rounded bg-gray-100 p-1">{[0, 1, 2].map((tile) => <span key={tile} className={`${item.id === 'blank' ? 'bg-white' : item.id === 'product-grid' ? 'bg-[#1677d2]' : tile === 0 ? 'bg-[#ff9900]' : 'bg-[#76c7f4]'} rounded-sm`} />)}</div><p className="text-sm font-bold text-gray-900">{item.name}</p><p className="mt-1 text-xs text-gray-500">{item.desc}</p></button>)}</div></section>
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><div><h2 className="text-base font-bold text-gray-900">Arrange your page</h2><p className="mt-1 text-sm text-gray-500">Move sections up or down, or hide sections from the buyer page.</p></div><span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-500">{sections.length} visible</span></div><div className="mt-4 space-y-2">{['hero', 'categories', 'featured', 'story', 'videos', 'certificates', 'events'].map((section) => { const index = sections.indexOf(section); const visible = index !== -1; return <div key={section} className={`flex items-center gap-3 rounded-lg border p-3 ${visible ? 'border-gray-200 bg-white' : 'border-dashed border-gray-200 bg-gray-50 opacity-60'}`}><span className="grid h-7 w-7 place-items-center rounded bg-[#172b4d] text-xs font-bold text-white">{visible ? index + 1 : '-'}</span><span className="flex-1 text-sm font-semibold text-gray-800">{sectionLabels[section]}</span><button type="button" onClick={() => visible && moveSection(index, -1)} disabled={!visible || index === 0} className="rounded border border-gray-200 px-2 py-1 text-xs disabled:opacity-30" aria-label={`Move ${sectionLabels[section]} up`}>↑</button><button type="button" onClick={() => visible && moveSection(index, 1)} disabled={!visible || index === sections.length - 1} className="rounded border border-gray-200 px-2 py-1 text-xs disabled:opacity-30" aria-label={`Move ${sectionLabels[section]} down`}>↓</button><button type="button" onClick={() => setSections(visible ? sections.filter((item) => item !== section) : [...sections, section])} className={`rounded px-2 py-1 text-xs font-semibold ${visible ? 'bg-gray-100 text-gray-700' : 'bg-[#1677d2] text-white'}`}>{visible ? 'Hide' : 'Show'}</button></div>; })}</div></section>
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><h2 className="mb-4 text-base font-bold text-gray-900">Brand and story</h2><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-gray-700">Store name *<input required value={form.name} onChange={(e) => setField('name', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal outline-none focus:border-[#ff9900]" /></label><label className="text-sm font-semibold text-gray-700">Main category *<input required value={form.category} onChange={(e) => setField('category', e.target.value)} placeholder="Food and groceries" className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal outline-none focus:border-[#ff9900]" /></label></div><label className="mt-4 block text-sm font-semibold text-gray-700">Company story<textarea required value={form.description} onChange={(e) => setField('description', e.target.value)} rows={4} placeholder="Tell buyers what your business does..." className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal outline-none focus:border-[#ff9900]" /></label><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-gray-700">Logo image URL<input value={form.logo} onChange={(e) => setField('logo', e.target.value)} placeholder="https://..." className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal outline-none focus:border-[#ff9900]" /></label><label className="text-sm font-semibold text-gray-700">Banner image URL<input value={form.banner} onChange={(e) => setField('banner', e.target.value)} placeholder="https://..." className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal outline-none focus:border-[#ff9900]" /></label></div></section>
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><h2 className="mb-4 text-base font-bold text-gray-900">Storefront content</h2><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-gray-700">Categories <input value={form.mainCategories} onChange={(e) => setField('mainCategories', e.target.value)} placeholder="Food, Agriculture" className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal" /></label><label className="text-sm font-semibold text-gray-700">Badges <input value={form.badges} onChange={(e) => setField('badges', e.target.value)} placeholder="Verified supplier, Best seller" className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal" /></label><label className="text-sm font-semibold text-gray-700">Certifications <input value={form.certifications} onChange={(e) => setField('certifications', e.target.value)} placeholder="ISO 9001, HACCP" className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal" /></label><label className="text-sm font-semibold text-gray-700">Gallery image URLs <textarea value={form.galleryImages} onChange={(e) => setField('galleryImages', e.target.value)} rows={2} placeholder="One URL per line" className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal" /></label></div></section>
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><h2 className="mb-4 text-base font-bold text-gray-900">Business and contact details</h2><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-gray-700">Province<input value={form.province} onChange={(e) => setField('province', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal" /></label><label className="text-sm font-semibold text-gray-700">Commune<input value={form.commune} onChange={(e) => setField('commune', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal" /></label><label className="text-sm font-semibold text-gray-700">Zone<input value={form.zone} onChange={(e) => setField('zone', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal" /></label><label className="text-sm font-semibold text-gray-700">Address<input value={form.address} onChange={(e) => setField('address', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal" /></label><label className="text-sm font-semibold text-gray-700">Phone<input value={form.phone} onChange={(e) => setField('phone', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal" /></label><label className="text-sm font-semibold text-gray-700">Email<input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal" /></label><label className="text-sm font-semibold text-gray-700">Operating hours<input value={form.operatingHours} onChange={(e) => setField('operatingHours', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal" /></label><label className="text-sm font-semibold text-gray-700">Year established<input type="number" value={form.yearEstablished} onChange={(e) => setField('yearEstablished', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal" /></label></div></section>
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><h2 className="mb-4 text-base font-bold text-gray-900">Performance snapshot</h2><div className="grid gap-4 sm:grid-cols-3"><label className="text-sm font-semibold text-gray-700">Team size<input value={form.employeeCount} onChange={(e) => setField('employeeCount', e.target.value)} placeholder="10-50" className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal" /></label><label className="text-sm font-semibold text-gray-700">Response rate<input type="number" min="0" max="100" value={form.responseRate} onChange={(e) => setField('responseRate', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal" /></label><label className="text-sm font-semibold text-gray-700">On-time delivery<input type="number" min="0" max="100" value={form.onTimeDelivery} onChange={(e) => setField('onTimeDelivery', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal" /></label></div><label className="mt-4 block text-sm font-semibold text-gray-700">Average response time<input value={form.responseTime} onChange={(e) => setField('responseTime', e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 font-normal" /></label></section>
-          <button disabled={saving} type="submit" className="w-full rounded-lg bg-[#ff9900] px-5 py-3 text-sm font-bold text-white hover:bg-[#e68a00] disabled:opacity-60">{saving ? 'Saving to database...' : id ? 'Save store changes' : 'Create store'}</button>
+    <StorefrontBuilder
+      storeId={storeId}
+      onBack={() => setLocation('/seller-central/stores')}
+    />
+  );
+}
+
+function CreateStoreWrapper() {
+  const [, setLocation] = useLocation();
+  const { createStore } = useAuth();
+  return <CreateStorePage onComplete={async (data) => {
+    const res = await createStore(data);
+    if (res.success && res.store?.id) {
+      setLocation(`/seller-central/stores/${res.store.id}/storefront`);
+    } else if (res.success) {
+      setLocation('/seller-central/stores');
+    }
+    return res;
+  }} />;
+}
+
+function EditStorePage() {
+  const { id } = useParams<{ id: string }>();
+  const [, setLocation] = useLocation();
+  const [store, setStore] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: '', description: '', phone: '', email: '' });
+  const [msg, setMsg] = useState('');
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/stores/${id}`);
+        if (res.ok) { const data = await res.json(); const s = data.store || data; setStore(s); setForm({ name: s.name || '', description: s.description || '', phone: s.phone || '', email: s.email || '' }); }
+      } catch {}
+      setLoading(false);
+    };
+    load();
+  }, [id]);
+  const handleSave = async () => {
+    setSaving(true); setMsg('');
+    try {
+      const token = localStorage.getItem('sc_token');
+      const res = await fetch(`${API_BASE}/api/stores/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token || ''}` },
+        body: JSON.stringify(form),
+      });
+      if (res.ok) { setMsg('Saved successfully'); setStore((p:any)=>({...p, ...form})); }
+      else { const t=await res.text(); setMsg('Save failed: '+t); }
+    } catch (e:any) { setMsg('Save failed'); }
+    setSaving(false);
+  };
+  if (loading) return <div className="p-12 text-center text-sm text-gray-500">Loading store...</div>;
+  if (!store) return <div className="p-12 text-center"><p className="text-sm text-gray-500">Store not found</p><Link href="/seller-central/stores" className="text-sm text-[#ff9900] underline">Back to stores</Link></div>;
+  return (
+    <div className="p-6 max-w-2xl mx-auto">
+      <div className="flex items-center gap-2 mb-6">
+        <Link href="/seller-central/stores" className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1"><ChevronRight className="rotate-180" size={14}/> Back to Stores</Link>
+        <h2 className="text-lg font-bold">Edit Store</h2>
+      </div>
+      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1">Store Name *</label>
+          <input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]" />
         </div>
-        <aside className="h-fit rounded-xl border border-gray-200 bg-white p-4 shadow-sm xl:sticky xl:top-4"><div className="mb-3 flex items-center justify-between"><p className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500">Buyer preview</p><span className="rounded bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-500">{templates.find((item) => item.id === template)?.name || 'Custom'}</span></div><div className="overflow-hidden rounded-lg border border-gray-200"><div className="relative h-32 bg-[#d9efff]">{form.banner && <img src={form.banner} alt="" className="h-full w-full object-cover opacity-70" />}<div className="absolute inset-0 bg-gradient-to-r from-[#c7e7fb]/90 to-transparent" /><div className="absolute bottom-4 left-4 text-[#123d63]"><p className="text-lg font-extrabold">{form.name || 'Your store name'}</p><p className="text-[10px]">{form.province || 'Your location'} · Verified supplier</p></div></div><div className="border-b-4 border-[#1677d2] bg-white px-3 py-2 text-[10px] font-bold text-[#1677d2]">Home　 Products　 Company profile</div><div className="p-4"><div className="h-24 overflow-hidden rounded bg-blue-700">{form.banner && <img src={form.banner} alt="" className="h-full w-full object-cover opacity-70" />}<p className="relative -mt-16 px-3 text-sm font-bold text-white">{form.description || 'Your company story appears here.'}</p></div><p className="mt-4 text-xs font-bold text-gray-900">Page sections</p><div className="mt-2 space-y-1">{sections.length ? sections.map((section, index) => <div key={section} className="flex items-center gap-2 rounded bg-blue-50 px-2 py-1.5 text-[10px] font-semibold text-blue-800"><span className="grid h-4 w-4 place-items-center rounded-full bg-[#1677d2] text-[9px] text-white">{index + 1}</span>{sectionLabels[section]}</div>) : <p className="rounded bg-gray-50 p-3 text-[10px] text-gray-500">Blank page. Show sections from the editor.</p>}</div></div></div><p className="mt-3 text-xs leading-5 text-gray-500">This preview updates as you choose a template, hide sections, or move them up and down.</p></aside>
-      </form>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1">Description</label>
+          <textarea value={form.description} onChange={e=>setForm({...form, description:e.target.value})} rows={3} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
+            <input value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+            <input value={form.email} onChange={e=>setForm({...form, email:e.target.value})} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]" />
+          </div>
+        </div>
+        {msg && <p className="text-sm text-center py-2 rounded-lg bg-gray-50 text-gray-700">{msg}</p>}
+        <div className="flex gap-2 pt-2">
+          <button onClick={handleSave} disabled={saving || !form.name} className="flex-1 py-2.5 bg-[#ff9900] text-white rounded-lg text-sm font-bold hover:bg-[#e68a00] disabled:opacity-50">{saving?'Saving...':'Save Changes'}</button>
+          <Link href={`/seller-central/stores/${id}/storefront`} className="flex-1 py-2.5 bg-[#232f3e] text-white rounded-lg text-sm font-bold text-center hover:bg-black flex items-center justify-center gap-1.5"><Palette size={14}/> Design Storefront</Link>
+          {store?.slug && <a href={`${STORE_BASE_URL}/store/${store.slug}`} target="_blank" rel="noopener noreferrer" className="py-2.5 px-3 border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center justify-center"><ExternalLink size={14} className="text-gray-600"/></a>}
+        </div>
+        <Link href="/seller-central/stores" className="block text-center text-sm text-gray-500 hover:text-gray-700">Back to stores</Link>
+      </div>
     </div>
   );
 }
@@ -2555,10 +2539,10 @@ function Router() {
         <Route path="/seller-central/products/new" component={AddProductPage} />
         <Route path="/seller-central/products/:id/edit" component={ProductsPage} />
         <Route path="/seller-central/inventory" component={InventoryPage} />
+        <Route path="/seller-central/stores/new" component={CreateStoreWrapper} />
+        <Route path="/seller-central/stores/:id/storefront" component={StorefrontBuilderPage} />
+        <Route path="/seller-central/stores/:id" component={EditStorePage} />
         <Route path="/seller-central/stores" component={StoresPage} />
-        <Route path="/seller-central/stores/new" component={StoreBuilderPage} />
-        <Route path="/seller-central/stores/:id" component={StoresPage} />
-        <Route path="/seller-central/stores/:id/edit" component={StoreBuilderPage} />
         <Route path="/seller-central/pricing" component={DashboardPage} />
         <Route path="/seller-central/reports" component={DashboardPage} />
         <Route path="/seller-central/payments" component={DashboardPage} />

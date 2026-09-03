@@ -32,6 +32,13 @@ interface SellerProfile {
   openingHours?: Record<string, { open: string; close: string; closed: boolean }>;
   deliveryFeeStructure?: any;
   deliveryAreas?: string;
+  store?: {
+    id: number;
+    name: string;
+    slug: string;
+    description: string;
+    storeTemplate: string;
+  };
 }
 
 interface SellerProduct {
@@ -66,8 +73,14 @@ export function SellerProfilePage() {
     Promise.all([
       fetch(`${API}/api/profiles/sellers/${sellerId}/profile`).then(r => r.json()),
       fetch(`${API}/api/suppliers/${sellerId}/products`).then(r => r.json()).catch(() => []),
-    ]).then(([p, prods]) => {
-      setProfile(p);
+      fetch(`${API}/api/stores/seller/${sellerId}`).then(r => r.json()).catch(() => ({ store: null })),
+    ]).then(([p, prods, storeData]) => {
+      // Merge store info into profile
+      const profileWithStore = {
+        ...p,
+        store: storeData.store || null,
+      };
+      setProfile(profileWithStore);
       setProducts(Array.isArray(prods) ? prods : []);
       setLoading(false);
     }).catch(() => {
@@ -180,6 +193,37 @@ export function SellerProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Store Information */}
+      {profile.store && (
+        <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">Your Store</h2>
+            <Link
+              href={`/seller/${sellerId}/storefront`}
+              className="flex items-center gap-2 rounded-xl border border-[#ff6a00] bg-[#ff6a00]/10 px-3 py-2 text-xs font-bold text-[#ff6a00] hover:bg-[#ff6a00]/20"
+            >
+              <Eye size={14} /> View Storefront
+            </Link>
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Store Name</span>
+              <span className="text-sm font-semibold text-gray-900">{profile.store.name}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Template</span>
+              <span className="text-sm font-semibold text-[#1677ff] capitalize">{profile.store.storeTemplate}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Store URL</span>
+              <Link href={`/store/${profile.store.slug}`} className="text-sm font-semibold text-[#1677ff] hover:underline">
+                /store/{profile.store.slug}
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Store Preview Section */}
       {isOwnProfile && (

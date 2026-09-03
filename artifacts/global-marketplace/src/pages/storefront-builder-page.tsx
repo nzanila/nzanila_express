@@ -1,11 +1,13 @@
 import { StorefrontBuilder } from '@/components/storefront-builder';
-import { Link } from 'wouter';
-import { ArrowLeft } from 'lucide-react';
+import { useParams } from 'wouter';
 
 export function StorefrontBuilderPage() {
+  const params = useParams();
+  const sellerId = Number(params?.id || '1');
+
   return (
     <div className="h-screen">
-      <StorefrontBuilder />
+      <StorefrontBuilder sellerId={sellerId} />
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
   ordersTable,
   orderItemsTable,
   cartItemsTable,
+  storesTable,
 } from "@workspace/db";
 
 const router: IRouter = Router();
@@ -79,6 +80,12 @@ router.get("/sellers/:sellerId/profile", async (req, res) => {
     return res.status(404).json({ error: "Seller not found" });
   }
 
+  // Get seller's store if exists
+  const [store] = await db
+    .select()
+    .from(storesTable)
+    .where(eq(storesTable.sellerId, sellerId));
+
   // Privacy: Only show approximate location if not verified
   const publicProfile = {
     id: seller.id,
@@ -98,6 +105,14 @@ router.get("/sellers/:sellerId/profile", async (req, res) => {
     profilePicture: seller.profilePicture,
     offersDelivery: seller.offersDelivery,
     offersPickup: seller.offersPickup,
+    // Include store information
+    store: store ? {
+      id: store.id,
+      name: store.name,
+      slug: store.slug,
+      description: store.description,
+      storeTemplate: store.storeTemplate,
+    } : null,
   };
 
   res.json(publicProfile);

@@ -20,6 +20,7 @@ interface Store {
   rating: number;
   createdAt: string;
   logo?: string;
+  slug?: string;
 }
 
 export function StoresPage() {
@@ -43,6 +44,7 @@ export function StoresPage() {
         revenue: 12450.80,
         rating: 4.8,
         createdAt: new Date(Date.now() - 7776000000).toISOString(),
+        slug: 'kigali-fresh-traders',
       },
       {
         id: 2,
@@ -55,6 +57,7 @@ export function StoresPage() {
         revenue: 8920.50,
         rating: 4.6,
         createdAt: new Date(Date.now() - 5184000000).toISOString(),
+        slug: 'nyamirambo-wholesalers',
       },
       {
         id: 3,
@@ -67,6 +70,7 @@ export function StoresPage() {
         revenue: 2150.00,
         rating: 4.2,
         createdAt: new Date(Date.now() - 2592000000).toISOString(),
+        slug: 'southern-province-supplies',
       },
     ];
     setTimeout(() => { setStores(mockStores); setLoading(false); }, 400);
@@ -213,13 +217,13 @@ export function StoresPage() {
                 </div>
 
                 <div className="flex gap-2">
-                  <Link href={`/supplier/stores/${store.id}`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-xs font-semibold hover:bg-gray-50">
+                  <Link href={`/store/${store.slug}`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-xs font-semibold hover:bg-gray-50">
                     <Eye size={12} /> View
                   </Link>
-                  <Link href={`/supplier/stores/${store.id}/edit`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-xs font-semibold hover:bg-gray-50">
-                    <Edit size={12} /> Edit
+                  <Link href={`/seller/${store.id}/storefront`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-[#ff9900] text-white rounded-lg text-xs font-semibold hover:bg-[#e68a00]">
+                    <Globe size={12} /> Storefront
                   </Link>
-                  <Link href={`/supplier/stores/${store.id}/settings`} className="flex items-center justify-center px-3 py-2 border border-gray-200 rounded-lg text-xs font-semibold hover:bg-gray-50">
+                  <Link href={`/supplier/stores/${store.id}/edit`} className="flex items-center justify-center px-3 py-2 border border-gray-200 rounded-lg text-xs font-semibold hover:bg-gray-50">
                     <Settings size={12} />
                   </Link>
                 </div>

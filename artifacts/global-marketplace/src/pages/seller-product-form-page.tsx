@@ -18,6 +18,19 @@ const CONDITIONS = ['New', 'Used'];
 
 const DELIVERY_TIMES = ['Same day', '1–2 days', '3–5 days', '1 week', 'Other'];
 
+const WAREHOUSE_LOCATIONS = [
+  'Bujumbura Main Warehouse',
+  'Gitega Distribution Center',
+  'Bubanza Storage Facility',
+  'Bururi Warehouse',
+  'Cibitoke Distribution Hub',
+  'International Warehouse - USA',
+  'International Warehouse - Europe',
+  'International Warehouse - Asia',
+];
+
+const STOCK_STATUS = ['In Stock', 'Low Stock', 'Out of Stock', 'Pre-order', 'Discontinued'];
+
 interface ProductFormData {
   name: string;
   description: string;
@@ -31,6 +44,11 @@ interface ProductFormData {
   pickupAvailable: boolean;
   deliveryAreas: string;
   estimatedTime: string;
+  warehouseLocation: string;
+  sku: string;
+  barcode: string;
+  stockStatus: string;
+  reorderLevel: string;
 }
 
 export function SellerProductFormPage() {
@@ -51,6 +69,11 @@ export function SellerProductFormPage() {
     pickupAvailable: false,
     deliveryAreas: '',
     estimatedTime: '1–2 days',
+    warehouseLocation: '',
+    sku: '',
+    barcode: '',
+    stockStatus: 'In Stock',
+    reorderLevel: '10',
   });
   
   const [loading, setLoading] = useState(false);
@@ -79,6 +102,11 @@ export function SellerProductFormPage() {
             pickupAvailable: data.pickupAvailable ?? false,
             deliveryAreas: data.deliveryAreas || '',
             estimatedTime: data.estimatedTime || '1–2 days',
+            warehouseLocation: data.warehouseLocation || '',
+            sku: data.sku || '',
+            barcode: data.barcode || '',
+            stockStatus: data.stockStatus || 'In Stock',
+            reorderLevel: data.reorderLevel?.toString() || '10',
           });
           if (data.images) {
             setProductImages(Array.isArray(data.images) ? data.images : []);
@@ -327,7 +355,7 @@ export function SellerProductFormPage() {
           {/* 4. DELIVERY */}
           <section className="rounded-xl border border-gray-200 bg-white p-6">
             <h2 className="text-sm font-bold text-gray-900 mb-4">4. DELIVERY</h2>
-            
+
             <div className="space-y-4">
               <div className="flex gap-6">
                 <label className="flex items-center gap-2 text-sm">
@@ -376,6 +404,88 @@ export function SellerProductFormPage() {
                     <option key={time} value={time}>{time}</option>
                   ))}
                 </select>
+              </div>
+            </div>
+          </section>
+
+          {/* 5. WAREHOUSE & INVENTORY */}
+          <section className="rounded-xl border border-gray-200 bg-white p-6">
+            <h2 className="text-sm font-bold text-gray-900 mb-4">5. WAREHOUSE & INVENTORY</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">
+                  Warehouse Location
+                </label>
+                <select
+                  value={formData.warehouseLocation}
+                  onChange={(e) => handleInputChange('warehouseLocation', e.target.value)}
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]"
+                >
+                  <option value="">Select warehouse (optional)</option>
+                  {WAREHOUSE_LOCATIONS.map(loc => (
+                    <option key={loc} value={loc}>{loc}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-gray-700">
+                    SKU (Stock Keeping Unit)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.sku}
+                    onChange={(e) => handleInputChange('sku', e.target.value)}
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]"
+                    placeholder="e.g., PROD-001"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-gray-700">
+                    Barcode/ISBN
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.barcode}
+                    onChange={(e) => handleInputChange('barcode', e.target.value)}
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]"
+                    placeholder="e.g., 1234567890123"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-gray-700">
+                    Stock Status
+                  </label>
+                  <select
+                    value={formData.stockStatus}
+                    onChange={(e) => handleInputChange('stockStatus', e.target.value)}
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]"
+                  >
+                    {STOCK_STATUS.map(status => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-gray-700">
+                    Reorder Level
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.reorderLevel}
+                    onChange={(e) => handleInputChange('reorderLevel', e.target.value)}
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]"
+                    min="0"
+                    placeholder="Alert when stock falls below this level"
+                  />
+                </div>
               </div>
             </div>
           </section>

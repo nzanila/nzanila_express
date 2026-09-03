@@ -181,7 +181,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
   const CORS = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
   };
   const json = (data: unknown, status = 200) =>
@@ -560,7 +560,8 @@ const whatsappUrl = buildWhatsAppUrl("+" + normalizedPhone, otp);
       const sellers = await sbGet(env, "marketplace_users", `id=eq.${sellerId}&role=eq.seller&limit=1`);
       if (!sellers.length) return json({ error: "Only seller accounts can create stores" }, 403);
 
-      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `store-${sellerId}`;
+      const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `store`;
+      const slug = `${baseSlug}-${sellerId}-${Date.now().toString(36)}`;
       const [store] = await sbPost(env, "stores", {
         seller_id: sellerId,
         name,
@@ -626,31 +627,89 @@ const whatsappUrl = buildWhatsAppUrl("+" + normalizedPhone, otp);
     // Storefront builder config
     const storefrontMatch = path.match(/^\/stores\/(\d+)\/storefront$/);
     if (storefrontMatch && method === "GET") {
-      const sellerId = Number(storefrontMatch[1]);
-      const stores = await sbGet(env, "stores", `seller_id=eq.${sellerId}&select=storefront_config,store_template&limit=1`);
-      if (!stores.length) return json({ error: "No store found for this seller" }, 404);
-      const config = stores[0].storefront_config as Record<string, unknown> | null;
-      return json(config || { sections: [], shopSign: null, template: "showcase", storeId: sellerId });
+      const sidOrStoreId = Number(storefrontMatch[1]);
+      // try seller_id first, then id — resilient to missing storefront_config column
+      let stores: Record<string, unknown>[] = [];
+      try {
+        stores = await sbGet(env, "stores", `seller_id=eq.${sidOrStoreId}&limit=1`);
+      } catch {}
+      if (!stores.length) {
+        try { stores = await sbGet(env, "stores", `id=eq.${sidOrStoreId}&limit=1`); } catch {}
+      }
+      if (!stores.length) return json({ sections: [], shopSign: null, template: "showcase", storeId: sidOrStoreId });
+      const cfg = (stores[0] as any).storefront_config as Record<string, unknown> | null;
+      return json(cfg && typeof cfg === 'object' && (cfg as any).sections ? cfg : { sections: [], shopSign: null, template: "showcase", storeId: sidOrStoreId });
     }
 
     if (storefrontMatch && method === "PUT") {
-      const sellerId = Number(storefrontMatch[1]);
+      const sidOrStoreId = Number(storefrontMatch[1]);
       const body = await request.json() as Record<string, unknown>;
 
       if (!body.sections || !Array.isArray(body.sections)) {
         return json({ error: "Invalid storefront config: sections must be an array" }, 400);
       }
 
-      const stores = await sbGet(env, "stores", `seller_id=eq.${sellerId}&select=id&limit=1`);
+      for (const section of body.sections) {
+        if (!section.id || !section.name || !Array.isArray(section.modules)) {
+          return json({ error: "Invalid section: must have id, name, and modules array" }, 400);
+        }
+        for (const mod of section.modules) {
+          if (!mod.id || !mod.type || !mod.props) {
+            return json({ error: "Invalid module: must have id, type, and props" }, 400);
+          }
+        }
+      }
+
+      let stores: Record<string, unknown>[] = [];
+      try { stores = await sbGet(env, "stores", `seller_id=eq.${sidOrStoreId}&select=id&limit=1`); } catch {}
+      if (!stores.length) {
+        try { stores = await sbGet(env, "stores", `id=eq.${sidOrStoreId}&select=id&limit=1`); } catch {}
+      }
       if (!stores.length) return json({ error: "No store found for this seller" }, 404);
 
       const update: Record<string, unknown> = {
         storefront_config: body,
-        store_template: body.template || "showcase",
+        store_template: (body.template as string) || "showcase",
       };
       await sbPatch(env, "stores", `id=eq.${stores[0].id}`, update);
 
       return json({ success: true, config: body });
+    }
+
+    // Store products - belong to store & seller account
+    const storeProductsMatch = path.match(/^\/stores\/(\d+)\/products$/);
+    if (storeProductsMatch && method === "GET") {
+      const storeId = storeProductsMatch[1];
+      const prods = await sbGet(env, "new_products", `store_id=eq.${storeId}&order=created_at.asc`);
+      return json(prods);
+    }
+
+    if (storeProductsMatch && method === "POST") {
+      const user = await getUser();
+      if (!user) return json({ error: "Authentication required" }, 401);
+      const storeId = Number(storeProductsMatch[1]);
+      const body = await request.json() as Record<string, unknown>;
+      // Verify store belongs to this seller
+      const owners = await sbGet(env, "stores", `id=eq.${storeId}&seller_id=eq.${Number(user.profile.id)}&limit=1`);
+      if (!owners.length) return json({ error: "Store not found" }, 404);
+      const slug = String(body.name || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + `-${Date.now()}`;
+      const product = {
+        seller_id: Number(user.profile.id),
+        store_id: storeId,
+        name: body.name,
+        slug,
+        description: body.description || "",
+        base_price: body.base_price || 0,
+        currency: "BIF",
+        unit_type: body.unit_type || "piece",
+        stock_quantity: body.stock_quantity || 0,
+        minimum_order_quantity: body.minimum_order_quantity || 1,
+        category_id: body.category_id || null,
+        status: "approved",
+        primary_image: body.primary_image || null,
+      };
+      const [created] = await sbPost(env, "new_products", product);
+      return json({ success: true, product: created });
     }
 
     const storeIdMatch = path.match(/^\/stores\/(\d+)$/);
