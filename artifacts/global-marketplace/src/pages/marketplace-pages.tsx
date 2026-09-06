@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef, type FormEvent, type ReactNode } from 'react';
+import { useMemo, useState, useEffect, useRef, useCallback, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
@@ -9,6 +9,7 @@ import {
   BadgeCheck,
   BarChart3,
   Check,
+  ChevronDown,
   Clock3,
   DollarSign,
   Layers3,
@@ -79,6 +80,31 @@ const formatDate = (value: string) =>
     day: 'numeric',
     year: 'numeric',
   });
+
+function AiReasoningPanel({ query, onProducts, onFailure }: { query: string; onProducts: (products: Product[]) => void; onFailure: () => void }) {
+  const [summary, setSummary] = useState(`I’m interpreting “${query}” as a product search and matching it against names, categories, specifications, supplier verification, MOQ, stock, and price.`);
+  const [step, setStep] = useState('Matching products and search keywords');
+  const [matched, setMatched] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    const apiBase = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-api-server.nzanilaexpress.workers.dev');
+    fetch(`${apiBase}/api/ai/research`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query, messages: [], stream: false }) })
+      .then(async response => { if (!response.ok) throw new Error('AI unavailable'); return response.json() as Promise<{ products?: Product[] }>; })
+      .then(result => { if (!cancelled) { onProducts(Array.isArray(result.products) ? result.products : []); setSummary(`I’m interpreting “${query}” in its original language and matching it against live product names, categories, specifications, supplier verification, MOQ, stock, and price.`); setStep('Products matched and ranked'); setMatched(true); window.setTimeout(() => setExpanded(false), 450); } })
+      .catch(() => { if (!cancelled) { setStep('Switching to regular product search'); onFailure(); } });
+    return () => { cancelled = true; };
+  }, [query, onProducts]);
+  return <section className="mb-5 rounded-lg border border-[#ff6a00] bg-white p-4"><button type="button" onClick={() => setExpanded(value => !value)} className="flex w-full items-center gap-2 text-left text-lg font-bold text-[#ff5a00]"><Sparkles size={19} /> Deep Search results <span className="text-xs font-normal text-gray-500">{matched ? 'Completed' : 'AI prediction'}</span><ChevronDown size={16} className={`ml-auto transition-transform ${expanded ? 'rotate-180' : ''}`} /></button><div className={`overflow-hidden transition-all duration-500 ${expanded ? 'mt-3 max-h-80 opacity-100' : 'max-h-0 opacity-0'}`}><div className="space-y-3 text-sm"><div className="flex gap-2"><Check size={16} className="mt-0.5 shrink-0 text-[#ff5a00]" /><div><p className="font-semibold">Predicted product requirement</p><p className="mt-1 border-l border-gray-200 pl-3 text-gray-500">Product search for <b>{query}</b>.</p></div></div><div className="flex gap-2"><Check size={16} className="mt-0.5 shrink-0 text-[#ff5a00]" /><div><p className="font-semibold">Search strategy</p><p className="mt-1 border-l border-gray-200 pl-3 text-gray-500">{summary}</p></div></div><div className="flex gap-2">{matched ? <Check size={16} className="mt-0.5 shrink-0 text-[#ff5a00]" /> : <span className="mt-0.5 h-4 w-4 animate-pulse rounded-full border-2 border-dotted border-[#ff5a00]" />}<p className="font-semibold">{step}</p></div></div></div></section>;
+}
+
+function aiCatalogQuery(query: string): string {
+  const lower = query.toLowerCase();
+  const category = /\bfoo(?:d|s)?\b/.test(lower) || lower.includes('grocery') ? 'Food' : lower.includes('shirt') || lower.includes('clothing') || lower.includes('dress') ? 'Clothing' : lower.includes('phone') || lower.includes('electronics') ? 'Electronics' : '';
+  if (category) return category;
+  const stopWords = new Set('i need a an the cheapest cheap item in for of please find show me looking want to with and or'.split(' '));
+  return query.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(word => word.length > 2 && !stopWords.has(word)).slice(0, 4).join(' ');
+}
 
 function soldCount(product: Product): number | null {
   const totalSales = (product as Product & { totalSales?: number }).totalSales;
@@ -371,13 +397,37 @@ function SupplierMini({ supplier }: { supplier: Supplier }) {
 }
 
 export function ProductsPage() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const params = new URLSearchParams(
     typeof window !== 'undefined' ? window.location.search : ''
   );
   const initialSearch = params.get('search') ?? '';
   const initialCategory = params.get('category') ?? '';
+  const [aiQuery, setAiQuery] = useState(initialSearch);
+  const [aiProducts, setAiProducts] = useState<Product[] | null>(null);
+  const [aiFailed, setAiFailed] = useState(false);
+  const [showAiReasoning, setShowAiReasoning] = useState(Boolean(initialSearch));
+  const aiSearch = Boolean(aiQuery);
   const [search, setSearch] = useState(initialSearch);
+  const catalogSearch = aiSearch ? aiCatalogQuery(aiQuery) : search;
+  useEffect(() => {
+    setSearch(initialSearch);
+    setAiProducts(null);
+    setAiFailed(false);
+    setShowAiReasoning(Boolean(initialSearch));
+    setAiQuery(initialSearch);
+  }, [initialSearch]);
+  useEffect(() => {
+    const handleAiSearch = (event: Event) => {
+      const query = (event as CustomEvent<string>).detail;
+      if (typeof query === 'string') { setAiProducts(null); setAiFailed(false); setShowAiReasoning(true); setAiQuery(query); setSearch(query); }
+    };
+    window.addEventListener('nzanila-ai-search', handleAiSearch);
+    return () => window.removeEventListener('nzanila-ai-search', handleAiSearch);
+  }, []);
+  const handleAiProducts = useCallback((matches: Product[]) => {
+    setAiProducts(matches);
+  }, []);
   useEffect(() => {
     if (!search.trim() || search === initialSearch) return;
     const timer = window.setTimeout(() => recordSearch(search), 1200);
@@ -386,7 +436,7 @@ export function ProductsPage() {
   const [category, setCategory] = useState(initialCategory);
   const [sort, setSort] = useState<
     'featured' | 'price-low' | 'price-high' | 'rating'
-  >('rating');
+  >(aiSearch && /\b(cheap|cheapest|lowest|low price)\b/i.test(aiQuery) ? 'price-low' : 'rating');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [tradeAssurance, setTradeAssurance] = useState(false);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
@@ -398,17 +448,17 @@ export function ProductsPage() {
     isError,
     refetch,
   } = useListProducts({
-    search: search || undefined,
+    search: aiSearch && !aiFailed && aiProducts === null ? undefined : ((aiSearch && !aiFailed ? (catalogSearch || search) : search) || undefined),
     category: category || undefined,
     sort,
   });
-  const visibleProducts = useMemo(() => (products ?? []).filter((product) => {
+  const visibleProducts = useMemo(() => (aiSearch && aiProducts !== null ? aiProducts : (products ?? [])).filter((product) => {
     const item = product as Product & { verified?: boolean; tradeAssurance?: boolean; minimumOrderQuantity?: number };
     if (verifiedOnly && item.verified !== true) return false;
     if (tradeAssurance && item.tradeAssurance !== true) return false;
     if (minOrder && Number(item.minimumOrderQuantity ?? 0) > Number(minOrder)) return false;
     return true;
-  }), [products, verifiedOnly, tradeAssurance, minOrder]);
+  }), [products, aiProducts, aiSearch, verifiedOnly, tradeAssurance, minOrder]);
   return (
     <AppShell activeTab="products" hideSidebar>
       <div className="bg-[#f3f3f3] px-4 py-6 lg:px-8">
@@ -426,20 +476,23 @@ export function ProductsPage() {
             </button>
           }
         />
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row">
+        {aiSearch && showAiReasoning && <AiReasoningPanel query={aiQuery} onProducts={handleAiProducts} onFailure={() => { setAiFailed(true); setShowAiReasoning(false); }} />}
+        {aiSearch && <div className="mb-5 flex flex-wrap items-center gap-2 text-xs"><span className="mr-1 font-bold text-gray-600">Quick filters:</span>{['All products', 'Verified suppliers', 'In stock', 'Food & Beverages', 'Textiles & Clothing', 'Home & Kitchen'].map(filter => <button key={filter} onClick={() => { if (filter === 'Verified suppliers') setVerifiedOnly(true); else if (filter === 'All products') { setCategory(''); setVerifiedOnly(false); } else if (filter === 'In stock') setTradeAssurance(false); else setCategory(filter); }} className="rounded-full border border-gray-200 bg-white px-3 py-1.5 hover:border-[#ff6a00] hover:text-[#e85d00]">{filter}</button>)}</div>}
+        {(!aiSearch || aiProducts !== null) && <div className="mb-6 flex flex-col gap-3 sm:flex-row">
           <div className="flex h-11 flex-1 items-center rounded-lg border border-border bg-card px-3 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
             <Search size={17} className="text-muted-foreground" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter')
-                  setLocation(
-                    `/products?search=${encodeURIComponent(search)}`
-                  );
+                if (e.key === 'Enter') {
+                  setAiQuery(search);
+                  window.dispatchEvent(new CustomEvent('nzanila-ai-search', { detail: search.trim() }));
+                  setLocation(`/products?search=${encodeURIComponent(search)}&ai=1`);
+                }
               }}
               className="min-w-0 flex-1 bg-transparent px-3 text-sm outline-none"
-              placeholder="Search by product, material, or supplier"
+              placeholder={aiSearch ? 'Manual catalog search…' : 'Search by product, material, or supplier'}
               data-testid="input-product-search"
             />
             <button
@@ -461,7 +514,7 @@ export function ProductsPage() {
             <option value="price-low">Price: low to high</option>
             <option value="price-high">Price: high to low</option>
           </select>
-        </div>
+        </div>}
         <div className="grid items-start gap-5 lg:grid-cols-[210px_minmax(0,1fr)]">
           <aside className={`${filtersOpen ? 'block' : 'hidden'} rounded-xl border border-border bg-card p-4 lg:sticky lg:top-4 lg:block`}>
             <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold">Filters</h2><button className="text-xs text-muted-foreground lg:hidden" onClick={() => setFiltersOpen(false)}>Close</button></div>
@@ -475,7 +528,7 @@ export function ProductsPage() {
           <section className="min-w-0">
             {isError ? <ErrorState onRetry={() => refetch()} /> : <>
               <div className="mb-4 flex items-center justify-between text-xs text-gray-500"><span>{isLoading ? 'Finding products…' : `${visibleProducts.length} products in view`}</span><span>{category || 'All categories'}</span></div>
-              <PaginatedProducts key={`${search}:${category}:${sort}:${verifiedOnly}:${tradeAssurance}:${minOrder}`} products={visibleProducts} loading={isLoading} />
+              {aiSearch && !aiFailed && aiProducts === null ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{Array.from({ length: 10 }).map((_, index) => <div key={index} className="h-72 animate-pulse rounded-xl bg-white" />)}</div> : <PaginatedProducts key={`${search}:${category}:${sort}:${verifiedOnly}:${tradeAssurance}:${minOrder}`} products={visibleProducts} loading={isLoading} />}
             </>}
           </section>
         </div>

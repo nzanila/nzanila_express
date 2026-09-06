@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { setBaseUrl } from '@workspace/api-client-react';
 import NotFound from '@/pages/not-found';
 import { AiResearchPage } from '@/pages/ai-research-page';
+import { AiSearchPage } from '@/pages/ai-search-page';
 import { AuthPage } from '@/pages/auth-page';
 import { SignupPage } from '@/pages/signup-page';
 import { CategoriesPage } from '@/pages/categories-page';
@@ -130,6 +131,7 @@ function Router() {
         <Route path="/auth/signup" component={SignupPage} />
         <Route path="/onboarding" component={OnboardingPage} />
         <Route path="/ai-research" component={AiResearchPage} />
+        <Route path="/ai-search" component={AiSearchPage} />
         <Route path="/categories" component={CategoriesPage} />
         <Route path="/products" component={ProductsPage} />
         <Route path="/products/:id" component={ProductDetailPage} />

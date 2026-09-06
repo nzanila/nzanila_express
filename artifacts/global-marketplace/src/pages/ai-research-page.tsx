@@ -15,6 +15,10 @@ const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://
 const greeting = "Hello! I'm Nzanila AI, your sourcing assistant.\n\nI'm here to help with your procurement needs on Nzanila.com, including:\n• Finding products and suppliers for your requirements.\n• Comparing prices and minimum order quantities.\n• Reviewing supplier details and verification signals.\n• Planning sourcing questions and delivery requirements.\n\nHow can I assist you with your sourcing today?";
 const newConversation = (): Conversation => ({ id: crypto.randomUUID(), title: 'Greeting', messages: [] });
 const quickPrompts = ['Find best MOQ deals under $50', 'Which suppliers are verified?', 'Shipping agent to Burundi', 'Wireless earphones wholesale'];
+const cleanAssistantSummary = (value: string): string => {
+  const cleaned = value.split(/\n\s*(?:summary|analysis|productids|steps|followups|considerations)\s*:/i)[0].trim();
+  return cleaned || value.trim();
+};
 
 const money = (value: number) => `${Math.round(value).toLocaleString('en-US')} BIF`;
 
@@ -112,7 +116,7 @@ export function AiResearchPage() {
         if (event.type === 'error') throw new Error(event.message || 'Research failed. Please try again.');
         if (event.type === 'status' && typeof event.message === 'string') setProgress(current => [...current, event.message]);
         if (event.type === 'result' && typeof event.summary === 'string') {
-          const result: AiResult = { summary: event.summary, products: Array.isArray(event.products) ? event.products : [], insight: stringList(event.considerations).join(' '), analysis: stringList(event.analysis), steps: stringList(event.steps), followUps: stringList(event.followUps) };
+          const result: AiResult = { summary: cleanAssistantSummary(event.summary), products: Array.isArray(event.products) ? event.products : [], insight: stringList(event.considerations).join(' '), analysis: stringList(event.analysis), steps: stringList(event.steps), followUps: stringList(event.followUps) };
           appendMessage(chatId, { id: crypto.randomUUID(), role: 'assistant', text: result.summary, result });
           receivedReply = true;
         }

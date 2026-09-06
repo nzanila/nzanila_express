@@ -70,14 +70,13 @@ function LanguageSelector() {
 function HeroSearch({ activeTab, onCategoriesClick }: { activeTab?: NavTab; onCategoriesClick?: (categoryId?: string) => void }) {
   const [, setLocation] = useLocation();
   const [query, setQuery] = useState('');
-  const isAi = activeTab === 'ai';
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
-    if (!isAi) recordSearch(query);
-    if (isAi) setLocation(`/ai-research?q=${encodeURIComponent(query)}`);
-    else setLocation(`/products?search=${encodeURIComponent(query)}`);
+    recordSearch(query);
+    window.dispatchEvent(new CustomEvent('nzanila-ai-search', { detail: query.trim() }));
+    setLocation(`/products?search=${encodeURIComponent(query)}&ai=1`);
   };
 
   return (
@@ -95,12 +94,12 @@ function HeroSearch({ activeTab, onCategoriesClick }: { activeTab?: NavTab; onCa
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={isAi ? 'Describe what you need — AI will find suppliers…' : 'What are you looking for?'}
+            placeholder="Search products with Nzanila AI…"
             className="min-w-0 flex-1 px-4 text-sm outline-none"
             data-testid="input-hero-search"
           />
-          <button type="submit" className="bg-[#ff6a00] px-8 text-sm font-bold text-white hover:bg-[#e55f00]" data-testid="button-hero-search">
-            Search
+          <button type="submit" className="flex items-center gap-1.5 bg-[#ff6a00] px-8 text-sm font-bold text-white hover:bg-[#e55f00]" data-testid="button-hero-search">
+            <Sparkles size={14} /> AI Search
           </button>
         </form>
         <div className="mt-2.5 flex flex-wrap gap-x-5 text-xs text-gray-600">
@@ -180,9 +179,10 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
     const updateKeyboardState = () => {
       const offset = Math.max(0, window.innerHeight - viewport.height);
       document.documentElement.style.setProperty('--nzanila-keyboard-offset', `${offset}px`);
-      const active = document.activeElement;
-      const editing = window.innerWidth <= 767 && (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement);
-      setKeyboardOpen(window.innerHeight - viewport.height > 150 || editing);
+      const keyboardVisible = offset > 150;
+      if (keyboardVisible) document.documentElement.classList.add('nzanila-keyboard-open');
+      else document.documentElement.classList.remove('nzanila-keyboard-open');
+      setKeyboardOpen(keyboardVisible);
     };
     updateKeyboardState();
     viewport.addEventListener('resize', updateKeyboardState);
