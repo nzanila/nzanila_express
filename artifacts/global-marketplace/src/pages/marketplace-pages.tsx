@@ -619,7 +619,7 @@ export function ProductDetailPage() {
 
   return (
     <AppShell activeTab="products" hideSearch>
-      <div className="bg-background px-4 py-5 sm:px-5 sm:py-8 lg:px-10">
+      <div className="mt-4 rounded-t-xl bg-background px-4 py-5 sm:px-5 sm:py-8 lg:px-10">
         {/* ── Breadcrumb ── */}
         <nav className="mb-4 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground sm:mb-6 sm:text-xs">
           <Link href="/" className="hover:text-foreground transition-colors">{tr('nav.products')}</Link>
