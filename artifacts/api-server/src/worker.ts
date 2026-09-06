@@ -142,7 +142,7 @@ function json(data: unknown, status = 200) {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Authorization, Content-Type",
     },
   });
 }
@@ -153,9 +153,95 @@ function cors() {
     headers: {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
     },
   });
+}
+
+// ── Auth helpers (Web Crypto, Worker-compatible) ──
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+  const hash = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" }, keyMaterial, 256);
+  const saltHex = [...salt].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const hashHex = [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `${saltHex}:${hashHex}`;
+}
+
+async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  const [saltHex, hashHex] = stored.split(":");
+  const salt = new Uint8Array(saltHex.match(/.{2}/g)!.map((h) => parseInt(h, 16)));
+  const keyMaterial = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+  const hash = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" }, keyMaterial, 256);
+  const computedHex = [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return computedHex === hashHex;
+}
+
+function normalizeAuthPhone(phone: string): string {
+  let normalized = phone.replace(/\s/g, "");
+  if (normalized.startsWith("+")) normalized = normalized.slice(1);
+  if (normalized.startsWith("0")) normalized = "257" + normalized.slice(1);
+  if (!normalized.startsWith("257") && !normalized.startsWith("250")) normalized = "257" + normalized;
+  return normalized;
+}
+
+function createAuthSession(userId: number, phone: string) {
+  const accessToken = `nz_${btoa(JSON.stringify({ id: userId, phone, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 }))}`;
+  return {
+    accessToken,
+    refreshToken: `nz_refresh_${userId}`,
+    expiresIn: 7 * 24 * 60 * 60,
+    expiresAt: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
+  };
+}
+
+function dtoAuthUser(u: Record<string, unknown>) {
+  return {
+    id: u.id,
+    authUserId: u.auth_user_id || u.authUserId,
+    phone: u.phone,
+    name: u.name,
+    role: u.role,
+    location: u.location,
+    verified: Boolean(u.verified),
+    avatar: u.avatar,
+    preferredLanguage: u.preferred_language || u.preferredLanguage,
+    province: u.province,
+    city: u.city,
+    zone: u.zone,
+    landmark: u.landmark,
+    deliveryPhone: u.delivery_phone || u.deliveryPhone,
+    businessName: u.business_name || u.businessName,
+    sellerFullName: u.seller_full_name || u.sellerFullName,
+    productCategories: u.product_categories || u.productCategories,
+    offersDelivery: u.offers_delivery !== undefined ? u.offers_delivery : u.offersDelivery,
+    offersPickup: u.offers_pickup !== undefined ? u.offers_pickup : u.offersPickup,
+    deliveryAreas: u.delivery_areas || u.deliveryAreas,
+    verificationStatus: u.verification_status || u.verificationStatus,
+    onboardingCompleted: u.onboarding_completed !== undefined ? u.onboarding_completed : u.onboardingCompleted,
+    profilePicture: u.profile_picture || u.profilePicture,
+    businessDescription: u.business_description || u.businessDescription,
+    openingHours: u.opening_hours || u.openingHours,
+    deliveryFeeStructure: u.delivery_fee_structure || u.deliveryFeeStructure,
+    shopLatitude: u.shop_latitude || u.shopLatitude,
+    shopLongitude: u.shop_longitude || u.shopLongitude,
+    shopLocationApproximate: u.shop_location_approximate !== undefined ? u.shop_location_approximate : u.shopLocationApproximate,
+    shopAddress: u.shop_address || u.shopAddress,
+    shopDirections: u.shop_directions || u.shopDirections,
+    shopPhone: u.shop_phone || u.shopPhone,
+    meetAtPublicLandmark: u.meet_at_public_landmark !== undefined ? u.meet_at_public_landmark : u.meetAtPublicLandmark,
+    addressName: u.address_name || u.addressName,
+    directions: u.directions,
+    latitude: u.latitude,
+    longitude: u.longitude,
+    approximateAddress: u.approximate_address || u.approximateAddress,
+    idDocumentUrl: u.id_document_url || u.idDocumentUrl,
+    idDocumentType: u.id_document_type || u.idDocumentType,
+    idDocumentName: u.id_document_name || u.idDocumentName,
+    verificationSubmittedAt: u.verification_submitted_at || u.verificationSubmittedAt,
+    createdAt: u.created_at || u.createdAt,
+  };
 }
 
 async function handleRequest(request: Request, env: Env): Promise<Response> {
@@ -166,6 +252,118 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
 
   // CORS preflight
   if (method === "OPTIONS") return cors();
+
+  // ── Auth routes ──
+
+  if (path === "/api/auth/signup" && method === "POST") {
+    try {
+      const body = await request.json() as { phone?: string; name?: string; role?: string; password?: string };
+      if (!body.phone || !body.name || !body.role || !body.password) {
+        return json({ error: "Phone, name, role, and password are required" }, 400);
+      }
+      if (!["buyer", "seller"].includes(body.role)) {
+        return json({ error: "Role must be 'buyer' or 'seller'" }, 400);
+      }
+      if (body.password.length < 6) {
+        return json({ error: "Password must be at least 6 characters" }, 400);
+      }
+      const normalizedPhone = normalizeAuthPhone(body.phone);
+      const existing = await supabaseGet(env, "marketplace_users", `phone=eq.${encodeURIComponent(normalizedPhone)}&limit=1`) as Record<string, unknown>[];
+      if (existing.length) {
+        return json({ error: "Phone number already registered" }, 409);
+      }
+      const passwordHash = await hashPassword(body.password);
+      const [profile] = await supabasePost(env, "marketplace_users", {
+        auth_user_id: crypto.randomUUID(),
+        phone: normalizedPhone,
+        name: body.name,
+        role: body.role,
+        location: "Bujumbura",
+        verified: false,
+        avatar: "",
+        password_hash: passwordHash,
+      });
+      const session = createAuthSession(profile.id, normalizedPhone);
+      return json({ message: "Account created successfully", user: dtoAuthUser(profile), session }, 201);
+    } catch (error) {
+      console.error("Signup error:", error);
+      return json({ error: "Internal server error" }, 500);
+    }
+  }
+
+  if (path === "/api/auth/login" && method === "POST") {
+    try {
+      const body = await request.json() as { phone?: string; password?: string };
+      if (!body.phone || !body.password) {
+        return json({ error: "Phone and password are required" }, 400);
+      }
+      const normalizedPhone = normalizeAuthPhone(body.phone);
+      const users = await supabaseGet(env, "marketplace_users", `phone=eq.${encodeURIComponent(normalizedPhone)}&limit=1`) as Record<string, unknown>[];
+      if (!users.length) {
+        return json({ error: "Phone number not registered" }, 404);
+      }
+      const user = users[0];
+      const passwordHash = user.password_hash || user.passwordHash;
+      if (!passwordHash) {
+        return json({ error: "Account was created without a password. Please reset your password." }, 400);
+      }
+      if (!(await verifyPassword(body.password, passwordHash as string))) {
+        return json({ error: "Invalid password" }, 401);
+      }
+      const session = createAuthSession(user.id, normalizedPhone);
+      return json({ message: "Login successful", user: dtoAuthUser(user), session });
+    } catch (error) {
+      console.error("Login error:", error);
+      return json({ error: "Internal server error" }, 500);
+    }
+  }
+
+  if (path === "/api/auth/refresh" && method === "POST") {
+    try {
+      const body = await request.json() as { refreshToken?: string };
+      if (!body.refreshToken) {
+        return json({ error: "Refresh token required" }, 400);
+      }
+      const match = body.refreshToken.match(/^nz_refresh_(\d+)$/);
+      if (!match) {
+        return json({ error: "Invalid refresh token" }, 401);
+      }
+      const userId = parseInt(match[1]);
+      const users = await supabaseGet(env, "marketplace_users", `id=eq.${userId}&limit=1`) as Record<string, unknown>[];
+      if (!users.length) {
+        return json({ error: "User not found" }, 401);
+      }
+      const session = createAuthSession(userId, users[0].phone as string);
+      return json({ session });
+    } catch (error) {
+      console.error("Refresh error:", error);
+      return json({ error: "Internal server error" }, 500);
+    }
+  }
+
+  if (path === "/api/auth/me" && method === "GET") {
+    try {
+      const auth = request.headers.get("Authorization");
+      if (!auth?.startsWith("Bearer nz_")) {
+        return json({ error: "Not authenticated" }, 401);
+      }
+      const payload = JSON.parse(atob(auth.slice(10)));
+      if (payload.exp && payload.exp < Date.now()) {
+        return json({ error: "Token expired" }, 401);
+      }
+      const users = await supabaseGet(env, "marketplace_users", `id=eq.${payload.id}&limit=1`) as Record<string, unknown>[];
+      if (!users.length) {
+        return json({ error: "User not found" }, 404);
+      }
+      return json({ user: dtoAuthUser(users[0]) });
+    } catch {
+      return json({ error: "Invalid token" }, 401);
+    }
+  }
+
+  if (path === "/api/auth/logout" && method === "POST") {
+    return json({ message: "Logged out" });
+  }
 
   if (path === "/api/ai/research" && method === "POST") {
     if (!env.GROQ_API_KEY && !env.AI) return json({ error: "AI research is not configured yet" }, 503);
