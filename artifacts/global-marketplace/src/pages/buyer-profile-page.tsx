@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
-import { ArrowLeft, ArrowRight, MapPin, Plus, Trash2, Edit, Home, Building, Map, X, Check, AlertTriangle, LayoutDashboard } from 'lucide-react';
-import { AppShell } from '@/components/marketplace-shell';
-import { useAuth } from '@/lib/auth-context';
+import { MapPin, Plus, Trash2, Edit, Home, Building, Map, Check, AlertTriangle, ShoppingBag, ArrowRight } from 'lucide-react';
+import { BuyerWorkspace } from '@/components/buyer-workspace';
+import { useAuth, type User } from '@/lib/auth-context';
 import { LocationSearchPicker, type LocationData } from '@/components/location-search-picker';
 
-const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : '');
+const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-api-server.nzanilaexpress.workers.dev');
 
 interface BuyerAddress {
   id: number;
@@ -24,7 +24,7 @@ interface BuyerAddress {
 }
 
 export function BuyerProfilePage() {
-  const { user, logout } = useAuth();
+  const { user, session, logout } = useAuth();
   const [, setLocation] = useLocation();
   const [addresses, setAddresses] = useState<BuyerAddress[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,71 +32,87 @@ export function BuyerProfilePage() {
   const [deleting, setDeleting] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [editingAddress, setEditingAddress] = useState<BuyerAddress | null>(null);
-  const [dashStats, setDashStats] = useState<any>(null);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState('');
 
   useEffect(() => {
-    // Hardcoded mock data
-    const mockAddresses: BuyerAddress[] = [
-      {
-        id: 1,
-        addressName: 'Main Warehouse',
-        recipientName: user?.name || 'John Doe',
-        phoneNumber: user?.phone || '+257 79 123 456',
-        province: 'Kigali City',
-        commune: 'Nyarugenge',
-        zone: 'Nyamirambo',
-        landmark: 'Near the main market',
-        detailedDirections: 'Third building on the left after the roundabout',
-        latitude: -1.9403,
-        longitude: 29.8739,
-        isDefault: true,
-        approximateAddress: 'Nyamirambo, Nyarugenge, Kigali City',
-      },
-      {
-        id: 2,
-        addressName: 'Branch Office',
-        recipientName: user?.name || 'John Doe',
-        phoneNumber: user?.phone || '+257 79 123 456',
-        province: 'Southern Province',
-        commune: 'Huye',
-        zone: 'Town Center',
-        landmark: 'Next to the bank',
-        detailedDirections: 'Across from the post office',
-        latitude: -2.5965,
-        longitude: 29.5396,
-        isDefault: false,
-        approximateAddress: 'Town Center, Huye, Southern Province',
-      },
-    ];
-    
-    const mockDashStats = {
-      orderCount: 18,
-      totalSpent: 8450.00,
-      addressCount: 2,
+    let cancelled = false;
+    const key = `nzanila_buyer_addresses_${user?.id || 'guest'}`;
+    let saved: BuyerAddress[] = [];
+    try {
+      const cached = JSON.parse(localStorage.getItem(key) || '[]');
+      if (Array.isArray(cached)) saved = cached;
+    } catch { /* A damaged cache must not hide the server address. */ }
+    const mergeProfile = (profile: User | null) => {
+      const hasAddress = profile && profile.addressName !== 'skipped' && (
+        profile.approximateAddress || profile.zone || profile.city || profile.province ||
+        (Number.isFinite(profile.latitude) && Number.isFinite(profile.longitude) && (profile.latitude !== 0 || profile.longitude !== 0))
+      );
+      const address: BuyerAddress | null = hasAddress ? {
+        id: -1,
+        addressName: profile.addressName || 'Delivery address',
+        recipientName: profile.name || '',
+        phoneNumber: profile.deliveryPhone || (profile.phone?.startsWith('user_') ? '' : profile.phone) || '',
+        province: profile.province || '',
+        commune: profile.city || '',
+        zone: profile.zone || '',
+        landmark: profile.landmark === 'skipped' ? '' : profile.landmark || '',
+        detailedDirections: profile.directions || '',
+        latitude: profile.latitude ?? 0,
+        longitude: profile.longitude ?? 0,
+        approximateAddress: profile.approximateAddress || [profile.zone, profile.city, profile.province].filter(Boolean).join(', '),
+        isDefault: !saved.some(item => item.isDefault),
+      } : null;
+      const alreadySaved = address && saved.some(item => item.id === -1 || (
+        item.latitude === address.latitude && item.longitude === address.longitude &&
+        item.addressName === address.addressName
+      ));
+      if (!cancelled) setAddresses(address && !alreadySaved ? [address, ...saved] : saved);
     };
-    
-    setTimeout(() => {
-      setAddresses(mockAddresses);
-      setDashStats(mockDashStats);
-      setLoading(false);
-    }, 400);
-  }, [user]);
+    mergeProfile(user);
+    if (!session?.accessToken) { setLoading(false); return; }
+    setLoading(true);
+    fetch(`${API}/api/auth/me`, { headers: { Authorization: `Bearer ${session.accessToken}` } })
+      .then(async response => {
+        if (!response.ok) throw new Error('Profile unavailable');
+        const payload = await response.json();
+        mergeProfile(payload.user);
+      })
+      .catch(() => { /* Keep the saved profile and browser addresses available offline. */ })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [user, session?.accessToken]);
+
+  const saveAddresses = (next: BuyerAddress[]) => {
+    if (user?.id) localStorage.setItem(`nzanila_buyer_addresses_${user.id}`, JSON.stringify(next));
+    setAddresses(next);
+  };
 
   const defaultAddress = addresses.find((address) => address.isDefault) ?? addresses[0];
 
   const handleDeleteAccount = async () => {
     setDeleting(true);
+    await fetch(`${API}/api/profiles/account`, { method: 'DELETE', headers: { Authorization: `Bearer ${session?.accessToken || ''}` } });
     await logout();
     setLocation('/auth');
   };
 
+  const changePassword = async () => {
+    setPasswordMessage('');
+    const response = await fetch(`${API}/api/auth/password`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.accessToken || ''}` }, body: JSON.stringify({ currentPassword, newPassword }) });
+    const result = await response.json().catch(() => ({}));
+    setPasswordMessage(response.ok ? 'Password updated successfully.' : (result.error || 'Could not update password.'));
+    if (response.ok) { setCurrentPassword(''); setNewPassword(''); }
+  };
+
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this address?')) return;
-    setAddresses(addresses.filter(a => a.id !== id));
+    saveAddresses(addresses.filter(a => a.id !== id));
   };
 
   const handleSetDefault = async (id: number) => {
-    setAddresses(addresses.map(a => ({ ...a, isDefault: a.id === id })));
+    saveAddresses(addresses.map(a => ({ ...a, isDefault: a.id === id })));
   };
 
   const handleLocationConfirm = async (data: LocationData) => {
@@ -112,14 +128,14 @@ export function BuyerProfilePage() {
       detailedDirections: data.directions || '',
       latitude: data.latitude || 0,
       longitude: data.longitude || 0,
-      isDefault: !editingAddress && addresses.length === 0,
+      isDefault: editingAddress?.isDefault ?? addresses.length === 0,
       approximateAddress: data.approximateAddress || '',
     };
 
     if (editingAddress) {
-      setAddresses(addresses.map(a => a.id === editingAddress.id ? newAddress : a));
+      saveAddresses(addresses.map(a => a.id === editingAddress.id ? newAddress : a));
     } else {
-      setAddresses([...addresses, newAddress]);
+      saveAddresses([...addresses, newAddress]);
     }
     setShowLocationPicker(false);
     setEditingAddress(null);
@@ -130,11 +146,17 @@ export function BuyerProfilePage() {
   }
 
   return (
-    <AppShell>
-      <div className="mx-auto max-w-4xl px-3 py-4 sm:px-5 sm:py-8 lg:px-10">
-        <Link href="/buyer/dashboard" className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft size={16} /> Dashboard
-        </Link>
+    <BuyerWorkspace active="account">
+      <div className="mx-auto max-w-4xl space-y-5">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Buyer account</p>
+            <p className="mt-1 text-sm text-muted-foreground">Manage your delivery addresses and account security.</p>
+          </div>
+          <Link href="/products" className="hidden items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-xs font-semibold text-foreground hover:border-primary hover:text-primary sm:inline-flex">
+            Browse products <ArrowRight size={14} />
+          </Link>
+        </div>
 
         <div className="mb-6 rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -145,31 +167,13 @@ export function BuyerProfilePage() {
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Buyer account</p>
                 <h1 className="mt-1 text-2xl font-bold text-foreground">{user?.name || 'Buyer'}</h1>
-                <p className="text-sm text-muted-foreground">{user?.phone}</p>
+                <p className="text-sm text-muted-foreground">{user?.phone?.startsWith('user_') ? '' : user?.phone}</p>
               </div>
             </div>
             <button onClick={() => { setEditingAddress(null); setShowLocationPicker(true); }} className="inline-flex items-center gap-2 rounded-xl bg-primary px-3.5 py-2.5 text-xs font-bold text-primary-foreground hover:bg-primary/90">
               <Plus size={14} /> Add Address
             </button>
           </div>
-
-          {/* Stats row */}
-          {dashStats && (
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-border bg-secondary/40 p-3">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Total orders</p>
-                <p className="mt-2 text-2xl font-bold text-foreground">{dashStats.orderCount || 0}</p>
-              </div>
-              <div className="rounded-2xl border border-border bg-secondary/40 p-3">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Total spent</p>
-                <p className="mt-2 text-2xl font-bold text-foreground">{money(dashStats.totalSpent || 0)}</p>
-              </div>
-              <div className="rounded-2xl border border-border bg-secondary/40 p-3">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Saved addresses</p>
-                <p className="mt-2 text-2xl font-bold text-foreground">{dashStats.addressCount || addresses.length}</p>
-              </div>
-            </div>
-          )}
 
         </div>
 
@@ -235,7 +239,16 @@ export function BuyerProfilePage() {
           )}
         </div>
 
-        <div className="mt-8 rounded-2xl border border-border bg-card p-4">
+        <div className="mt-8 rounded-2xl border border-border bg-card p-5">
+          <h2 className="text-lg font-bold">Account security</h2>
+          <p className="mt-1 text-xs text-muted-foreground">Change your password or contact support if you forgot it.</p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2"><input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} placeholder="Current password" className="rounded-xl border border-border px-3 py-2 text-sm" /><input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="New password (6+ characters)" className="rounded-xl border border-border px-3 py-2 text-sm" /></div>
+          <button onClick={changePassword} disabled={newPassword.length < 6 || !currentPassword} className="mt-3 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground disabled:opacity-40">Change password</button>
+          {passwordMessage && <p className="mt-2 text-xs text-muted-foreground">{passwordMessage}</p>}
+          <p className="mt-3 text-xs text-muted-foreground">Forgot your password? <a className="font-semibold text-primary" href="https://wa.me/250799494538" target="_blank" rel="noreferrer">Message us on WhatsApp: +250 79 949 4538</a></p>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-border bg-card p-4">
           <button onClick={() => setShowDeleteConfirm(true)} className="flex items-center gap-2 text-sm font-semibold text-red-500 hover:text-red-600 transition-colors">
             <Trash2 size={16} />
             Delete my account
@@ -287,6 +300,6 @@ export function BuyerProfilePage() {
           initialLng={editingAddress?.longitude || undefined}
         />
       )}
-    </AppShell>
+    </BuyerWorkspace>
   );
 }

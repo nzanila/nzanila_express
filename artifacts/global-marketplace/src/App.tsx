@@ -26,8 +26,8 @@ import {
 } from '@/pages/marketplace-pages';
 import { SellerProfilePage, SellerProfileEditPage } from '@/pages/seller-profile-page';
 import { BuyerProfilePage } from '@/pages/buyer-profile-page';
+import { BuyerOrderDetailPage } from '@/pages/buyer-order-detail-page';
 import { StorefrontBuilderPage } from '@/pages/storefront-builder-page';
-import { BuyerDashboardPage } from '@/pages/buyer-dashboard-page';
 import { InventoryDashboardPage } from '@/pages/inventory-page';
 import { StoresPage } from '@/pages/stores-page';
 import { SellerVerificationPage } from '@/pages/seller-verification-page';
@@ -139,9 +139,11 @@ function Router() {
 
         <Route path="/cart" component={() => <RequireRole role="buyer" redirectTo="/"> <CartPage /> </RequireRole>} />
         <Route path="/orders" component={() => <RequireAnyRole redirectTo="/auth"> <OrdersPage /> </RequireAnyRole>} />
+        <Route path="/orders/:id" component={() => <RequireRole role="buyer" redirectTo="/auth"> <BuyerOrderDetailPage /> </RequireRole>} />
         <Route path="/messages" component={() => <RequireAnyRole redirectTo="/auth"> <MessagesPage /> </RequireAnyRole>} />
         <Route path="/buyer/profile" component={() => <RequireRole role="buyer" redirectTo="/"> <BuyerProfilePage /> </RequireRole>} />
-        <Route path="/buyer/dashboard" component={() => <RequireRole role="buyer" redirectTo="/"> <BuyerDashboardPage /> </RequireRole>} />
+        {/* Keep the legacy dashboard URL, but show the complete buyer account in one place. */}
+        <Route path="/buyer/dashboard" component={() => <RequireRole role="buyer" redirectTo="/"> <BuyerProfilePage /> </RequireRole>} />
 
         <Route path="/seller/:id" component={SellerProfilePage} />
         <Route path="/seller/:id/storefront" component={StorefrontBuilderPage} />

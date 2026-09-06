@@ -138,7 +138,7 @@ router.post("/signup", async (req, res) => {
   try {
     const { phone, name, role, password } = req.body;
 
-    if (!phone || !name || !role || !password) {
+    if (typeof phone !== "string" || !/\d/.test(phone) || !name || !role || !password) {
       res.status(400).json({ error: "Phone, name, role, and password are required" });
       return;
     }

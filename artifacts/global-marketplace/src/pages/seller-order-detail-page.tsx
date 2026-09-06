@@ -59,17 +59,27 @@ export function SellerOrderDetailPage() {
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    fetch(`${API}/api/suppliers/orders/${id}`, {
+    fetch(`${API}/api/orders/${id}`, {
       headers: { 'Authorization': `Bearer ${session?.accessToken || ''}` },
     })
       .then(r => r.json())
-      .then(data => { setOrder(data); setLoading(false); })
+      .then(data => {
+        setOrder({
+          ...data,
+          orderNumber: data.orderNumber || data.id,
+          createdAt: data.createdAt || data.date,
+          deliveryMethod: data.deliveryMethod || data.fulfillment_method || data.fulfillmentMethod,
+          deliveryLocation: data.deliveryLocation || data.destination,
+          items: (data.items || []).map((item: any) => ({ ...item, price: item.price ?? item.unitPrice, unit: item.unit || 'unit' })),
+        });
+        setLoading(false);
+      })
       .catch(() => { setError('Failed to load order'); setLoading(false); });
   }, [id, session]);
 
   const updateStatus = async (newStatus: string) => {
     try {
-      await fetch(`${API}/api/suppliers/orders/${id}/status`, {
+      await fetch(`${API}/api/supplier/orders/${id}/status`, {
         method: 'PATCH',
         headers: { 
           'Content-Type': 'application/json',
@@ -301,7 +311,7 @@ export function SellerOrderDetailPage() {
               </button>
             )}
             
-            {order.status === 'ready' && (
+            {order.status === 'ready' && order.deliveryMethod !== 'buyer_pickup' && (
               <button
                 onClick={() => updateStatus('out_for_delivery')}
                 className="flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-orange-700"
@@ -310,6 +320,15 @@ export function SellerOrderDetailPage() {
               </button>
             )}
             
+            {order.status === 'ready' && order.deliveryMethod === 'buyer_pickup' && (
+              <button
+                onClick={() => updateStatus('delivered')}
+                className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700"
+              >
+                <Check size={14} /> Confirm pickup handed over
+              </button>
+            )}
+
             {order.status === 'out_for_delivery' && (
               <button
                 onClick={() => updateStatus('delivered')}

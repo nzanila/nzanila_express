@@ -104,8 +104,33 @@ async function buildCart(env: Env) {
   };
 }
 
-async function buildOrders(env: Env, supplierOnly = false) {
-  const orders = await supabaseGet(env, "marketplace_orders", "order=date.desc");
+function authPayload(request: Request): { id?: number } | null {
+  const header = request.headers.get("Authorization");
+  if (!header?.startsWith("Bearer nz_")) return null;
+  try { return JSON.parse(atob(header.slice(10))); } catch { return null; }
+}
+
+type BuyerIdentity = { id: number; name: string; token: string; role: string };
+
+async function buyerIdentityForRequest(request: Request, env: Env): Promise<BuyerIdentity | undefined> {
+  const payload = authPayload(request);
+  if (!payload?.id) return undefined;
+  const users = await supabaseGet(env, "marketplace_users", `id=eq.${payload.id}&limit=1`);
+  if (!users[0]) return undefined;
+  const name = String(users[0].name || "Buyer");
+  return { id: Number(payload.id), name, token: `user:${Number(payload.id)}:${name}`, role: String(users[0].role || "buyer") };
+}
+
+function displayBuyerName(raw: unknown) {
+  const value = String(raw || "");
+  return value.startsWith("user:") ? value.split(":").slice(2).join(":") || "Buyer" : value;
+}
+
+async function buildOrders(env: Env, supplierOnly = false, buyer?: BuyerIdentity) {
+  const query = buyer
+    ? `buyer_name=eq.${encodeURIComponent(buyer.token)}&order=date.desc`
+    : "order=date.desc";
+  const orders = await supabaseGet(env, "marketplace_orders", query);
   const allItems = await supabaseGet(env, "marketplace_order_items");
   let supplierName: string | undefined;
   if (supplierOnly) {
@@ -115,6 +140,8 @@ async function buildOrders(env: Env, supplierOnly = false) {
   return orders
     .map((order: Record<string, unknown>) => ({
       ...order,
+      buyerName: displayBuyerName(order.buyer_name),
+      buyerId: String(order.buyer_name || "").startsWith("user:") ? Number(String(order.buyer_name).split(":")[1]) : null,
       date: order.date,
       total: Number(order.total),
       items: allItems
@@ -132,7 +159,8 @@ async function buildOrders(env: Env, supplierOnly = false) {
           supplierName: item.supplier_name,
         })),
     }))
-    .filter((order: any) => !supplierOnly || order.items.length > 0);
+    // Empty seed/demo rows are not customer orders.
+    .filter((order: any) => order.items.length > 0 && (!supplierOnly || order.items.length > 0));
 }
 
 function json(data: unknown, status = 200) {
@@ -258,8 +286,8 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
   if (path === "/api/auth/signup" && method === "POST") {
     try {
       const body = await request.json() as { phone?: string; name?: string; role?: string; password?: string };
-    if (!body.name || !body.role || !body.password) {
-      return json({ error: "Name, role, and password are required" }, 400);
+      if (!body.name || !body.role || !body.password) {
+        return json({ error: "Name, role, and password are required" }, 400);
       }
       if (!["buyer", "seller"].includes(body.role)) {
         return json({ error: "Role must be 'buyer' or 'seller'" }, 400);
@@ -267,7 +295,9 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       if (body.password.length < 6) {
         return json({ error: "Password must be at least 6 characters" }, 400);
       }
-    const normalizedPhone = body.phone?.trim() ? normalizeAuthPhone(body.phone) : `user_${crypto.randomUUID()}`;
+      const normalizedPhone = typeof body.phone === "string" && /\d/.test(body.phone)
+        ? normalizeAuthPhone(body.phone)
+        : `user_${crypto.randomUUID()}`;
       const existing = await supabaseGet(env, "marketplace_users", `phone=eq.${encodeURIComponent(normalizedPhone)}&limit=1`) as Record<string, unknown>[];
       if (existing.length) {
         return json({ error: "Phone number already registered" }, 409);
@@ -363,6 +393,63 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
 
   if (path === "/api/auth/logout" && method === "POST") {
     return json({ message: "Logged out" });
+  }
+
+  if (path === "/api/profiles/onboarding/buyer" && method === "POST") {
+    try {
+      const authorization = request.headers.get("Authorization");
+      if (!authorization?.startsWith("Bearer nz_")) return json({ error: "Not authenticated" }, 401);
+      const payload = JSON.parse(atob(authorization.slice(10))) as { id?: number; exp?: number };
+      if (!payload.id || (payload.exp && payload.exp < Date.now())) return json({ error: "Invalid or expired token" }, 401);
+      const body = await request.json() as Record<string, unknown>;
+      const update = {
+        name: body.name,
+        province: body.province,
+        city: body.city,
+        zone: body.zone,
+        landmark: body.landmark,
+        delivery_phone: body.deliveryPhone,
+        preferred_language: body.preferredLanguage,
+        latitude: body.latitude,
+        longitude: body.longitude,
+        address_name: body.addressName,
+        approximate_address: body.approximateAddress,
+        directions: body.directions,
+        meet_at_public_landmark: body.meetAtPublicLandmark,
+        onboarding_completed: true,
+      };
+      const [profile] = await supabasePatch(env, "marketplace_users", `id=eq.${payload.id}`, update) as Record<string, unknown>[];
+      if (!profile) return json({ error: "User not found" }, 404);
+      return json({ user: dtoAuthUser(profile) });
+    } catch (error) {
+      console.error("Buyer onboarding error:", error);
+      return json({ error: "Could not save buyer onboarding" }, 500);
+    }
+  }
+
+  if (path === "/api/auth/password" && method === "PATCH") {
+    try {
+      const authorization = request.headers.get("Authorization");
+      if (!authorization?.startsWith("Bearer nz_")) return json({ error: "Not authenticated" }, 401);
+      const payload = JSON.parse(atob(authorization.slice(10))) as { id?: number };
+      const body = await request.json() as { currentPassword?: string; newPassword?: string };
+      if (!payload.id || !body.currentPassword || !body.newPassword || body.newPassword.length < 6) return json({ error: "Current and new passwords are required" }, 400);
+      const users = await supabaseGet(env, "marketplace_users", `id=eq.${payload.id}&limit=1`) as Record<string, unknown>[];
+      if (!users.length || !(await verifyPassword(body.currentPassword, String(users[0].password_hash || '')))) return json({ error: "Current password is incorrect" }, 401);
+      await supabasePatch(env, "marketplace_users", `id=eq.${payload.id}`, { password_hash: await hashPassword(body.newPassword) });
+      return json({ message: "Password updated" });
+    } catch { return json({ error: "Could not update password" }, 500); }
+  }
+
+  if (path === "/api/profiles/account" && method === "DELETE") {
+    try {
+      const authorization = request.headers.get("Authorization");
+      if (!authorization?.startsWith("Bearer nz_")) return json({ error: "Not authenticated" }, 401);
+      const payload = JSON.parse(atob(authorization.slice(10))) as { id?: number };
+      if (!payload.id) return json({ error: "Invalid token" }, 401);
+      await supabaseDelete(env, "marketplace_users", `id=eq.${payload.id}`);
+      return json({ message: "Account deleted" });
+    } catch { return json({ error: "Could not delete account" }, 500); }
   }
 
   if (path === "/api/ai/research" && method === "POST") {
@@ -553,7 +640,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
 
   // GET /api/orders
   if (path === "/api/orders" && method === "GET") {
-    return json(await buildOrders(env));
+    return json(await buildOrders(env, false, await buyerIdentityForRequest(request, env)));
   }
 
   // POST /api/orders
@@ -561,12 +648,13 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     const body = await request.json() as { destination: string };
     const cart = await buildCart(env);
     if (!cart.items.length) return json({ error: "Cart is empty" }, 400);
+    const buyer = await buyerIdentityForRequest(request, env);
     const [order] = await supabasePost(env, "marketplace_orders", {
       total: cart.total,
       item_count: cart.itemCount,
       destination: body.destination,
       status: "processing",
-      buyer_name: "Demo buyer",
+      buyer_name: buyer?.token || "guest",
     });
     await supabasePost(env, "marketplace_order_items",
       cart.items.map((item: any) => ({
@@ -681,9 +769,15 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
   if (orderMatch && method === "GET") {
     const orders = await supabaseGet(env, "marketplace_orders", `id=eq.${orderMatch[1]}`);
     if (!orders.length) return json({ error: "Not found" }, 404);
+    const buyer = await buyerIdentityForRequest(request, env);
+    const rawOwner = String(orders[0].buyer_name || "");
+    if (buyer?.role === "buyer" && rawOwner !== buyer.token) return json({ error: "Order not found" }, 404);
     const items = await supabaseGet(env, "marketplace_order_items", `order_id=eq.${orderMatch[1]}`);
+    if (!items.length) return json({ error: "Order has no items" }, 404);
     return json({
       ...orders[0],
+      buyerName: displayBuyerName(orders[0].buyer_name),
+      buyerId: rawOwner.startsWith("user:") ? Number(rawOwner.split(":")[1]) : null,
       total: Number(orders[0].total),
       items: items.map((i: Record<string, unknown>) => ({
         id: i.id,

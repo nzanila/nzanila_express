@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
-import { ArrowLeft, ShoppingBag, Store, Lock, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, Store, Lock, AlertCircle, ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useLocale } from '@/lib/i18n/locale-context';
 import { locales } from '@/lib/i18n/translations';
@@ -31,6 +31,9 @@ export function SignupPage() {
   const [signUpName, setSignUpName] = useState('');
   const [signUpPhone, setSignUpPhone] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
+  const [signUpPasswordConfirm, setSignUpPasswordConfirm] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [signUpCountryCode, setSignUpCountryCode] = useState<CountryCode>('BI');
   const [signUpError, setSignUpError] = useState('');
   const [signUpLoading, setSignUpLoading] = useState(false);
@@ -49,8 +52,13 @@ export function SignupPage() {
 
   const handleSignUp = async () => {
     setSignUpError('');
+    if (!/\d/.test(signUpPhone)) { setSignUpError(locale === 'fr' ? 'Le numéro de téléphone est requis.' : 'Phone number is required.'); return; }
+    if (signUpPassword !== signUpPasswordConfirm) {
+      setSignUpError(locale === 'fr' ? 'Les mots de passe ne correspondent pas.' : locale === 'rn' ? 'Amajambo y’ibanga ntahura.' : locale === 'sw' ? 'Manenosiri hayalingani.' : 'Passwords do not match.');
+      return;
+    }
     setSignUpLoading(true);
-    const result = await signUp(signUpPhone.trim() ? normalizePhone(signUpCountryCode, signUpPhone) : '', signUpName, signUpRole, signUpPassword);
+    const result = await signUp(normalizePhone(signUpCountryCode, signUpPhone), signUpName, signUpRole, signUpPassword);
     setSignUpLoading(false);
     if (result.error) { setSignUpError(result.error); return; }
     setLocation('/onboarding');
@@ -209,9 +217,8 @@ export function SignupPage() {
                       className="h-13 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 text-base outline-none focus:border-[#ff6a00] focus:ring-2 focus:ring-[#ff6a00]/20 focus:bg-white transition-all"
                     />
                   </div>
-
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-gray-700">{tr('auth.phone')} <span className="font-normal text-gray-400">(optional)</span></label>
+                    <label className="mb-2 block text-sm font-bold text-gray-700">{tr('auth.phone')} <span className="text-red-500">*</span></label>
                     <div className="flex items-center rounded-xl border border-gray-200 bg-gray-50 focus-within:border-[#ff6a00] focus-within:ring-2 focus-within:ring-[#ff6a00]/20 focus-within:bg-white transition-all">
                       <select
                         value={signUpCountryCode}
@@ -223,6 +230,7 @@ export function SignupPage() {
                         ))}
                       </select>
                       <input
+                        required
                         value={signUpPhone}
                         onChange={(e) => setSignUpPhone(e.target.value)}
                         placeholder={signUpCountryCode === 'BI' ? '61 23 4567' : '78 123 4567'}
@@ -242,10 +250,17 @@ export function SignupPage() {
                         value={signUpPassword}
                         onChange={(e) => setSignUpPassword(e.target.value)}
                         placeholder={locale === 'fr' ? 'Min. 6 caractères' : locale === 'rn' ? 'Nibura inyuguti 6' : locale === 'sw' ? 'Herufi 6 au zaidi' : 'Min. 6 characters'}
-                        type="password"
-                        className="h-13 flex-1 bg-transparent px-4 text-base outline-none"
-                      />
+                      type={showPassword ? 'text' : 'password'}
+                      className="h-13 flex-1 bg-transparent px-4 text-base outline-none"
+                    />
+                    <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(v => !v)} className="px-3 text-gray-400">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-gray-700">{tr('auth.verifyPassword')}</label>
+                    <div className="relative"><input value={signUpPasswordConfirm} onChange={(e) => setSignUpPasswordConfirm(e.target.value)} placeholder={tr('auth.repeatPassword')} type={showPasswordConfirm ? 'text' : 'password'} className="h-13 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 pr-12 text-base outline-none focus:border-[#ff6a00] focus:ring-2 focus:ring-[#ff6a00]/20 focus:bg-white transition-all" /><button type="button" aria-label={showPasswordConfirm ? 'Hide password' : 'Show password'} onClick={() => setShowPasswordConfirm(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPasswordConfirm ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>
+                    {signUpPasswordConfirm && <p className={`mt-1.5 text-xs font-semibold ${signUpPassword === signUpPasswordConfirm ? 'text-emerald-600' : 'text-red-600'}`}>{signUpPassword === signUpPasswordConfirm ? `✓ ${tr('auth.passwordsMatch')}` : `✕ ${tr('auth.passwordsDoNotMatch')}`}</p>}
                   </div>
 
                   {signUpError && (
@@ -257,7 +272,7 @@ export function SignupPage() {
 
                   <button
                     onClick={handleSignUp}
-                    disabled={!signUpName.trim() || signUpPassword.length < 6 || signUpLoading}
+                    disabled={!/\d/.test(signUpPhone) || !signUpName.trim() || signUpPassword.length < 6 || signUpPassword !== signUpPasswordConfirm || signUpLoading}
                     className="h-13 w-full rounded-xl bg-[#1a5f4a] text-base font-bold text-white hover:bg-[#154a3a] disabled:opacity-40 transition-all active:scale-[0.98]"
                   >
                     {signUpLoading

@@ -658,7 +658,10 @@ export default router;
 // Save buyer onboarding
 router.post("/onboarding/buyer", requireAuth, async (req, res) => {
   const userId = req.userId;
-  const { name, province, city, zone, landmark, deliveryPhone, preferredLanguage } = req.body;
+  const {
+    name, province, city, zone, landmark, deliveryPhone, preferredLanguage,
+    latitude, longitude, addressName, directions, approximateAddress, meetAtPublicLandmark,
+  } = req.body;
 
   const [updated] = await db
     .update(marketplaceUsersTable)
@@ -670,6 +673,12 @@ router.post("/onboarding/buyer", requireAuth, async (req, res) => {
       landmark,
       deliveryPhone,
       preferredLanguage,
+      latitude,
+      longitude,
+      addressName,
+      directions,
+      approximateAddress,
+      meetAtPublicLandmark,
       onboardingCompleted: true,
       updatedAt: new Date(),
     })

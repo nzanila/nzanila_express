@@ -227,7 +227,7 @@ export function LocationSearchPicker({
     });
   };
 
-  // Only require what's available - landmark and phone always required
+  // A separate delivery phone is optional; the account already has a phone number.
   const isAddressValid = Boolean(locationName.trim());
 
   // MAP SECTION (shared between both phases)
@@ -645,7 +645,7 @@ function MobileFormFields({ locationName, setLocationName, freeProvince, setFree
           className="w-full rounded-xl border-2 border-gray-100 bg-gray-50 px-4 py-4 text-base outline-none focus:border-[#ff6a00] focus:bg-white transition-all resize-none" />
       </div>
       <div className={showPhone ? 'bg-white rounded-2xl p-5 shadow-sm' : 'hidden'}>
-        <label className="mb-2 block text-sm font-bold text-gray-800">{locale === 'fr' ? 'Numéro de téléphone' : 'Phone number'} <span className="text-red-500">*</span></label>
+        <label className="mb-2 block text-sm font-bold text-gray-800">{locale === 'fr' ? 'Numéro de téléphone' : 'Phone number'} <span className="font-normal text-gray-400">{locale === 'fr' ? '(facultatif)' : '(optional)'}</span></label>
         <div className="relative">
           <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+257 XX XXX XXX" type="tel"
             className="h-14 w-full rounded-xl border-2 border-gray-100 bg-gray-50 pl-11 pr-4 text-base outline-none focus:border-[#ff6a00] focus:bg-white transition-all" />
@@ -730,7 +730,7 @@ function DesktopFormFields({ locationName, setLocationName, freeProvince, setFre
           className="w-full rounded-xl border-2 border-gray-100 bg-gray-50 px-4 py-4 text-base outline-none focus:border-[#ff6a00] focus:bg-white transition-all resize-none" />
       </div>
       <div className={showPhone ? '' : 'hidden'}>
-        <label className="mb-2 block text-sm font-bold text-gray-800">{locale === 'fr' ? 'Numéro de téléphone' : 'Phone number'} <span className="text-red-500">*</span></label>
+        <label className="mb-2 block text-sm font-bold text-gray-800">{locale === 'fr' ? 'Numéro de téléphone' : 'Phone number'} <span className="font-normal text-gray-400">{locale === 'fr' ? '(facultatif)' : '(optional)'}</span></label>
         <div className="relative">
           <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+257 XX XXX XXX" type="tel"
             className="h-14 w-full rounded-xl border-2 border-gray-100 bg-gray-50 pl-11 pr-4 text-base outline-none focus:border-[#ff6a00] focus:bg-white transition-all" />

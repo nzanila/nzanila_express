@@ -1,3 +1,4 @@
+import { BuyerWorkspace } from '@/components/buyer-workspace';
 import { useMemo, useState, useEffect, useRef, useCallback, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
@@ -813,7 +814,7 @@ export function ProductDetailPage() {
             </div>
           </div>
 
-          {/* ════ RIGHT COLUMN: guarantee + payment ════ */}
+          {/* Fulfillment and support */}
           <div className="space-y-4">
             {/* Fulfillment panel — values come from the seller's listing */}
             <div className="rounded-xl border border-border bg-card p-4">
@@ -841,15 +842,6 @@ export function ProductDetailPage() {
                   </div>
                 </div>
               </div>
-            </div>
-
-            {/* Payment methods */}
-            <div className="rounded-xl border border-border bg-card p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-bold text-foreground">Payment</p>
-                <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-800">Coming soon</span>
-              </div>
-              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">Payment is not available yet. You can still submit a fulfillment request; the seller will confirm the order before payment is enabled.</p>
             </div>
 
             {/* Need help */}
@@ -973,9 +965,7 @@ export function CartPage() {
   } = useGetCart();
   const update = useUpdateCartItem();
   const remove = useRemoveCartItem();
-  const [destination, setDestination] = useState(
-    'New York, United States'
-  );
+  const [destination, setDestination] = useState('');
   const [fulfillmentMethod, setFulfillmentMethod] = useState<'seller_delivery' | 'buyer_pickup'>('seller_delivery');
   const [deliveryPhoto, setDeliveryPhoto] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -1005,7 +995,7 @@ export function CartPage() {
         termsAccepted,
       } },
       {
-        onSuccess: () => {
+        onSuccess: (order) => {
           queryClient.invalidateQueries({
             queryKey: getGetCartQueryKey(),
           });
@@ -1013,14 +1003,14 @@ export function CartPage() {
             queryKey: getListOrdersQueryKey(),
           });
           setCheckoutOpen(false);
-          setLocation('/orders');
+          setLocation(`/orders/${order.id}`);
         },
       }
     );
   };
   if (isLoading)
     return (
-      <AppShell>
+      <BuyerWorkspace active="cart">
         <div className="px-5 py-10 lg:px-10">
           <PageIntro
             eyebrow="Your cart"
@@ -1028,29 +1018,29 @@ export function CartPage() {
           />
           <SkeletonBlock className="h-48" />
         </div>
-      </AppShell>
+      </BuyerWorkspace>
     );
   if (isError)
     return (
-      <AppShell>
+      <BuyerWorkspace active="cart">
         <div className="px-5 py-10 lg:px-10">
           <ErrorState onRetry={() => refetch()} />
         </div>
-      </AppShell>
+      </BuyerWorkspace>
     );
   return (
-    <AppShell>
-      <div className="px-5 py-8 lg:px-10">
+    <BuyerWorkspace active="cart">
+      <div className="space-y-5">
         <PageIntro
           eyebrow="Your cart"
           title={
             cart?.itemCount
-              ? `${cart.itemCount} items ready to go`
-              : 'Your cart is clear'
+              ? `Cart (${cart.itemCount})`
+              : 'Your cart'
           }
           description={
             cart?.itemCount
-              ? 'Review quantities, confirm your destination, and hand off to checkout.'
+              ? 'Review your items, then choose delivery or pickup.'
               : undefined
           }
         />
@@ -1062,11 +1052,11 @@ export function CartPage() {
                 size={32}
               />
               <p className="mt-4 font-display text-xl font-bold">
-                Your sourcing list starts here.
+                Your cart is empty.
               </p>
               <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
                 Add products from the marketplace and they will appear in
-                this workspace.
+                your cart.
               </p>
               <Link
                 href="/products"
@@ -1082,12 +1072,12 @@ export function CartPage() {
                 {cart.items.map((item) => (
                   <div
                     key={item.productId}
-                    className="flex gap-4 rounded-2xl border border-border bg-card p-5 transition-all duration-300 hover:shadow-md hover:border-border/80"
+                    className="flex gap-3 rounded-2xl border border-border bg-card p-3 sm:gap-4 sm:p-5 transition-all duration-300 hover:shadow-md hover:border-border/80"
                     data-testid={`row-cart-item-${item.productId}`}
                   >
                     <ProductImage
                       product={item.product}
-                      className="h-24 w-24 shrink-0 rounded-xl sm:h-28 sm:w-28"
+                      className="h-16 w-16 shrink-0 rounded-xl sm:h-28 sm:w-28"
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex justify-between gap-3">
@@ -1115,8 +1105,8 @@ export function CartPage() {
                           <Trash2 size={16} />
                         </button>
                       </div>
-                      <div className="mt-4 flex items-center justify-between">
-                        <div className="flex h-9 items-center rounded-lg border border-border">
+                      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex min-h-11 items-center rounded-lg border border-border">
                           <button
                             onClick={() =>
                               onUpdate(
@@ -1124,7 +1114,7 @@ export function CartPage() {
                                 item.quantity - 1
                               )
                             }
-                            className="px-2.5"
+                            className="min-h-11 min-w-11 px-2.5"
                             data-testid={`button-decrease-cart-${item.productId}`}
                           >
                             −
@@ -1139,7 +1129,7 @@ export function CartPage() {
                                 item.quantity + 1
                               )
                             }
-                            className="px-2.5"
+                            className="min-h-11 min-w-11 px-2.5"
                             data-testid={`button-increase-cart-${item.productId}`}
                           >
                             +
@@ -1153,36 +1143,36 @@ export function CartPage() {
                   </div>
                 ))}
               </div>
-              <aside className="h-fit rounded-2xl bg-primary p-6 text-primary-foreground">
-                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary-foreground/60">
+              <aside className="h-fit rounded-2xl border border-border bg-white p-6 text-foreground lg:sticky lg:top-28">
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                   Order summary
                 </p>
                 <div className="mt-5 space-y-3 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-primary-foreground/65">
+                    <span className="text-muted-foreground">
                       Subtotal
                     </span>
                     <span>{money(cart.subtotal)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-primary-foreground/65">
+                    <span className="text-muted-foreground">
                       Estimated shipping
                     </span>
                     <span>{money(cart.shipping)}</span>
                   </div>
-                  <div className="flex justify-between border-t border-primary-foreground/15 pt-4 font-display text-xl font-bold">
+                  <div className="flex justify-between border-t border-border pt-4 font-display text-xl font-bold">
                     <span>Total</span>
                     <span>{money(cart.total)}</span>
                   </div>
                 </div>
                 <button
                   onClick={() => setCheckoutOpen(true)}
-                  className="mt-7 flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3.5 text-xs font-bold text-accent-foreground"
+                  className="mt-7 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground"
                   data-testid="button-checkout"
                 >
-                  Continue to checkout <ArrowRight size={15} />
+                  Choose delivery or pickup <ArrowRight size={15} />
                 </button>
-                <p className="mt-3 text-center text-[10px] text-primary-foreground/45">
+                <p className="mt-3 text-center text-[10px] text-muted-foreground">
                   Choose delivery or store pickup next
                 </p>
               </aside>
@@ -1190,18 +1180,18 @@ export function CartPage() {
           )}
         </>
         {checkoutOpen && (
-          <div className="fixed inset-0 z-50 grid place-items-center bg-primary/30 p-4 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
             <form
               onSubmit={checkout}
-              className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl"
+              className="max-h-[90dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-2xl border border-border bg-card p-5 pb-8 shadow-2xl sm:rounded-2xl sm:p-6"
             >
               <div className="flex items-start justify-between">
                 <div>
                   <p className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Checkout handoff
+                    Review order
                   </p>
                   <h2 className="mt-1 font-display text-2xl font-bold">
-                    Where should it land?
+                    Delivery or pickup
                   </h2>
                 </div>
                 <button
@@ -1252,11 +1242,9 @@ export function CartPage() {
                   </span>
                   <strong>{money(cart?.total ?? 0)}</strong>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Payment is coming soon. Your order will be saved as payment pending; the seller will confirm fulfillment details.
-                </p>
               </div>
-              <label className="mt-4 flex items-start gap-2 text-xs text-muted-foreground"><input type="checkbox" required checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="mt-0.5" /><span>I confirm my fulfillment choice and address. I understand payment is not available yet and the seller must confirm the order.</span></label>
+              <label className="mt-4 flex items-start gap-2 text-xs text-muted-foreground"><input type="checkbox" required checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="mt-0.5" /><span>I confirm my fulfillment choice and delivery address.</span></label>
+              {create.isError && <p role="alert" className="mt-4 text-sm text-red-600">Could not place your order. Please try again.</p>}
               <button
                 disabled={create.isPending || !termsAccepted}
                 className="mt-5 flex w-full justify-center rounded-xl bg-primary py-3.5 text-xs font-bold text-primary-foreground"
@@ -1270,24 +1258,32 @@ export function CartPage() {
           </div>
         )}
       </div>
-    </AppShell>
+    </BuyerWorkspace>
   );
 }
 
 export function OrdersPage() {
+  const [filter, setFilter] = useState<'all' | 'processing' | 'shipped' | 'delivered' | 'cancelled'>('all');
   const {
     data: orders,
     isLoading,
     isError,
     refetch,
   } = useListOrders();
+  const visibleOrders = useMemo(() => {
+    if (!orders) return [];
+    if (filter === 'all') return orders;
+    if (filter === 'processing') return orders.filter((order) => order.status === 'confirmed' || order.status === 'processing' || order.status === 'ready');
+    if (filter === 'shipped') return orders.filter((order) => order.status === 'shipped' || order.status === 'out_for_delivery');
+    return orders.filter((order) => order.status === filter);
+  }, [orders, filter]);
   return (
-    <AppShell>
-      <div className="px-5 py-8 lg:px-10">
+    <BuyerWorkspace active="orders">
+      <div className="space-y-5">
         <PageIntro
           eyebrow="Buyer workspace"
           title="Your orders"
-          description="Follow every order from confirmation to doorstep."
+          description="Review processing, shipping, and delivery in one place."
           action={
             <Link
               href="/products"
@@ -1298,6 +1294,19 @@ export function OrdersPage() {
             </Link>
           }
         />
+        <div className="mb-5 flex overflow-x-auto gap-2 rounded-2xl border border-border bg-card p-2 shadow-sm" role="tablist" aria-label="Order status filters">
+          {([
+            ['all', 'All orders'],
+            ['processing', 'Processing'],
+            ['shipped', 'Shipped'],
+            ['delivered', 'Delivered'],
+            ['cancelled', 'Cancelled'],
+          ] as const).map(([value, label]) => (
+            <button key={value} type="button" role="tab" aria-selected={filter === value} onClick={() => setFilter(value)} className={`min-h-11 shrink-0 rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${filter === value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
         {isError ? (
           <ErrorState onRetry={() => refetch()} />
         ) : isLoading ? (
@@ -1311,15 +1320,21 @@ export function OrdersPage() {
           </div>
         ) : !orders?.length ? (
           <EmptyOrders />
+        ) : !visibleOrders.length ? (
+          <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center shadow-sm">
+            <Truck className="mx-auto text-muted-foreground" size={30} />
+            <p className="mt-4 font-display text-xl font-bold text-card-foreground">No {filter.replace('_', ' ')} orders</p>
+            <p className="mt-2 text-sm text-muted-foreground">Orders will appear here when they move into this stage.</p>
+          </div>
         ) : (
           <div className="space-y-4">
-            {orders.map((order) => (
+            {visibleOrders.map((order) => (
               <OrderCard order={order} key={order.id} />
             ))}
           </div>
         )}
       </div>
-    </AppShell>
+    </BuyerWorkspace>
   );
 }
 
@@ -1425,9 +1440,9 @@ function OrderCard({ order }: { order: Order }) {
           {order.itemCount} item{order.itemCount === 1 ? '' : 's'} ·{' '}
           {order.buyerName}
         </span>
-        <span className="flex items-center gap-1.5 font-bold text-primary cursor-pointer hover:underline">
-          <Clock3 size={14} /> Track shipment
-        </span>
+        <Link href={`/orders/${order.id}`} className="flex items-center gap-1.5 font-bold text-primary hover:underline">
+          <Clock3 size={14} /> View details
+        </Link>
       </div>
     </article>
   );

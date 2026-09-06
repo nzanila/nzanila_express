@@ -10,6 +10,16 @@ export interface User {
   verified: boolean;
   avatar: string;
   createdAt: string;
+  province?: string | null;
+  city?: string | null;
+  zone?: string | null;
+  landmark?: string | null;
+  deliveryPhone?: string | null;
+  addressName?: string | null;
+  directions?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  approximateAddress?: string | null;
   session?: Session;
 }
 

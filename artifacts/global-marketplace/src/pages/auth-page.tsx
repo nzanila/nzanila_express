@@ -206,6 +206,7 @@ export function AuthPage() {
                 >
                   {loading ? (locale === 'fr' ? 'Connexion…' : locale === 'rn' ? 'Kwinjira…' : locale === 'sw' ? 'Inaingia…' : 'Signing in…') : tr('auth.signIn')}
                 </button>
+                <p className="mt-3 text-center text-xs text-gray-500">Forgot your password? <a className="font-semibold text-[#ff6a00] hover:underline" href="https://wa.me/250799494538" target="_blank" rel="noreferrer">Message us on WhatsApp: +250 79 949 4538</a></p>
               </div>
             </div>
 

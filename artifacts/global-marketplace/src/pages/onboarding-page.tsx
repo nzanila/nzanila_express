@@ -88,6 +88,7 @@ export function OnboardingPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [countryCode, setCountryCode] = useState<CountryCode>('BI');
   const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
   const [preferredLanguage, setPreferredLanguage] = useState<Language>(locale as Language);
   const currentLanguage = locales.find((item) => item.code === locale) ?? locales[0];
 
@@ -120,6 +121,7 @@ export function OnboardingPage() {
   const handleCreateAccount = async () => {
     if (!accountType) return;
     setError('');
+    if (password !== passwordConfirm) { setError('Passwords do not match.'); return; }
     setLoading(true);
     const normalizedPhone = phoneNumber.trim() ? normalizePhone(phoneNumber) : '';
     const result = await signUp(normalizedPhone, fullName, accountType, password);
@@ -173,8 +175,8 @@ export function OnboardingPage() {
           landmark: buyerLocationData?.landmark || undefined,
           deliveryPhone: buyerLocationData?.phone || undefined,
           preferredLanguage: preferredLanguage || undefined,
-          latitude: buyerLocationData?.latitude || undefined,
-          longitude: buyerLocationData?.longitude || undefined,
+          latitude: buyerLocationData?.latitude ?? undefined,
+          longitude: buyerLocationData?.longitude ?? undefined,
           addressName: buyerLocationData?.locationName || undefined,
           directions: buyerLocationData?.directions || undefined,
           meetAtPublicLandmark: buyerLocationData?.meetAtPublicLandmark || undefined,
@@ -373,7 +375,7 @@ export function OnboardingPage() {
               {renderInput(tr('onboarding.fullName'), fullName, setFullName, 'e.g. Jean Ndayisaba')}
 
               {accountType === 'seller' && <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-700">{COUNTRY_OPTIONS[countryCode].label} phone number</label>
+                <label className="mb-2 block text-sm font-semibold text-gray-700">{COUNTRY_OPTIONS[countryCode].label} phone number <span className="font-normal text-gray-400">(optional)</span></label>
                 <div className="flex items-center rounded-xl border border-gray-200 bg-white focus-within:border-[#ff6a00] focus-within:ring-2 focus-within:ring-[#ff6a00]/20">
                   <div className="flex items-center gap-1 border-r border-gray-200 px-2">
                     <select value={countryCode} onChange={(e) => setCountryCode(e.target.value as CountryCode)}
@@ -390,6 +392,8 @@ export function OnboardingPage() {
               </div>}
 
               {renderInput(tr('auth.password'), password, setPassword, tr('auth.enterPassword'), 'password')}
+              {renderInput('Verify password', passwordConfirm, setPasswordConfirm, 'Repeat your password', 'password')}
+              {passwordConfirm && <p className={`-mt-3 text-xs font-semibold ${password === passwordConfirm ? 'text-emerald-600' : 'text-red-600'}`}>{password === passwordConfirm ? `✓ ${tr('auth.passwordsMatch')}` : `✕ ${tr('auth.passwordsDoNotMatch')}`}</p>}
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-700">{tr('onboarding.preferredLanguage')}</label>
@@ -411,7 +415,7 @@ export function OnboardingPage() {
 
               <div className="space-y-3">
                 <button onClick={handleCreateAccount}
-                  disabled={!fullName.trim() || password.length < 6 || loading}
+                  disabled={!fullName.trim() || password.length < 6 || password !== passwordConfirm || loading}
                   className="h-13 w-full rounded-xl bg-[#1a5f4a] text-base font-bold text-white hover:bg-[#154a3a] disabled:opacity-40">
                   {loading ? (locale === 'fr' ? 'Création…' : locale === 'rn' ? 'Kubanga…' : locale === 'sw' ? 'Inaunda…' : 'Creating…') : tr('onboarding.continue')}
                 </button>
