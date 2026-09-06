@@ -121,7 +121,7 @@ export function OnboardingPage() {
     if (!accountType) return;
     setError('');
     setLoading(true);
-    const normalizedPhone = normalizePhone(phoneNumber);
+    const normalizedPhone = phoneNumber.trim() ? normalizePhone(phoneNumber) : '';
     const result = await signUp(normalizedPhone, fullName, accountType, password);
     setLoading(false);
     if (result.error) { setError(result.error); return; }
@@ -372,7 +372,7 @@ export function OnboardingPage() {
 
               {renderInput(tr('onboarding.fullName'), fullName, setFullName, 'e.g. Jean Ndayisaba')}
 
-              <div>
+              {accountType === 'seller' && <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-700">{COUNTRY_OPTIONS[countryCode].label} phone number</label>
                 <div className="flex items-center rounded-xl border border-gray-200 bg-white focus-within:border-[#ff6a00] focus-within:ring-2 focus-within:ring-[#ff6a00]/20">
                   <div className="flex items-center gap-1 border-r border-gray-200 px-2">
@@ -387,7 +387,7 @@ export function OnboardingPage() {
                     placeholder={countryCode === 'BI' ? '61 23 4567' : '78 123 4567'} type="tel"
                     className="h-13 flex-1 bg-transparent px-3 text-base outline-none" />
                 </div>
-              </div>
+              </div>}
 
               {renderInput(tr('auth.password'), password, setPassword, tr('auth.enterPassword'), 'password')}
 
@@ -411,7 +411,7 @@ export function OnboardingPage() {
 
               <div className="space-y-3">
                 <button onClick={handleCreateAccount}
-                  disabled={!fullName.trim() || !phoneNumber.trim() || password.length < 6 || loading}
+                  disabled={!fullName.trim() || password.length < 6 || loading}
                   className="h-13 w-full rounded-xl bg-[#1a5f4a] text-base font-bold text-white hover:bg-[#154a3a] disabled:opacity-40">
                   {loading ? (locale === 'fr' ? 'Création…' : locale === 'rn' ? 'Kubanga…' : locale === 'sw' ? 'Inaunda…' : 'Creating…') : tr('onboarding.continue')}
                 </button>
