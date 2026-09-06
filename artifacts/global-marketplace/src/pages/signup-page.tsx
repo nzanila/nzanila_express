@@ -50,7 +50,7 @@ export function SignupPage() {
   const handleSignUp = async () => {
     setSignUpError('');
     setSignUpLoading(true);
-    const result = await signUp(normalizePhone(signUpCountryCode, signUpPhone), signUpName, signUpRole, signUpPassword);
+    const result = await signUp(signUpPhone.trim() ? normalizePhone(signUpCountryCode, signUpPhone) : '', signUpName, signUpRole, signUpPassword);
     setSignUpLoading(false);
     if (result.error) { setSignUpError(result.error); return; }
     setLocation('/onboarding');
@@ -211,7 +211,7 @@ export function SignupPage() {
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-gray-700">{tr('auth.phone')}</label>
+                    <label className="mb-2 block text-sm font-bold text-gray-700">{tr('auth.phone')} <span className="font-normal text-gray-400">(optional)</span></label>
                     <div className="flex items-center rounded-xl border border-gray-200 bg-gray-50 focus-within:border-[#ff6a00] focus-within:ring-2 focus-within:ring-[#ff6a00]/20 focus-within:bg-white transition-all">
                       <select
                         value={signUpCountryCode}
@@ -257,7 +257,7 @@ export function SignupPage() {
 
                   <button
                     onClick={handleSignUp}
-                    disabled={!signUpName.trim() || !signUpPhone.trim() || signUpPassword.length < 6 || signUpLoading}
+                    disabled={!signUpName.trim() || signUpPassword.length < 6 || signUpLoading}
                     className="h-13 w-full rounded-xl bg-[#1a5f4a] text-base font-bold text-white hover:bg-[#154a3a] disabled:opacity-40 transition-all active:scale-[0.98]"
                   >
                     {signUpLoading

@@ -258,8 +258,8 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
   if (path === "/api/auth/signup" && method === "POST") {
     try {
       const body = await request.json() as { phone?: string; name?: string; role?: string; password?: string };
-      if (!body.phone || !body.name || !body.role || !body.password) {
-        return json({ error: "Phone, name, role, and password are required" }, 400);
+    if (!body.name || !body.role || !body.password) {
+      return json({ error: "Name, role, and password are required" }, 400);
       }
       if (!["buyer", "seller"].includes(body.role)) {
         return json({ error: "Role must be 'buyer' or 'seller'" }, 400);
@@ -267,7 +267,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       if (body.password.length < 6) {
         return json({ error: "Password must be at least 6 characters" }, 400);
       }
-      const normalizedPhone = normalizeAuthPhone(body.phone);
+    const normalizedPhone = body.phone?.trim() ? normalizeAuthPhone(body.phone) : `user_${crypto.randomUUID()}`;
       const existing = await supabaseGet(env, "marketplace_users", `phone=eq.${encodeURIComponent(normalizedPhone)}&limit=1`) as Record<string, unknown>[];
       if (existing.length) {
         return json({ error: "Phone number already registered" }, 409);

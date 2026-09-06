@@ -59,7 +59,7 @@ export function BuyerAddressForm({ onSubmit, initialData, onCancel }: BuyerAddre
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://bd75c998.nzanila-api.pages.dev');
+  const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-api-server.nzanilaexpress.workers.dev');
 
   // Fetch provinces on mount
   useEffect(() => {

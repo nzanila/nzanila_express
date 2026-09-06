@@ -109,7 +109,7 @@ export function OnboardingPage() {
   const [deliveryAreas, setDeliveryAreas] = useState('');
   const [businessDescription, setBusinessDescription] = useState('');
 
-  const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://bd75c998.nzanila-api.pages.dev');
+  const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-api-server.nzanilaexpress.workers.dev');
   const normalizePhone = (value: string) => `${COUNTRY_OPTIONS[countryCode].dialCode}${value.replace(/\D/g, '')}`;
 
   const handleAccountTypeSelect = (type: 'buyer' | 'seller') => {
