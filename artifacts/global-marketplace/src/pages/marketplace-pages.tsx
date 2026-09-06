@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, type FormEvent, type ReactNode } from 'react';
+import { useMemo, useState, useEffect, useRef, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
@@ -50,6 +50,7 @@ import {
   useListSuppliers,
   useRemoveCartItem,
   useUpdateCartItem,
+  useUpdateOrderStatus,
   useUpdateSupplierOrderStatus,
   useUpdateSupplierProduct,
   type Order,
@@ -65,9 +66,13 @@ import {
   SkeletonBlock,
 } from '@/components/marketplace-shell';
 import { useLocale } from '@/lib/i18n/locale-context';
-import { AlibabaHomeHero } from '@/components/alibaba-home-hero';
+import { readSearchHistory, recordSearch, clearSearchHistory } from '@/lib/search-history';
 
-const money = (value: number) => `$${value.toFixed(2)}`;
+const money = (value: number) => new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'BIF',
+  maximumFractionDigits: 0,
+}).format(Number(value) || 0);
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString('en-US', {
     month: 'short',
@@ -75,29 +80,9 @@ const formatDate = (value: string) =>
     year: 'numeric',
   });
 
-function reorderRate(product: Product) {
-  return Math.min(
-    98,
-    Math.round(72 + product.rating * 5 + (product.verified ? 8 : 0))
-  );
-}
-
-function soldCount(product: Product) {
-  return Math.round(product.reviews * 12.5 + product.stock * 0.3);
-}
-
-function supplierYears(name: string) {
-  const map: Record<string, number> = {
-    'Nova Living Co.': 9,
-    'Kivu Craft Collective': 6,
-    'Orion Tech Manufacturing': 11,
-    'Safi Essentials': 7,
-    'Global Freight Solutions': 12,
-    'Pacific Logistics Hub': 8,
-    'EastBridge Trading': 10,
-    'Shenzhen Express Co.': 14,
-  };
-  return map[name] ?? 5;
+function soldCount(product: Product): number | null {
+  const totalSales = (product as Product & { totalSales?: number }).totalSales;
+  return typeof totalSales === 'number' && totalSales > 0 ? totalSales : null;
 }
 
 import { ProductCard as SellerProductCard, ProductCardGrid } from '@/components/product-card';
@@ -125,16 +110,12 @@ function ProductImage({
           <PackageCheck size={36} className="text-primary/40" />
         </div>
       )}
-      {product.featured && (
-        <span className="absolute left-3 top-3 rounded-md bg-primary px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-wide text-primary-foreground shadow-sm">
-          Featured
-        </span>
-      )}
     </div>
   );
 }
 
 function ProductCard({ product }: { product: Product }) {
+  const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const [added, setAdded] = useState(false);
   const add = useAddCartItem();
@@ -148,18 +129,18 @@ function ProductCard({ product }: { product: Product }) {
         onSuccess: () => {
           setAdded(true);
           queryClient.invalidateQueries({ queryKey: getGetCartQueryKey() });
+          queryClient.invalidateQueries({ queryKey: ['cart'] });
           setTimeout(() => setAdded(false), 1800);
         },
       }
     );
-  const rate = reorderRate(product);
   const sold = soldCount(product);
-  const priceHigh = product.compareAtPrice ?? product.price * 1.18;
-  const years = supplierYears(product.supplierName);
+  const priceHigh = product.compareAtPrice && product.compareAtPrice > product.price ? product.compareAtPrice : null;
+  const discount = priceHigh ? Math.round(((priceHigh - product.price) / priceHigh) * 100) : 0;
 
   return (
     <article
-      className="group overflow-hidden rounded-lg border border-border bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/30"
+      className="group relative overflow-hidden rounded-lg bg-white p-2.5 transition-shadow hover:ring-1 hover:ring-gray-900 focus-within:ring-1 focus-within:ring-gray-900"
       data-testid={`card-product-${product.id}`}
     >
       <Link
@@ -167,76 +148,93 @@ function ProductCard({ product }: { product: Product }) {
         className="block relative overflow-hidden"
         data-testid={`link-product-${product.id}`}
       >
-        <ProductImage product={product} className="aspect-square w-full" />
+        <ProductImage product={product} className="aspect-square w-full rounded-lg" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
       </Link>
-      <div className="p-2.5 sm:p-4">
+      <div className="pt-2">
         <Link
           href={`/products/${product.id}`}
-          className="line-clamp-2 text-[11px] sm:text-sm font-medium leading-tight text-card-foreground hover:text-primary transition-colors"
+          className="line-clamp-2 min-h-10 text-sm font-normal leading-5 text-card-foreground hover:text-primary transition-colors"
           data-testid={`link-product-name-${product.id}`}
         >
           {product.name}
         </Link>
-        <div className="mt-1.5 flex items-center justify-between">
-          <span className="text-[10px] sm:text-xs text-muted-foreground">
-            {tr('product.reorderRate')}
-          </span>
-          <span className="text-[10px] sm:text-xs font-bold text-emerald-600">
-            {rate}%
-          </span>
-        </div>
-        <p className="mt-1 text-sm sm:text-lg font-bold text-card-foreground">
+        {discount > 0 && (
+          <div className="mt-1 text-xs text-orange-600">
+            <span>{discount}% off</span>
+          </div>
+        )}
+        <p className="mt-1 flex flex-wrap items-baseline gap-1 text-lg sm:text-xl font-bold leading-tight text-gray-950">
           {money(product.price)}
-          {priceHigh > product.price && (
+          {priceHigh && (
             <span className="ml-1 text-[10px] sm:text-sm font-normal text-muted-foreground line-through">
               {money(priceHigh)}
             </span>
           )}
         </p>
-        <div className="mt-1 hidden sm:flex items-center justify-between text-xs text-muted-foreground">
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
           <span>
             {tr('product.moq')}: {product.moq} {product.unit}(s)
           </span>
-          <span>{sold.toLocaleString()} {tr('product.sold')}</span>
+          {sold !== null && <span>{sold.toLocaleString()} {tr('product.sold')}</span>}
         </div>
-        <div className="mt-1.5 sm:mt-2 flex items-center gap-1.5 border-t border-border pt-1.5 sm:pt-2">
+        <div className="mt-1 flex items-center gap-1.5">
           {product.verified && (
-            <span className="flex items-center gap-0.5 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold text-emerald-700">
+            <span className="flex items-center gap-0.5 text-xs font-bold text-blue-700">
               <BadgeCheck size={10} /> {tr('product.verified')}
             </span>
           )}
-          <span className="text-[10px] sm:text-xs text-muted-foreground">
-            {years} {tr('product.yrs')}
-          </span>
         </div>
-        <button
+        {isAuthenticated && <button
           onClick={addToCart}
-          disabled={add.isPending || added}
+          disabled={add.isPending || added || product.stock < Math.max(product.moq, 1)}
+          aria-label={added ? 'Added to cart' : `Add ${product.name} to cart`}
+          title={product.stock < Math.max(product.moq, 1) ? 'Not enough stock for minimum order' : added ? 'Added to cart' : 'Add to cart'}
           className={[
-            'mt-2 sm:mt-3 flex w-full items-center justify-center gap-1.5',
-            'rounded-md bg-primary px-3 py-2 sm:py-2.5',
-            'text-[11px] sm:text-xs font-bold text-primary-foreground',
-            'transition-all hover:bg-primary/90 hover:shadow-md',
+            'absolute right-4 top-4 flex h-9 w-9 items-center justify-center',
+            'rounded-full bg-white shadow-sm',
+            'text-xs font-bold text-gray-800',
+            'transition-colors hover:bg-orange-50',
             'active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed',
           ].join(' ')}
           data-testid={`button-add-cart-${product.id}`}
         >
           {added ? (
             <>
-              <Check size={12} /> {tr('product.added')}
+              <Check size={16} />
             </>
           ) : add.isPending ? (
-            tr('product.adding')
+            <RefreshCw size={16} className="animate-spin" />
           ) : (
             <>
-              <ShoppingBag size={12} /> {tr('product.addCart')}
+              <ShoppingBag size={16} />
             </>
           )}
-        </button>
+        </button>}
+        {add.isError && <p role="alert" className="mt-2 text-xs text-red-600">Couldn’t add this product. Check available stock and try again.</p>}
       </div>
     </article>
   );
+}
+
+function PaginatedProducts({ products, loading }: { products?: Product[]; loading?: boolean }) {
+  const [limit, setLimit] = useState(24);
+  const sentinel = useRef<HTMLDivElement>(null);
+  const total = products?.length ?? 0;
+  useEffect(() => {
+    if (loading || limit >= total || !sentinel.current) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) setLimit((value) => Math.min(value + 24, total));
+    }, { rootMargin: '200px' });
+    observer.observe(sentinel.current);
+    return () => observer.disconnect();
+  }, [loading, limit, total]);
+  return <div>
+    <ProductGrid products={products?.slice(0, limit)} loading={loading} />
+    {!loading && total > 0 && <div ref={sentinel} role="status" className="py-6 text-center text-xs text-muted-foreground">
+      {limit < total ? 'Scroll to load more products…' : 'You’ve reached the end of the products.'}
+    </div>}
+  </div>;
 }
 
 function ProductGrid({
@@ -284,8 +282,6 @@ function ProductGrid({
 }
 
 export function HomePage() {
-  const { data: categories, isLoading: categoriesLoading } =
-    useListCategories();
   const { tr } = useLocale();
   const {
     data: products,
@@ -293,21 +289,14 @@ export function HomePage() {
     isError,
     refetch,
   } = useListProducts({ sort: 'featured' });
-  const { data: suppliers } = useListSuppliers();
 
   return (
-    <AppShell activeTab="market">
-      <AlibabaHomeHero
-        categories={categories}
-        products={products}
-        categoriesLoading={categoriesLoading}
-        productsLoading={productsLoading}
-      />
+    <AppShell activeTab="market" discoveryContent={<DiscoveryStrip products={products} loading={productsLoading} />}>
       <div className="bg-muted/30 px-0 pb-8 sm:px-4 lg:px-8">
-        <section className="sm:rounded-xl border-0 sm:border border-border bg-card p-3 sm:p-6 shadow-none sm:shadow-sm">
+        <section className="rounded-lg bg-[#f3f3f3] p-3 sm:p-4">
           <div className="mb-4 flex items-end justify-between">
             <h2 className="text-lg font-bold text-card-foreground">
-              {tr('home.shippingSourcing')}
+              Products from Nzanila stores
             </h2>
             <Link
               href="/products"
@@ -320,57 +309,41 @@ export function HomePage() {
           {isError ? (
             <ErrorState onRetry={() => refetch()} />
           ) : (
-            <ProductGrid products={products} loading={productsLoading} />
+            <PaginatedProducts products={products} loading={productsLoading} />
           )}
-        </section>
-        <section className="mt-6 grid gap-4 lg:grid-cols-2">
-          <div className="rounded-xl border border-border bg-card p-6 shadow-sm transition-all duration-300 hover:shadow-md">
-            <p className="text-[10px] font-bold uppercase text-muted-foreground">
-              {tr('home.wholesaleSignal')}
-            </p>
-            <h2 className="mt-2 text-xl font-bold text-card-foreground">
-              {tr('home.wholesaleTitle')}
-            </h2>
-            <p className="mt-3 text-sm text-muted-foreground">
-              {tr('home.wholesaleDesc')}
-            </p>
-            <Link
-              href="/suppliers"
-              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-md"
-              data-testid="link-explore-suppliers"
-            >
-              {tr('home.exploreSuppliers')} <ArrowUpRight size={15} />
-            </Link>
-          </div>
-          <div className="rounded-xl border border-border bg-card p-6 shadow-sm transition-all duration-300 hover:shadow-md">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-bold uppercase text-muted-foreground">
-                {tr('home.supplierPulse')}
-              </p>
-              <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
-                <span className="h-2 w-2 rounded-full bg-emerald-600" /> {tr('home.live')}
-              </span>
-            </div>
-            <div className="mt-5 space-y-4">
-              {(Array.isArray(suppliers) ? suppliers : []).slice(0, 3).map((s) => (
-                <SupplierMini key={s.id} supplier={s} />
-              )) ??
-                Array.from({ length: 3 }).map((_, i) => (
-                  <SkeletonBlock key={i} className="h-10" />
-                ))}
-            </div>
-            <Link
-              href="/suppliers"
-              className="mt-5 flex items-center justify-between border-t border-border pt-4 text-xs font-bold text-card-foreground hover:text-primary transition-colors"
-              data-testid="link-view-suppliers"
-            >
-              {tr('home.viewSupplierDir')} <ArrowRight size={15} />
-            </Link>
-          </div>
         </section>
       </div>
     </AppShell>
   );
+}
+
+function SearchHistoryCard({ term }: { term: string }) {
+  const { data: matches, isLoading, isError } = useListProducts({ search: term });
+  const product = matches?.[0];
+  return <Link href={'/products?search=' + encodeURIComponent(term)} className="flex h-[190px] min-w-0 flex-col rounded-lg border border-border bg-card p-2 hover:border-primary">
+    <p className="text-xs font-bold">Keep looking for</p><p className="mb-2 truncate text-sm">{term}</p>
+    <div className="relative grid min-h-0 flex-1 place-items-center overflow-hidden rounded bg-muted">
+      {isLoading ? <span className="text-xs">Loading…</span> : product?.image ? <img src={product.image} alt={product.name} className="h-full w-full object-contain" /> : <span className="px-2 text-center text-xs">{isError ? 'Search again' : product ? product.name : 'See search results'}</span>}
+      {product && <span className="absolute bottom-2 rounded-full bg-white px-2 py-1 text-xs font-bold">{money(product.price)}</span>}
+    </div>
+  </Link>;
+}
+
+function DiscoveryStrip({ products, loading }: { products?: Product[]; loading?: boolean }) {
+  const [history, setHistory] = useState(readSearchHistory);
+  useEffect(() => {
+    const refresh = () => setHistory(readSearchHistory());
+    window.addEventListener('nzanila-search-history', refresh);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener('nzanila-search-history', refresh);
+      window.removeEventListener('storage', refresh);
+    };
+  }, []);
+  return <section aria-label="Recent product searches">
+    <div className="mb-2 flex items-center justify-between gap-2"><h2 className="text-sm font-bold">Your recent searches</h2>{history.length > 0 && <button onClick={clearSearchHistory} className="text-xs underline">Clear history</button>}</div>
+    {history.length ? <div className="grid grid-cols-3 gap-2 sm:gap-3">{history.slice(0, 3).map((entry) => <SearchHistoryCard key={entry.term} term={entry.term} />)}</div> : <div className="flex h-[190px] flex-col items-center justify-center rounded-lg border border-dashed border-border bg-white p-4 text-center"><Search size={24} className="mb-3 text-muted-foreground" /><p className="text-sm font-semibold">Pick up where you left off</p><p className="mt-1 text-xs text-muted-foreground">Search for a product to see it here. History is saved in this browser.</p></div>}
+  </section>;
 }
 
 function SupplierMini({ supplier }: { supplier: Supplier }) {
@@ -405,11 +378,19 @@ export function ProductsPage() {
   const initialSearch = params.get('search') ?? '';
   const initialCategory = params.get('category') ?? '';
   const [search, setSearch] = useState(initialSearch);
+  useEffect(() => {
+    if (!search.trim() || search === initialSearch) return;
+    const timer = window.setTimeout(() => recordSearch(search), 1200);
+    return () => window.clearTimeout(timer);
+  }, [search, initialSearch]);
   const [category, setCategory] = useState(initialCategory);
   const [sort, setSort] = useState<
     'featured' | 'price-low' | 'price-high' | 'rating'
-  >('featured');
+  >('rating');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [tradeAssurance, setTradeAssurance] = useState(false);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [minOrder, setMinOrder] = useState('');
   const { data: categories } = useListCategories();
   const {
     data: products,
@@ -421,9 +402,16 @@ export function ProductsPage() {
     category: category || undefined,
     sort,
   });
+  const visibleProducts = useMemo(() => (products ?? []).filter((product) => {
+    const item = product as Product & { verified?: boolean; tradeAssurance?: boolean; minimumOrderQuantity?: number };
+    if (verifiedOnly && item.verified !== true) return false;
+    if (tradeAssurance && item.tradeAssurance !== true) return false;
+    if (minOrder && Number(item.minimumOrderQuantity ?? 0) > Number(minOrder)) return false;
+    return true;
+  }), [products, verifiedOnly, tradeAssurance, minOrder]);
   return (
-    <AppShell activeTab="products">
-      <div className="bg-background px-4 py-6 lg:px-8">
+    <AppShell activeTab="products" hideSidebar>
+      <div className="bg-[#f3f3f3] px-4 py-6 lg:px-8">
         <PageIntro
           eyebrow="Marketplace catalog"
           title="Products for every scale"
@@ -469,63 +457,35 @@ export function ProductsPage() {
             className="h-11 rounded-lg border border-border bg-card px-3 text-sm font-semibold outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all"
             data-testid="select-sort-products"
           >
-            <option value="featured">Featured first</option>
             <option value="rating">Top rated</option>
             <option value="price-low">Price: low to high</option>
             <option value="price-high">Price: high to low</option>
           </select>
         </div>
-        <div
-          className={`mb-6 flex-wrap gap-2 ${filtersOpen ? 'flex' : 'hidden'} md:flex`}
-        >
-          <button
-            onClick={() => setCategory('')}
-            className={`rounded-full border px-4 py-2 text-xs font-bold transition-all ${
-              !category
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-border bg-card text-card-foreground hover:bg-muted'
-            }`}
-            data-testid="button-category-all"
-          >
-            All products
-          </button>
-          {categories?.map((item) => (
-            <button
-              key={item.id}
-              onClick={() =>
-                setCategory(category === item.name ? '' : item.name)
-              }
-              className={`rounded-full border px-3 py-2 text-xs font-bold ${
-                category === item.name
-                  ? 'border-[#ff6a00] bg-[#ff6a00] text-white'
-                  : 'border-gray-200 bg-white'
-              }`}
-              data-testid={`button-category-${item.id}`}
-            >
-              {item.name}
-            </button>
-          ))}
+        <div className="grid items-start gap-5 lg:grid-cols-[210px_minmax(0,1fr)]">
+          <aside className={`${filtersOpen ? 'block' : 'hidden'} rounded-xl border border-border bg-card p-4 lg:sticky lg:top-4 lg:block`}>
+            <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold">Filters</h2><button className="text-xs text-muted-foreground lg:hidden" onClick={() => setFiltersOpen(false)}>Close</button></div>
+            <div className="border-b border-border pb-4"><p className="mb-2 text-sm font-bold">Categories</p><div className="max-h-72 space-y-1 overflow-y-auto pr-1">
+              <button onClick={() => setCategory('')} className={`block w-full rounded px-2 py-1.5 text-left text-sm ${!category ? 'bg-primary/10 font-bold text-primary' : 'hover:bg-muted'}`}>All products</button>
+              {(categories ?? []).map((item) => <button key={item.id} onClick={() => { setCategory(category === item.name ? '' : item.name); setFiltersOpen(false); }} className={`block w-full rounded px-2 py-1.5 text-left text-sm ${category === item.name ? 'bg-primary/10 font-bold text-primary' : 'hover:bg-muted'}`} data-testid={`filter-category-${item.id}`}>{item.name}</button>)}
+            </div></div>
+            <div className="border-b border-border py-4"><p className="mb-2 text-sm font-bold">Supplier types</p><label className="flex items-center gap-2 py-1 text-sm"><input type="checkbox" checked={tradeAssurance} onChange={(e) => setTradeAssurance(e.target.checked)} /> Trade Assurance</label><label className="flex items-center gap-2 py-1 text-sm"><input type="checkbox" checked={verifiedOnly} onChange={(e) => setVerifiedOnly(e.target.checked)} /> Verified supplier</label></div>
+            <div className="pt-4"><p className="mb-2 text-sm font-bold">Min. order</p><div className="flex gap-2"><input value={minOrder} onChange={(e) => setMinOrder(e.target.value.replace(/[^0-9]/g, ''))} placeholder="Max" className="w-full rounded border border-border bg-background px-2 py-1.5 text-sm" /><button onClick={() => setMinOrder(minOrder)} className="rounded border border-border px-2 text-xs font-bold">OK</button></div></div>
+          </aside>
+          <section className="min-w-0">
+            {isError ? <ErrorState onRetry={() => refetch()} /> : <>
+              <div className="mb-4 flex items-center justify-between text-xs text-gray-500"><span>{isLoading ? 'Finding products…' : `${visibleProducts.length} products in view`}</span><span>{category || 'All categories'}</span></div>
+              <PaginatedProducts key={`${search}:${category}:${sort}:${verifiedOnly}:${tradeAssurance}:${minOrder}`} products={visibleProducts} loading={isLoading} />
+            </>}
+          </section>
         </div>
-        {isError ? (
-          <ErrorState onRetry={() => refetch()} />
-        ) : (
-          <>
-            <div className="mb-4 flex items-center justify-between text-xs text-gray-500">
-              <span>
-                {isLoading
-                  ? 'Finding products…'
-                  : `${products?.length ?? 0} products in view`}
-              </span>
-            </div>
-            <ProductGrid products={products} loading={isLoading} />
-          </>
-        )}
       </div>
     </AppShell>
   );
 }
 
 export function ProductDetailPage() {
+  const { isAuthenticated } = useAuth();
   const { id } = useParams<{ id: string }>();
   const productId = Number(id);
   const queryClient = useQueryClient();
@@ -550,9 +510,7 @@ export function ProductDetailPage() {
     (p) => p.id !== productId
   );
 
-  const sold = product ? soldCount(product) : 0;
-  const reorder = product ? reorderRate(product) : 0;
-  const yrs = product ? supplierYears(product.supplierName) : 5;
+  const sold = product ? soldCount(product) : null;
 
   if (isLoading)
     return (
@@ -580,6 +538,8 @@ export function ProductDetailPage() {
       </AppShell>
     );
 
+  const productImages = ((product as Product & { images?: string[] }).images || [product.image]).filter(Boolean);
+
   const addToCart = () =>
     add.mutate(
       {
@@ -597,13 +557,6 @@ export function ProductDetailPage() {
         },
       }
     );
-
-  const tiers = [
-    { from: 1, to: product.moq, price: product.price },
-    { from: product.moq * 2, to: product.moq * 5, price: +(product.price * 0.92).toFixed(2) },
-    { from: product.moq * 6, to: product.moq * 12, price: +(product.price * 0.85).toFixed(2) },
-    { from: product.moq * 13, to: null, price: +(product.price * 0.78).toFixed(2) },
-  ];
 
   const tabs = [
     { key: 'description' as const, label: tr('detail.description') },
@@ -631,15 +584,15 @@ export function ProductDetailPage() {
             {/* Image gallery */}
             <div className="hidden sm:flex gap-3 lg:gap-3">
               <div className="flex flex-col gap-2">
-                {[0, 1, 2, 3].map((i) => (
+                {productImages.map((image, i) => (
                   <div
-                    key={i}
+                    key={`${image}-${i}`}
                     className={`h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border-2 lg:h-[68px] lg:w-[68px] ${
                       i === 0 ? 'border-primary' : 'border-border hover:border-primary/50'
                     }`}
                   >
-                    {product.image ? (
-                      <img src={product.image} alt="" className="h-full w-full object-cover" />
+                    {image ? (
+                      <img src={image} alt={`${product.name} view ${i + 1}`} className="h-full w-full object-cover" />
                     ) : (
                       <div className="grid h-full w-full place-items-center bg-secondary">
                         <PackageCheck size={14} className="text-muted-foreground" />
@@ -657,10 +610,10 @@ export function ProductDetailPage() {
                 <ProductImage product={product} className="aspect-square" />
               </div>
               <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-                {[0, 1, 2, 3].map((i) => (
-                  <div key={i} className={`h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg border-2 ${i === 0 ? 'border-primary' : 'border-border'}`}>
-                    {product.image ? (
-                      <img src={product.image} alt="" className="h-full w-full object-cover" />
+                {productImages.map((image, i) => (
+                  <div key={`${image}-${i}`} className={`h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg border-2 ${i === 0 ? 'border-primary' : 'border-border'}`}>
+                    {image ? (
+                      <img src={image} alt={`${product.name} view ${i + 1}`} className="h-full w-full object-cover" />
                     ) : (
                       <div className="grid h-full w-full place-items-center bg-secondary"><PackageCheck size={12} className="text-muted-foreground" /></div>
                     )}
@@ -683,11 +636,9 @@ export function ProductDetailPage() {
                         <BadgeCheck size={12} /> {tr('product.verified')}
                       </span>
                     )}
-                    <span>·</span>
-                    <span>{tr('detail.yearsOnNzanila')}</span>
                   </div>
                 </div>
-                <Link href="/suppliers" className="flex-shrink-0 rounded-lg border border-primary px-3 py-1.5 text-[11px] font-bold text-primary hover:bg-primary/5">
+                <Link href={(product as Product & { storeSlug?: string }).storeSlug ? `/store/${encodeURIComponent((product as Product & { storeSlug?: string }).storeSlug as string)}` : '/products'} className="flex-shrink-0 rounded-lg border border-primary px-3 py-1.5 text-[11px] font-bold text-primary hover:bg-primary/5">
                   {tr('detail.viewProfile')}
                 </Link>
               </div>
@@ -697,12 +648,12 @@ export function ProductDetailPage() {
                   <p className="text-[10px] text-muted-foreground">{tr('detail.storeRating')}</p>
                 </div>
                 <div className="rounded-lg bg-background p-2 text-center">
-                  <p className="text-xs font-bold text-foreground">&lt;{Math.round(24 - product.rating * 2)}h</p>
-                  <p className="text-[10px] text-muted-foreground">{tr('detail.responseTime')}</p>
+                  <p className="text-xs font-bold text-foreground">{product.reviews.toLocaleString()}</p>
+                  <p className="text-[10px] text-muted-foreground">{tr('detail.reviews')}</p>
                 </div>
                 <div className="rounded-lg bg-background p-2 text-center">
-                  <p className="text-xs font-bold text-foreground">{90 + Math.round(product.rating)}%</p>
-                  <p className="text-[10px] text-muted-foreground">{tr('detail.onTime')}</p>
+                  <p className="text-xs font-bold text-foreground">{product.stock.toLocaleString()}</p>
+                  <p className="text-[10px] text-muted-foreground">{tr('detail.stock')}</p>
                 </div>
               </div>
             </div>
@@ -713,7 +664,7 @@ export function ProductDetailPage() {
             {/* Shipping banner */}
             <div className="mb-4 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
               <Truck size={15} />
-              <span>{tr('detail.freeShipping')} — {tr('detail.shippingCapped')}</span>
+              <span>{product.shipping || 'Seller delivery details not provided'}</span>
             </div>
 
             {/* Title */}
@@ -728,7 +679,7 @@ export function ProductDetailPage() {
               </span>
               <span className="text-muted-foreground">({product.reviews.toLocaleString()} {tr('detail.reviews')})</span>
               <span className="h-4 w-px bg-border" />
-              <span className="text-muted-foreground">{sold.toLocaleString()} {tr('product.sold')}</span>
+              {sold !== null && <span className="text-muted-foreground">{sold.toLocaleString()} {tr('product.sold')}</span>}
             </div>
 
             {/* Price tiers */}
@@ -745,19 +696,6 @@ export function ProductDetailPage() {
                 )}
               </div>
 
-              {/* Tier prices — horizontal chips */}
-              <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
-                {tiers.map((t, i) => {
-                  const active = quantity >= t.from && (!t.to || quantity <= t.to);
-                  return (
-                    <div key={i} className={`rounded-lg border px-3 py-2 text-center text-xs ${active ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-border text-foreground'}`}>
-                      <p className="font-bold">{money(t.price)}</p>
-                      <p className="text-[10px] text-muted-foreground">{t.from}–{t.to ?? '∞'} {product.unit}</p>
-                    </div>
-                  );
-                })}
-              </div>
-
               {/* MOQ */}
               <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                 <span>{tr('product.moq')}</span>
@@ -765,6 +703,7 @@ export function ProductDetailPage() {
               </div>
 
               {/* Quantity + buttons */}
+              {isAuthenticated && <>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <div className="flex h-11 items-center rounded-lg border border-border bg-background sm:h-12">
                   <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="px-3 text-lg font-bold text-foreground" data-testid="button-decrease-quantity">−</button>
@@ -794,6 +733,7 @@ export function ProductDetailPage() {
                   {tr('cart.view')} <ArrowRight size={14} />
                 </button>
               )}
+              </>}
             </div>
 
             {/* Key attributes — inline, not in tabs */}
@@ -822,29 +762,29 @@ export function ProductDetailPage() {
 
           {/* ════ RIGHT COLUMN: guarantee + payment ════ */}
           <div className="space-y-4">
-            {/* Guarantee panel */}
+            {/* Fulfillment panel — values come from the seller's listing */}
             <div className="rounded-xl border border-border bg-card p-4">
-              <p className="text-sm font-bold text-foreground">{tr('detail.nzanilaGuarantee')}</p>
+              <p className="text-sm font-bold text-foreground">Fulfillment information</p>
               <div className="mt-3 space-y-3">
-                <div className="flex gap-3">
-                  <ShieldCheck size={18} className="mt-0.5 flex-shrink-0 text-emerald-600" />
-                  <div>
-                    <p className="text-xs font-bold text-foreground">{tr('detail.securePayments')}</p>
-                    <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{tr('detail.securePaymentsDesc')}</p>
-                  </div>
-                </div>
                 <div className="flex gap-3">
                   <Truck size={18} className="mt-0.5 flex-shrink-0 text-emerald-600" />
                   <div>
-                    <p className="text-xs font-bold text-foreground">{tr('detail.guaranteedDelivery')}</p>
-                    <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{tr('detail.guaranteedDeliveryDesc')}</p>
+                    <p className="text-xs font-bold text-foreground">Delivery</p>
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{(product as any).deliveryAvailable ? (product.shipping || 'Seller delivery available') : 'Not offered by this seller'}</p>
                   </div>
                 </div>
                 <div className="flex gap-3">
-                  <RefreshCw size={18} className="mt-0.5 flex-shrink-0 text-emerald-600" />
+                  <Store size={18} className="mt-0.5 flex-shrink-0 text-emerald-600" />
                   <div>
-                    <p className="text-xs font-bold text-foreground">{tr('detail.moneyBack')}</p>
-                    <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{tr('detail.moneyBackDesc')}</p>
+                    <p className="text-xs font-bold text-foreground">Pickup</p>
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{(product as any).pickupAvailable ? 'Buyer pickup available at the store' : 'Not offered by this seller'}</p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <PackageCheck size={18} className="mt-0.5 flex-shrink-0 text-emerald-600" />
+                  <div>
+                    <p className="text-xs font-bold text-foreground">Availability</p>
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{product.stock.toLocaleString()} units currently listed</p>
                   </div>
                 </div>
               </div>
@@ -852,12 +792,11 @@ export function ProductDetailPage() {
 
             {/* Payment methods */}
             <div className="rounded-xl border border-border bg-card p-4">
-              <p className="text-xs font-bold text-foreground">{tr('detail.paymentMethods')}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {['Visa', 'Mastercard', 'PayPal', 'Apple Pay', 'Bank Transfer'].map((m) => (
-                  <span key={m} className="rounded-md border border-border bg-background px-2.5 py-1 text-[10px] font-medium text-foreground">{m}</span>
-                ))}
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-bold text-foreground">Payment</p>
+                <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-800">Coming soon</span>
               </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">Payment is not available yet. You can still submit a fulfillment request; the seller will confirm the order before payment is enabled.</p>
             </div>
 
             {/* Need help */}
@@ -893,7 +832,7 @@ export function ProductDetailPage() {
             {activeTab === 'description' && (
               <div className="max-w-none text-muted-foreground">
                 <p className="text-sm leading-7">
-                  {product.description || 'A carefully specified product from a verified supplier ready to ship worldwide.'}
+                  {product.description || 'The seller has not provided a product description yet.'}
                 </p>
               </div>
             )}
@@ -929,22 +868,11 @@ export function ProductDetailPage() {
                     <p className="text-[10px] text-muted-foreground">{tr('detail.rating')}</p>
                   </div>
                   <div className="rounded-xl border border-border bg-card p-4 text-center">
-                    <Clock3 size={18} className="mx-auto text-primary" />
-                    <p className="mt-1 text-sm font-bold text-foreground">&lt;{Math.round(24 - product.rating * 2)}h</p>
-                    <p className="text-[10px] text-muted-foreground">{tr('detail.responseTime')}</p>
-                  </div>
-                  <div className="rounded-xl border border-border bg-card p-4 text-center">
                     <RefreshCw size={18} className="mx-auto text-primary" />
-                    <p className="mt-1 text-sm font-bold text-foreground">{90 + Math.round(product.rating)}%</p>
-                    <p className="text-[10px] text-muted-foreground">{tr('detail.onTime')}</p>
-                  </div>
-                  <div className="rounded-xl border border-border bg-card p-4 text-center">
-                    <Layers3 size={18} className="mx-auto text-primary" />
-                    <p className="mt-1 text-sm font-bold text-foreground">{yrs} {tr('product.yrs')}</p>
-                    <p className="text-[10px] text-muted-foreground">{tr('detail.experience')}</p>
+                    <p className="mt-1 text-sm font-bold text-foreground">{product.stock.toLocaleString()}</p>
+                    <p className="text-[10px] text-muted-foreground">{tr('detail.stock')}</p>
                   </div>
                 </div>
-                <p className="text-sm text-muted-foreground">{tr('detail.supplierDesc')}</p>
               </div>
             )}
           </div>
@@ -995,6 +923,9 @@ export function CartPage() {
   const [destination, setDestination] = useState(
     'New York, United States'
   );
+  const [fulfillmentMethod, setFulfillmentMethod] = useState<'seller_delivery' | 'buyer_pickup'>('seller_delivery');
+  const [deliveryPhoto, setDeliveryPhoto] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const create = useCreateOrder();
   const refresh = (next: unknown) => {
@@ -1013,7 +944,13 @@ export function CartPage() {
   const checkout = (e: FormEvent) => {
     e.preventDefault();
     create.mutate(
-      { data: { destination } },
+      { data: {
+        destination: fulfillmentMethod === 'buyer_pickup' ? 'Store pickup' : destination,
+        fulfillmentMethod,
+        deliveryAddress: fulfillmentMethod === 'seller_delivery' ? destination : undefined,
+        deliveryPhoto: fulfillmentMethod === 'seller_delivery' ? deliveryPhoto || undefined : undefined,
+        termsAccepted,
+      } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({
@@ -1193,7 +1130,7 @@ export function CartPage() {
                   Continue to checkout <ArrowRight size={15} />
                 </button>
                 <p className="mt-3 text-center text-[10px] text-primary-foreground/45">
-                  You will confirm destination next
+                  Choose delivery or store pickup next
                 </p>
               </aside>
             </div>
@@ -1224,18 +1161,37 @@ export function CartPage() {
                   <X size={18} />
                 </button>
               </div>
-              <label className="mt-6 block text-xs font-bold">
-                Destination
+              <div className="mt-6 space-y-3">
+                <p className="text-xs font-bold">How would you like to receive this order?</p>
+                <label className={`flex cursor-pointer gap-3 rounded-xl border p-4 ${fulfillmentMethod === 'seller_delivery' ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                  <input type="radio" name="fulfillment" checked={fulfillmentMethod === 'seller_delivery'} onChange={() => setFulfillmentMethod('seller_delivery')} className="mt-1" />
+                  <span><strong className="block text-sm">Seller delivery</strong><span className="text-xs text-muted-foreground">The seller delivers to the confirmed address below.</span></span>
+                </label>
+                <label className={`flex cursor-pointer gap-3 rounded-xl border p-4 ${fulfillmentMethod === 'buyer_pickup' ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                  <input type="radio" name="fulfillment" checked={fulfillmentMethod === 'buyer_pickup'} onChange={() => setFulfillmentMethod('buyer_pickup')} className="mt-1" />
+                  <span><strong className="block text-sm">Pick up from the store</strong><span className="text-xs text-muted-foreground">The seller will confirm the store address and pickup time. No delivery charge is added.</span></span>
+                </label>
+              </div>
+              {fulfillmentMethod === 'seller_delivery' && <label className="mt-5 block text-xs font-bold">
+                Delivery address
                 <input
                   required
                   minLength={2}
                   value={destination}
                   onChange={(e) => setDestination(e.target.value)}
                   className="mt-2 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm font-normal outline-none focus:border-primary"
-                  placeholder="City, country"
+                  placeholder="Street, district, city, country"
                   data-testid="input-checkout-destination"
                 />
-              </label>
+                <span className="mt-1 block text-[11px] font-normal text-muted-foreground">Confirm the exact location where the seller should deliver.</span>
+              </label>}
+              {fulfillmentMethod === 'seller_delivery' && <label className="mt-4 block text-xs font-bold">
+                Delivery location photo <span className="font-normal text-muted-foreground">(optional)</span>
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="mt-2 block w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-normal" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setDeliveryPhoto(String(reader.result || '')); reader.readAsDataURL(file); }} />
+                <span className="mt-1 block text-[11px] font-normal text-muted-foreground">Add a gate, landmark, or storefront photo so the seller can confirm the location.</span>
+                {deliveryPhoto && <span className="mt-2 block text-[11px] font-semibold text-emerald-700">Location photo attached ✓</span>}
+              </label>}
+              {fulfillmentMethod === 'buyer_pickup' && <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs text-blue-900"><strong>Pickup location</strong><p className="mt-1">Seller store location — the seller will share directions and confirm when your order is ready.</p></div>}
               <div className="mt-5 rounded-xl bg-secondary p-4 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">
@@ -1244,12 +1200,12 @@ export function CartPage() {
                   <strong>{money(cart?.total ?? 0)}</strong>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Your supplier will confirm the shipping details after
-                  the order is placed.
+                  Payment is coming soon. Your order will be saved as payment pending; the seller will confirm fulfillment details.
                 </p>
               </div>
+              <label className="mt-4 flex items-start gap-2 text-xs text-muted-foreground"><input type="checkbox" required checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="mt-0.5" /><span>I confirm my fulfillment choice and address. I understand payment is not available yet and the seller must confirm the order.</span></label>
               <button
-                disabled={create.isPending}
+                disabled={create.isPending || !termsAccepted}
                 className="mt-5 flex w-full justify-center rounded-xl bg-primary py-3.5 text-xs font-bold text-primary-foreground"
                 data-testid="button-place-order"
               >
@@ -1336,6 +1292,7 @@ function EmptyOrders() {
 }
 
 function OrderCard({ order }: { order: Order }) {
+  const confirmDelivery = useUpdateOrderStatus();
   const statusColor =
     order.status === 'delivered'
       ? 'text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950'
@@ -1400,6 +1357,16 @@ function OrderCard({ order }: { order: Order }) {
           )
         )}
       </div>
+      {order.status === 'shipped' && (
+        <button
+          type="button"
+          onClick={() => confirmDelivery.mutate({ id: order.id, data: { status: 'delivered' } })}
+          disabled={confirmDelivery.isPending}
+          className="mt-5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-60"
+        >
+          {confirmDelivery.isPending ? 'Confirming…' : 'Confirm delivery received'}
+        </button>
+      )}
       <div className="mt-5 flex items-center justify-between border-t border-border pt-4 text-sm text-muted-foreground">
         <span>
           {order.itemCount} item{order.itemCount === 1 ? '' : 's'} ·{' '}
@@ -1570,17 +1537,19 @@ function SupplierCard({ supplier }: { supplier: Supplier }) {
 export function SupplierFrame({
   children,
   title,
+  action,
 }: {
   children: ReactNode;
   title: string;
+  action?: ReactNode;
 }) {
   const { user } = useAuth();
   const verificationStatus = (user as any)?.verificationStatus || 'not_verified';
   const isUnverified = verificationStatus === 'not_verified' || verificationStatus === 'not_submitted';
 
   return (
-    <AppShell mode="supplier">
-      <div className="px-5 py-8 lg:px-10">
+    <SellerWorkspace title={title}>
+      <div>
         {isUnverified && (
           <Link href="/seller/verify" className="mb-6 flex items-center gap-3 rounded-2xl border border-yellow-200 bg-yellow-50 p-3 transition-colors hover:bg-yellow-100">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-base text-yellow-600">✓</span>
@@ -1591,20 +1560,20 @@ export function SupplierFrame({
           </Link>
         )}
 
-        <div className="mb-8 rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-6">
+        <div className="mb-6 border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                Supplier desk
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#ff6a00]">
+                Seller performance center
               </p>
-              <h1 className="mt-2 font-display text-3xl font-extrabold tracking-[-0.06em]">
+              <h1 className="mt-1 text-2xl font-bold tracking-tight text-gray-900">
                 {title}
               </h1>
             </div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
+            <div className="flex items-center gap-3">{action}<div className="inline-flex items-center gap-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
               <span className="h-2 w-2 rounded-full bg-[#3e856d]" />
               Storefront live
-            </div>
+            </div></div>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
@@ -1624,7 +1593,7 @@ export function SupplierFrame({
         </div>
         {children}
       </div>
-    </AppShell>
+    </SellerWorkspace>
   );
 }
 
@@ -1665,49 +1634,12 @@ export function SupplierDashboardPage() {
   const { user } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const dashboardQuery = useGetSupplierDashboard();
 
   useEffect(() => {
-    // Hardcoded mock data for preview
-    const mockData = {
-      revenue: 12450.80,
-      revenueChange: 12,
-      ordersThisWeek: 47,
-      ordersChange: -3,
-      activeProducts: 23,
-      lowStockProducts: 4,
-      statusCounts: {
-        new: 8,
-        confirmed: 5,
-        processing: 3,
-        ready: 2,
-        out_for_delivery: 12,
-        delivered: 156,
-        cancelled: 7,
-      },
-      actionableOrders: [
-        { id: 1847, status: 'new', buyerName: 'Kigali Fresh Market', itemCount: 12, total: 485.00, date: new Date(Date.now() - 1800000).toISOString() },
-        { id: 1846, status: 'new', buyerName: 'Nyamirambo Wholesalers', itemCount: 8, total: 320.50, date: new Date(Date.now() - 3600000).toISOString() },
-        { id: 1845, status: 'confirmed', buyerName: 'Huye Distributors', itemCount: 5, total: 195.00, date: new Date(Date.now() - 7200000).toISOString() },
-        { id: 1844, status: 'new', buyerName: 'Musanze Traders', itemCount: 3, total: 87.50, date: new Date(Date.now() - 10800000).toISOString() },
-      ],
-      topProducts: [
-        { id: 1, name: 'Premium Cassava Flour (50kg)', price: 45.00, stock: 120, category: 'Grains & Flour' },
-        { id: 2, name: 'Fresh Beans (25kg)', price: 32.00, stock: 8, category: 'Legumes' },
-        { id: 3, name: 'Vegetable Oil (20L)', price: 58.50, stock: 34, category: 'Oils & Fats' },
-        { id: 4, name: 'Maize Grain (100kg)', price: 67.00, stock: 5, category: 'Grains & Flour' },
-        { id: 5, name: 'Sugar (50kg)', price: 42.00, stock: 89, category: 'Sweeteners' },
-      ],
-      recentOrders: [
-        { id: 1842, status: 'delivered', buyerName: 'Rubavu Markets Ltd', total: 782.00, date: new Date(Date.now() - 86400000).toISOString() },
-        { id: 1838, status: 'delivered', buyerName: 'Kigali Fresh Market', total: 1245.50, date: new Date(Date.now() - 172800000).toISOString() },
-        { id: 1835, status: 'out_for_delivery', buyerName: 'Gisenyi Wholesalers', total: 340.00, date: new Date(Date.now() - 259200000).toISOString() },
-        { id: 1831, status: 'cancelled', buyerName: 'Muhanga Traders', total: 95.00, date: new Date(Date.now() - 345600000).toISOString() },
-        { id: 1829, status: 'delivered', buyerName: 'Nyamirambo Wholesalers', total: 567.25, date: new Date(Date.now() - 432000000).toISOString() },
-      ],
-    };
-
-    setTimeout(() => { setStats(mockData); setLoading(false); }, 600);
-  }, []);
+    setStats(dashboardQuery.data || null);
+    setLoading(dashboardQuery.isLoading);
+  }, [dashboardQuery.data, dashboardQuery.isLoading]);
 
   if (loading || !stats)
     return (
@@ -2035,23 +1967,12 @@ export function SupplierProductsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('newest');
+  const supplierProductsQuery = useListMySupplierProducts();
 
   useEffect(() => {
-    // Hardcoded mock products
-    const mockProducts = [
-      { id: 1, name: 'Premium Cassava Flour (50kg)', category: 'Grains & Flour', price: 45.00, unit: 'bag', stock: 120, verified: true, reviews: 24, imageUrl: '/placeholder-product.jpg' },
-      { id: 2, name: 'Fresh Beans (25kg)', category: 'Legumes', price: 32.00, unit: 'bag', stock: 8, verified: true, reviews: 18, imageUrl: '/placeholder-product.jpg' },
-      { id: 3, name: 'Vegetable Oil (20L)', category: 'Oils & Fats', price: 58.50, unit: 'tin', stock: 34, verified: true, reviews: 31, imageUrl: '/placeholder-product.jpg' },
-      { id: 4, name: 'Maize Grain (100kg)', category: 'Grains & Flour', price: 67.00, unit: 'bag', stock: 5, verified: true, reviews: 12, imageUrl: '/placeholder-product.jpg' },
-      { id: 5, name: 'Sugar (50kg)', category: 'Sweeteners', price: 42.00, unit: 'bag', stock: 89, verified: true, reviews: 28, imageUrl: '/placeholder-product.jpg' },
-      { id: 6, name: 'Rice (25kg)', category: 'Grains & Flour', price: 38.00, unit: 'bag', stock: 0, verified: true, reviews: 15, imageUrl: '/placeholder-product.jpg' },
-      { id: 7, name: 'Salt (20kg)', category: 'Seasonings', price: 12.00, unit: 'bag', stock: 150, verified: true, reviews: 9, imageUrl: '/placeholder-product.jpg' },
-      { id: 8, name: 'Onions (10kg)', category: 'Vegetables', price: 15.00, unit: 'bag', stock: 0, verified: false, reviews: 6, imageUrl: '/placeholder-product.jpg' },
-      { id: 9, name: 'Tomatoes (5kg)', category: 'Vegetables', price: 8.00, unit: 'bag', stock: 25, verified: true, reviews: 21, imageUrl: '/placeholder-product.jpg' },
-      { id: 10, name: 'Cooking Gas (12kg)', category: 'Fuel', price: 35.00, unit: 'cylinder', stock: 15, verified: true, reviews: 33, imageUrl: '/placeholder-product.jpg' },
-    ];
-    setTimeout(() => { setProducts(mockProducts); setIsLoading(false); }, 400);
-  }, []);
+    setIsLoading(supplierProductsQuery.isLoading);
+    if (supplierProductsQuery.data) setProducts(supplierProductsQuery.data.map(product => ({ ...product, imageUrl: product.image, stock: product.stock, category: product.category, price: product.price, unit: product.unit })));
+  }, [supplierProductsQuery.data, supplierProductsQuery.isLoading]);
 
   const statusFilters = [
     { value: 'all', label: 'All' },

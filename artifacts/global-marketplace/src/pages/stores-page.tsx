@@ -8,6 +8,8 @@ import {
 import { SellerWorkspace } from '@/components/seller-workspace';
 import { useAuth } from '@/lib/auth-context';
 
+const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-seller-api.nzanilaexpress.workers.dev');
+
 interface Store {
   id: number;
   name: string;
@@ -31,50 +33,46 @@ export function StoresPage() {
   const [statusFilter, setStatusFilter] = useState('all');
 
   useEffect(() => {
-    // Mock stores data
-    const mockStores: Store[] = [
-      {
-        id: 1,
-        name: 'Kigali Fresh Traders',
-        description: 'Premium agricultural products and fresh produce from local farmers',
-        location: 'Nyarugenge, Kigali City',
-        status: 'active',
-        products: 23,
-        orders: 156,
-        revenue: 12450.80,
-        rating: 4.8,
-        createdAt: new Date(Date.now() - 7776000000).toISOString(),
-        slug: 'kigali-fresh-traders',
-      },
-      {
-        id: 2,
-        name: 'Nyamirambo Wholesalers',
-        description: 'Bulk grains, flours, and staple foods for businesses',
-        location: 'Nyamirambo, Kigali City',
-        status: 'active',
-        products: 15,
-        orders: 89,
-        revenue: 8920.50,
-        rating: 4.6,
-        createdAt: new Date(Date.now() - 5184000000).toISOString(),
-        slug: 'nyamirambo-wholesalers',
-      },
-      {
-        id: 3,
-        name: 'Southern Province Supplies',
-        description: 'Regional products from Huye and surrounding areas',
-        location: 'Huye Town, Southern Province',
-        status: 'inactive',
-        products: 8,
-        orders: 23,
-        revenue: 2150.00,
-        rating: 4.2,
-        createdAt: new Date(Date.now() - 2592000000).toISOString(),
-        slug: 'southern-province-supplies',
-      },
-    ];
-    setTimeout(() => { setStores(mockStores); setLoading(false); }, 400);
-  }, []);
+    let cancelled = false;
+    const loadStores = async () => {
+      if (!user?.id) { setStores([]); setLoading(false); return; }
+      setLoading(true);
+      try {
+        const response = await fetch(`${API}/api/stores/seller/${user.id}`);
+        const payload = response.ok ? await response.json() : null;
+        const rawStores = Array.isArray(payload) ? payload : (payload?.stores || (payload?.store ? [payload.store] : []));
+        const mapped = await Promise.all(rawStores.map(async (store: any) => {
+          let products: any[] = [];
+          try {
+            const productsResponse = await fetch(`${API}/api/stores/${store.id}/products`);
+            const productPayload = productsResponse.ok ? await productsResponse.json() : [];
+            products = Array.isArray(productPayload) ? productPayload : (productPayload?.products || []);
+          } catch { /* keep the store visible if product count is unavailable */ }
+          return {
+            id: Number(store.id),
+            name: store.name || 'Unnamed store',
+            description: store.description || store.business_category || '',
+            location: [store.location_address || store.address, store.commune, store.province].filter(Boolean).join(', '),
+            status: store.status === 'inactive' ? 'inactive' : store.status === 'pending' ? 'pending' : 'active',
+            products: products.length,
+            orders: Number(store.orders_count ?? store.orders ?? 0) || 0,
+            revenue: Number(store.revenue ?? 0) || 0,
+            rating: Number(store.rating ?? 0) || 0,
+            createdAt: store.created_at || new Date().toISOString(),
+            logo: store.logo || store.logo_url,
+            slug: store.slug,
+          } as Store;
+        }));
+        if (!cancelled) setStores(mapped);
+      } catch {
+        if (!cancelled) setStores([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    loadStores();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   const filteredStores = stores.filter(store => {
     const matchesSearch = 

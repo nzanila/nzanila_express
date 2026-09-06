@@ -23,6 +23,8 @@ import {
   Settings,
   ArrowLeft,
   Check,
+  Plus,
+  GripVertical,
 } from 'lucide-react';
 import {
   MODULE_DEFINITIONS,
@@ -35,9 +37,35 @@ import {
   type StorefrontModule,
   type StorefrontSection,
   DEFAULT_STOREFRONT_CONFIG,
+  loadStorefrontTemplates,
 } from '../lib/storefront-types';
 
-const API = (import.meta as any).env?.VITE_API_URL || 'https://nzanila-api.pages.dev';
+function readLocalMedia(file: File): Promise<string> {
+  const maxBytes = file.type.startsWith('video/') ? 15 * 1024 * 1024 : 5 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    return Promise.reject(new Error(`File is too large. Maximum size is ${maxBytes / 1024 / 1024} MB.`));
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('Could not read the selected file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+const LEGACY_AUTO_MODULE_TITLES = new Set(['back to school savings', 'compare top laptops', 'summer tech sale', 'new arrivals', 'trending in tech', 'slideshow']);
+function withoutLegacyAutoModules(config: StorefrontConfig): StorefrontConfig {
+  return { ...config, sections: config.sections.map(section => ({ ...section, modules: section.modules.filter(module => !LEGACY_AUTO_MODULE_TITLES.has(String(module.props?.title || '').trim().toLowerCase()) && !(module.type === 'slideshow' && !module.id.startsWith('mod_'))) })) };
+}
+
+function videoSource(url: string): { kind: 'file' | 'embed'; url: string } {
+  if (url.startsWith('data:video/') || /\.(mp4|webm|ogg)(\?|$)/i.test(url)) return { kind: 'file', url };
+  const youtube = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]+)/);
+  if (youtube) return { kind: 'embed', url: `https://www.youtube-nocookie.com/embed/${youtube[1]}` };
+  return { kind: 'embed', url };
+}
+
+const API = (import.meta as any).env?.VITE_API_URL || 'https://nzanila-seller-api.nzanilaexpress.workers.dev';
 
 interface StorefrontBuilderProps {
   storeId: number;
@@ -52,6 +80,8 @@ function TemplateSelector({
   onSkip: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<StorefrontTemplate[]>([]);
+  useEffect(() => { void loadStorefrontTemplates(API).then(setTemplates); }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-50">
@@ -68,7 +98,7 @@ function TemplateSelector({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {STOREFRONT_TEMPLATES.map((template) => (
+          {templates.map((template) => (
             <button
               key={template.id}
               onClick={() => setSelectedId(template.id)}
@@ -78,12 +108,14 @@ function TemplateSelector({
                   : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
               }`}
             >
-              <div className="aspect-[16/10] bg-gray-100 overflow-hidden">
+              <div className="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-[#233548] via-[#31506c] to-[#ff9900]">
                 <img
                   src={template.preview}
                   alt={template.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  onError={(event) => { event.currentTarget.style.display = 'none'; }}
                 />
+                <div className="pointer-events-none absolute inset-0 flex items-end bg-gradient-to-t from-black/50 via-transparent to-transparent p-4"><span className="text-sm font-bold text-white">{template.name}</span></div>
                 {selectedId === template.id && (
                   <div className="absolute top-3 right-3 bg-[#ff9900] text-white rounded-full p-1.5">
                     <Check size={14} />
@@ -122,7 +154,7 @@ function TemplateSelector({
           </button>
           <button
             onClick={() => {
-              const template = STOREFRONT_TEMPLATES.find((t) => t.id === selectedId);
+              const template = templates.find((t) => t.id === selectedId);
               if (template) onSelect(template);
             }}
             disabled={!selectedId}
@@ -145,6 +177,15 @@ function ModuleIcon({ type }: { type: ModuleType }) {
     'marketing': <Sparkles size={20} className="text-yellow-500" />,
     'company': <Building size={20} className="text-indigo-500" />,
     'hero': <ImageIcon size={20} className="text-pink-500" />,
+    'hero-slideshow': <ImageIcon size={20} className="text-fuchsia-500" />,
+    'slideshow': <ImageIcon size={20} className="text-fuchsia-500" />,
+    'shop-now-banner': <ImageIcon size={20} className="text-orange-500" />,
+    'product-comparison': <Columns size={20} className="text-blue-600" />,
+    'seasonal-sale': <Sparkles size={20} className="text-red-500" />,
+    'new-arrivals': <Package size={20} className="text-emerald-500" />,
+    'trending-now': <Package size={20} className="text-amber-500" />,
+    'image-grid': <ImageIcon size={20} className="text-sky-500" />,
+    'video-grid': <Video size={20} className="text-rose-500" />,
     'product-category': <LayoutGrid size={20} className="text-teal-500" />,
     'double-row-products': <Columns size={20} className="text-cyan-500" />,
     'store-sign': <ImageIcon size={20} className="text-orange-500" />,
@@ -162,10 +203,12 @@ function ModuleLibrary({
   searchQuery,
   selectedCategory,
   onDragStart,
+  onAdd,
 }: {
   searchQuery: string;
   selectedCategory: string;
   onDragStart: (def: ModuleDefinition, e: React.DragEvent) => void;
+  onAdd: (type: ModuleType) => void;
 }) {
   const filtered = MODULE_DEFINITIONS.filter((mod) => {
     const matchesSearch =
@@ -194,6 +237,14 @@ function ModuleLibrary({
                 <p className="text-sm font-semibold text-gray-900">{mod.label}</p>
                 <p className="text-xs text-gray-500">{mod.description}</p>
               </div>
+              <button
+                type="button"
+                onClick={() => onAdd(mod.type)}
+                className="rounded-md bg-[#ff9900] px-2 py-1 text-xs font-bold text-white opacity-90 hover:opacity-100"
+                title={`Add ${mod.label} to the active section`}
+              >
+                Add
+              </button>
             </div>
           </div>
         ))}
@@ -223,7 +274,7 @@ function PropertiesPanel({
         </div>
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <Settings size={48} className="text-gray-200 mb-3" />
-          <p className="text-sm text-gray-500">No module selected</p>
+          <p className="text-sm font-medium text-gray-600">Select a module preview</p><p className="mt-1 max-w-44 text-xs text-gray-400">Its text, images, videos, and links will appear here.</p>
         </div>
       </div>
     );
@@ -240,8 +291,61 @@ function PropertiesPanel({
   );
 
   const renderField = (key: string, value: unknown, modDef: ModuleDefinition) => {
-    const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+    const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').replace(/_/g, ' ');
     const commonInputClasses = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#ff9900] focus:outline-none focus:ring-1 focus:ring-[#ff9900]';
+
+    if (Array.isArray(value)) {
+      const items = value as any[];
+      if (items.length > 0 && items.every(item => typeof item === 'string')) {
+        return <div key={key} className="space-y-1.5"><label className="text-xs font-semibold text-gray-700">{label}</label><textarea value={items.join('\n')} onChange={event => updateProp(key, event.target.value.split('\n').filter(Boolean))} className={`${commonInputClasses} min-h-28`} placeholder="Enter one item per line" /><p className="text-[10px] text-gray-400">One item per line. Changes appear immediately.</p></div>;
+      }
+
+      const fieldPresets: Record<string, string[]> = {
+        images: ['url', 'alt'], videos: ['url', 'title'], slides: ['title', 'subtitle', 'imageUrl', 'buttonText', 'buttonUrl'],
+        products: ['name', 'price', 'imageUrl', 'badge', 'values'], categories: ['name', 'imageUrl', 'link'],
+        certifications: ['name', 'issuer', 'certificateNumber', 'imageUrl', 'description'], features: ['title', 'description'], stats: ['value', 'label', 'suffix'],
+      };
+      const fields = Array.from(new Set(items.flatMap(item => item && typeof item === 'object' ? Object.keys(item) : [])));
+      const editorFields = fields.length ? fields : (fieldPresets[key] || ['title', 'description']);
+      const updateItem = (index: number, field: string, nextValue: unknown) => updateProp(key, items.map((item, itemIndex) => itemIndex === index ? { ...(item || {}), [field]: nextValue } : item));
+      const addItem = () => updateProp(key, [...items, Object.fromEntries(editorFields.map(field => [field, field === 'values' ? [] : '']))]);
+      return <div key={key} className="space-y-2"><div className="flex items-center justify-between"><label className="text-xs font-semibold text-gray-700">{label}</label><button type="button" onClick={addItem} className="flex items-center gap-1 rounded bg-[#ff6a00] px-2 py-1 text-[10px] font-bold text-white hover:bg-[#e85f00]"><Plus size={11} /> Add item</button></div>{items.length === 0 && <button type="button" onClick={addItem} className="w-full rounded-lg border-2 border-dashed border-gray-200 px-3 py-6 text-xs text-gray-400 hover:border-[#ff9900] hover:text-[#ff6a00]">Add the first {label.toLowerCase()} item</button>}{items.map((item, index) => <div key={index} className="rounded-lg border border-gray-200 bg-gray-50 p-3"><div className="mb-3 flex items-center justify-between"><span className="text-[10px] font-bold uppercase text-gray-500">{label} {index + 1}</span><button type="button" onClick={() => updateProp(key, items.filter((_, itemIndex) => itemIndex !== index))} className="rounded p-1 text-red-500 hover:bg-red-50" aria-label={`Remove ${label} ${index + 1}`}><Trash2 size={13} /></button></div><div className="space-y-3">{editorFields.map(field => { const fieldValue = item?.[field]; const fieldLabel = field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1'); const mediaField = /image|video/i.test(field) || field === 'url' && (key === 'images' || key === 'videos'); const videoField = /video/i.test(field) || key === 'videos'; if (Array.isArray(fieldValue) || field === 'values') return <div key={field}><label className="text-[10px] font-medium text-gray-600">{fieldLabel}</label><textarea value={(Array.isArray(fieldValue) ? fieldValue : []).join('\n')} onChange={event => updateItem(index, field, event.target.value.split('\n').filter(Boolean))} className={`${commonInputClasses} mt-1 min-h-20`} placeholder="One value per line" /></div>; return <div key={field}><label className="text-[10px] font-medium text-gray-600">{fieldLabel}</label><input value={String(fieldValue ?? '')} onChange={event => updateItem(index, field, event.target.value)} className={`${commonInputClasses} mt-1`} placeholder={mediaField ? (videoField ? 'Video URL or upload below' : 'Image URL or upload below') : `Enter ${fieldLabel.toLowerCase()}`} />{mediaField && <label className="mt-1.5 flex cursor-pointer items-center justify-center gap-1.5 rounded border border-dashed border-[#ff9900]/70 bg-orange-50 px-2 py-2 text-[10px] font-bold text-[#c66f00] hover:bg-orange-100"><Upload size={12} /> Upload {videoField ? 'video' : 'image'}<input type="file" accept={videoField ? 'video/mp4,video/webm,video/ogg' : 'image/*'} className="hidden" onChange={async event => { const file = event.target.files?.[0]; if (!file) return; try { updateItem(index, field, await readLocalMedia(file)); } catch (error) { alert(error instanceof Error ? error.message : 'Upload failed'); } event.target.value = ''; }} /></label>}</div>; })}</div></div>)}</div>;
+    }
+
+    if (Array.isArray(value) && (key === 'images' || key === 'videos' || key === 'certifications')) {
+      const isVideo = key === 'videos';
+      const isCertificate = key === 'certifications';
+      return (
+        <div key={key} className="space-y-2">
+          <label className="text-xs font-medium text-gray-700">{label}</label>
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[#ff9900]/60 bg-orange-50 px-3 py-3 text-xs font-semibold text-[#c66f00] hover:bg-orange-100">
+            <Upload size={15} /> Add {isVideo ? 'videos' : isCertificate ? 'certificate images' : 'images'} from device
+            <input type="file" multiple accept={isVideo ? 'video/mp4,video/webm,video/ogg' : 'image/*,.pdf'} className="hidden" onChange={async (event) => {
+              const files = Array.from(event.target.files || []);
+              try {
+                const urls = await Promise.all(files.map(readLocalMedia));
+                const entries = urls.map((url, index) => isVideo
+                  ? { url, title: files[index].name }
+                  : isCertificate
+                    ? { name: files[index].name.replace(/\.[^.]+$/, ''), issuer: '', certificateNumber: '', imageUrl: url, description: 'Uploaded certificate evidence' }
+                    : { url, alt: files[index].name });
+                updateProp(key, [...value, ...entries]);
+              } catch (error) { alert(error instanceof Error ? error.message : 'Upload failed'); }
+              event.target.value = '';
+            }} />
+          </label>
+          <textarea key={JSON.stringify(value)} defaultValue={JSON.stringify(value, null, 2)} onBlur={(event) => {
+            try { updateProp(key, JSON.parse(event.target.value)); }
+            catch { alert(`${label} must be valid JSON.`); event.target.value = JSON.stringify(value, null, 2); }
+          }} className={`${commonInputClasses} min-h-36 font-mono text-[11px]`} />
+        </div>
+      );
+    }
+
+    if (value !== null && typeof value === 'object') {
+      const objectValue = value as Record<string, unknown>;
+      return <fieldset key={key} className="rounded-lg border border-gray-200 bg-gray-50 p-3"><legend className="px-1 text-xs font-semibold text-gray-700">{label}</legend><div className="space-y-3">{Object.entries(objectValue).map(([field, fieldValue]) => { const fieldLabel = field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1').replace(/_/g, ' '); const setField = (nextValue: unknown) => updateProp(key, { ...objectValue, [field]: nextValue }); if (typeof fieldValue === 'boolean') return <div key={field} className="flex items-center justify-between"><span className="text-[11px] font-medium text-gray-600">{fieldLabel}</span><button type="button" onClick={() => setField(!fieldValue)} className={`relative inline-flex h-6 w-11 items-center rounded-full ${fieldValue ? 'bg-[#ff6a00]' : 'bg-gray-300'}`}><span className={`h-4 w-4 rounded-full bg-white transition-transform ${fieldValue ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>; if (Array.isArray(fieldValue)) return <div key={field}><label className="text-[10px] font-medium text-gray-600">{fieldLabel}</label><textarea value={fieldValue.join('\n')} onChange={event => setField(event.target.value.split('\n').filter(Boolean))} className={`${commonInputClasses} mt-1 min-h-20`} placeholder="One item per line" /></div>; return <div key={field}><label className="text-[10px] font-medium text-gray-600">{fieldLabel}</label><input type={typeof fieldValue === 'number' ? 'number' : 'text'} value={String(fieldValue ?? '')} onChange={event => setField(typeof fieldValue === 'number' ? Number(event.target.value) : event.target.value)} className={`${commonInputClasses} mt-1`} placeholder={`Enter ${fieldLabel.toLowerCase()}`} /></div>; })}</div></fieldset>;
+    }
 
     switch (typeof value) {
       case 'string':
@@ -267,24 +371,33 @@ function PropertiesPanel({
           );
         }
         if (key.includes('image') || key.includes('Url') || key.includes('url') || key.includes('Image')) {
+          const isVideo = key.toLowerCase().includes('video');
           return (
             <div key={key} className="space-y-1.5">
               <label className="text-xs font-medium text-gray-700">{label}</label>
-              <div className="flex items-center gap-2">
+              <div className="space-y-2">
                 <input
                   type="text"
                   value={value}
                   onChange={(e) => updateProp(key, e.target.value)}
                   className={commonInputClasses}
-                  placeholder="https://..."
+                  placeholder={isVideo ? 'YouTube, MP4, WebM, or uploaded video' : 'Image URL or uploaded image'}
                 />
-                <button
-                  onClick={() => updateProp(key, 'https://images.unsplash.com/photo-1503376780353-7e489f6b63a7?auto=format&fit=crop&w=1200&q=80')}
-                  className="rounded-lg border border-gray-200 px-2 py-2 text-gray-600 hover:bg-gray-50"
-                  title="Use sample image"
-                >
-                  <ImageIcon size={16} />
-                </button>
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[#ff9900]/60 bg-orange-50 px-3 py-2 text-xs font-semibold text-[#c66f00] hover:bg-orange-100">
+                  <Upload size={15} /> Upload {isVideo ? 'video' : 'image'} from device
+                  <input
+                    type="file"
+                    accept={isVideo ? 'video/mp4,video/webm,video/ogg' : 'image/*'}
+                    className="hidden"
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      try { updateProp(key, await readLocalMedia(file)); }
+                      catch (error) { alert(error instanceof Error ? error.message : 'Upload failed'); }
+                      event.target.value = '';
+                    }}
+                  />
+                </label>
               </div>
             </div>
           );
@@ -368,6 +481,8 @@ function PropertiesPanel({
         <p className="text-xs text-gray-400 mt-1">{def?.description}</p>
       </div>
 
+      <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-[11px] leading-4 text-blue-700">Changes appear immediately in the canvas preview. Use the upload controls below for images, videos, and files.</div>
+
       <div className="space-y-4">
         {Object.entries(props).map(([key, value]) =>
           renderField(key, value, def!),
@@ -384,13 +499,16 @@ function CanvasArea({
   onSelectSection,
   onSelectModule,
   onDropModule,
+  onReorderModule,
   onUpdateModule,
   onRemoveModule,
   onMoveModule,
   onUpdateShopSign,
   onSetShopSign,
+  onUpdateHeader,
   onSave,
   isSaving,
+  saveStatus,
   loading,
   onPreview,
 }: {
@@ -400,24 +518,30 @@ function CanvasArea({
   onSelectSection: (sectionId: string) => void;
   onSelectModule: (moduleId: string) => void;
   onDropModule: (type: ModuleType, insertAtIndex?: number) => void;
+  onReorderModule: (moduleId: string, targetIndex: number) => void;
   onUpdateModule: (moduleId: string, props: Record<string, unknown>) => void;
   onRemoveModule: (moduleId: string) => void;
   onMoveModule: (moduleId: string, direction: 'up' | 'down') => void;
   onUpdateShopSign: (updates: Partial<{ imageUrl: string; altText: string; hidden: boolean }>) => void;
   onSetShopSign: (updates: Partial<{ imageUrl: string | null; altText: string; hidden: boolean }>) => void;
+  onUpdateHeader: (updates: Partial<NonNullable<StorefrontConfig['header']>>) => void;
   onSave: () => void;
   isSaving: boolean;
+  saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   loading: boolean;
   onPreview: () => void;
 }) {
   const section = config.sections.find((s) => s.id === selectedSection);
-
+  const draggingModuleId = useRef<string | null>(null);
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    const type = e.dataTransfer.getData('application/json');
-    if (type) {
-      onDropModule(JSON.parse(type) as ModuleType);
-    }
+    if (draggingModuleId.current) return;
+    const raw = e.dataTransfer.getData('application/json');
+    if (!raw) return;
+    const payload = JSON.parse(raw) as { kind?: string; type?: ModuleType; moduleId?: string } | ModuleType;
+    if (typeof payload === 'object' && payload.kind === 'module' && payload.moduleId) return;
+    const type = typeof payload === 'string' ? payload : payload.type;
+    if (type) onDropModule(type);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -429,14 +553,47 @@ function CanvasArea({
     e.stopPropagation();
     const data = e.dataTransfer.getData('application/json');
     if (data) {
-      const { type } = JSON.parse(data);
-      onDropModule(type as ModuleType, targetIndex);
+      const parsed = JSON.parse(data) as ModuleType | { kind?: string; type?: ModuleType; moduleId?: string };
+      if (draggingModuleId.current) {
+        onReorderModule(draggingModuleId.current, targetIndex);
+        return;
+      }
+      if (typeof parsed === 'object' && parsed.kind === 'module' && parsed.moduleId) {
+        onReorderModule(parsed.moduleId, targetIndex);
+        return;
+      }
+      const type = typeof parsed === 'string' ? parsed : parsed.type;
+      if (type) onDropModule(type, targetIndex);
     }
+  };
+
+  const handleModuleDragOver = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const data = e.dataTransfer.getData('application/json');
+    if (draggingModuleId.current) {
+      onReorderModule(draggingModuleId.current, targetIndex);
+      return;
+    }
+    if (!data) return;
+    try {
+      const parsed = JSON.parse(data) as { kind?: string; moduleId?: string };
+      if (parsed.kind === 'module' && parsed.moduleId) onReorderModule(parsed.moduleId, targetIndex);
+    } catch { /* ignore malformed drag payloads */ }
   };
 
   return (
     <div className="flex-1 overflow-y-auto bg-gray-50">
       <div className="border-b border-gray-200 bg-white p-4">
+        <div className="mb-4 grid gap-3 rounded-xl border border-gray-200 bg-slate-50 p-3 sm:grid-cols-[auto_1fr_1fr]">
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:border-[#ff9900]">
+            {config.header?.profileImage ? <img src={config.header.profileImage} alt="Company profile" className="h-10 w-10 rounded-lg object-cover" /> : <Building size={24} />}
+            Upload profile
+            <input type="file" accept="image/*" className="hidden" onChange={async (event) => { const file = event.target.files?.[0]; if (file) try { onUpdateHeader({ profileImage: await readLocalMedia(file) }); } catch (error) { alert(error instanceof Error ? error.message : 'Upload failed'); } event.target.value = ''; }} />
+          </label>
+          <input value={config.header?.companyName || ''} onChange={(event) => onUpdateHeader({ companyName: event.target.value })} placeholder="Company name" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+          <input value={config.header?.tagline || ''} onChange={(event) => onUpdateHeader({ tagline: event.target.value })} placeholder="Company tagline" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+        </div>
         <div className="flex items-center gap-2 border-b border-gray-200 pb-3 mb-3">
           {config.sections.map((sec) => (
             <button
@@ -461,8 +618,12 @@ function CanvasArea({
             onChange={async (e) => {
               const file = e.target.files?.[0];
               if (!file) return;
-              const url = URL.createObjectURL(file);
-              onSetShopSign({ imageUrl: url, altText: 'Store Banner' });
+              try {
+                const url = await readLocalMedia(file);
+                onSetShopSign({ imageUrl: url, altText: file.name });
+              } catch (error) {
+                alert(error instanceof Error ? error.message : 'Upload failed');
+              }
             }}
             className="hidden"
             id="shop-sign-upload"
@@ -494,7 +655,8 @@ function CanvasArea({
           </div>
         </div>
 
-        <div className="flex justify-end gap-3">
+        <div className="flex items-center justify-end gap-3">
+          <span className={`text-[11px] font-medium ${saveStatus === 'error' ? 'text-red-600' : saveStatus === 'saved' ? 'text-emerald-600' : 'text-gray-400'}`}>{saveStatus === 'saving' ? 'Saving changes…' : saveStatus === 'saved' ? '✓ All changes saved' : saveStatus === 'error' ? 'Autosave failed — use Save' : 'Autosave on'}</span>
           <button
             onClick={onPreview}
             className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
@@ -543,30 +705,21 @@ function CanvasArea({
                 return (
                   <div
                     key={mod.id}
+                    draggable
+                    onDragStart={(e) => { draggingModuleId.current = mod.id; e.dataTransfer.setData('application/json', JSON.stringify({ kind: 'module', moduleId: mod.id })); e.dataTransfer.effectAllowed = 'move'; e.currentTarget.classList.add('scale-[0.98]', 'opacity-70', 'shadow-lg'); }}
+                    onDragEnd={(e) => { draggingModuleId.current = null; e.currentTarget.classList.remove('scale-[0.98]', 'opacity-70', 'shadow-lg'); }}
                     onClick={() => onSelectModule(mod.id)}
-                    className={`group relative cursor-pointer rounded-lg border-2 p-3 transition-all ${
+                    className={`group relative cursor-grab overflow-hidden rounded-lg border-2 transition-all active:cursor-grabbing ${
                       selectedModule === mod.id
-                        ? 'border-[#ff9900] bg-orange-50'
-                        : 'border-gray-200 hover:border-gray-300'
+                        ? 'border-[#ff9900] bg-orange-50/30'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
                     }`}
                     onDrop={(e) => handleModuleDrop(e, index)}
-                    onDragOver={(e) => e.preventDefault()}
+                    onDragOver={(e) => handleModuleDragOver(e, index)}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <ModuleIcon type={mod.type} />
-                        <span className="text-sm font-medium text-gray-900">
-                          {def?.label || mod.type}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onSelectModule(mod.id); }}
-                          className="rounded p-1 text-[#ff9900] hover:bg-orange-50"
-                          title="Edit"
-                        >
-                          <Edit3 size={14} />
-                        </button>
+                    <div className="flex items-center justify-between border-b border-gray-100 bg-white px-3 py-2">
+                      <div className="flex min-w-0 items-center gap-2"><GripVertical size={15} className="shrink-0 text-gray-400" aria-hidden="true" /><ModuleIcon type={mod.type} /><span className="truncate text-xs font-semibold text-gray-700">{def?.label || mod.type}</span><span className="hidden text-[10px] text-gray-400 xl:inline">— drag to reorder · click preview to edit</span></div>
+                      <div className="flex shrink-0 items-center gap-1 opacity-60 transition-opacity group-hover:opacity-100">
                         {index > 0 && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onMoveModule(mod.id, 'up'); }}
@@ -594,11 +747,7 @@ function CanvasArea({
                         </button>
                       </div>
                     </div>
-
-                    <StorefrontModulePreview
-                      mod={mod}
-                      storeId={config.storeId}
-                    />
+                    <div className="bg-white"><StorefrontModulePreview mod={mod} storeId={config.storeId} /></div>
                   </div>
                 );
               })}
@@ -616,9 +765,19 @@ function StorefrontModulePreview({ mod, storeId }: { mod: StorefrontModule; stor
   const [liveProducts, setLiveProducts] = useState<any[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState<string | null>(null);
+  const [slideIndex, setSlideIndex] = useState(0);
+  const slides = (props.slides as unknown as Array<{ title: string; subtitle?: string; imageUrl?: string; buttonText?: string; buttonUrl?: string }>) || [];
+  useEffect(() => {
+    if (mod.type !== 'hero-slideshow' || slides.length < 2) return;
+    const interval = window.setInterval(
+      () => setSlideIndex((current) => (current + 1) % slides.length),
+      Math.max(2, Number(props.autoplaySeconds) || 5) * 1000,
+    );
+    return () => window.clearInterval(interval);
+  }, [mod.type, slides.length, props.autoplaySeconds]);
   useEffect(() => {
     if (!storeId) return;
-    if (!['recommended-products','product-category','double-row-products'].includes(mod.type)) return;
+    if (!['recommended-products','product-category','double-row-products','new-arrivals','trending-now'].includes(mod.type)) return;
     let cancelled = false;
     setProductsLoading(true);
     setProductsError(null);
@@ -636,13 +795,54 @@ function StorefrontModulePreview({ mod, storeId }: { mod: StorefrontModule; stor
         }
       })
       .catch(e => {
-        if (!cancelled) setProductsError(e.message || 'Failed to load products');
+        if (!cancelled) {
+          console.warn('Products unavailable; showing template placeholders.', e);
+          setProductsError(null);
+          setLiveProducts([]);
+        }
       })
       .finally(() => { if (!cancelled) setProductsLoading(false); });
     return () => { cancelled = true; };
   }, [storeId, mod.type, props.limit, (props as any).productCount]);
 
   switch (mod.type) {
+    case 'image-grid': {
+      const images = (props.images as unknown as Array<{ url: string; alt?: string }>) || [];
+      const columns = Math.min(4, Math.max(1, Number(props.columns) || 3));
+      return <div className="bg-white p-4"><h3 className="mb-3 text-lg font-bold">{String(p('title') || 'Gallery')}</h3>{images.length ? <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>{images.map((item, index) => <img key={index} src={item.url} alt={item.alt || `Gallery image ${index + 1}`} className="aspect-square h-full w-full rounded-lg object-cover" />)}</div> : <div className="grid grid-cols-3 gap-3">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="aspect-square rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center"><ImageIcon className="text-gray-300" /></div>)}</div>}</div>;
+    }
+    case 'video-grid': {
+      const videos = (props.videos as unknown as Array<{ url: string; title?: string }>) || [];
+      const columns = Math.min(3, Math.max(1, Number(props.columns) || 2));
+      return <div className="bg-white p-4"><h3 className="mb-3 text-lg font-bold">{String(p('title') || 'Videos')}</h3>{videos.length ? <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>{videos.map((item, index) => { const source = videoSource(item.url); return <div key={index}><div className="aspect-video overflow-hidden rounded-lg bg-black">{source.kind === 'file' ? <video src={source.url} controls playsInline className="h-full w-full object-contain" /> : <iframe src={source.url} title={item.title || `Video ${index + 1}`} allowFullScreen className="h-full w-full" />}</div>{item.title && <p className="mt-1 text-xs font-medium">{item.title}</p>}</div>; })}</div> : <div className="grid grid-cols-2 gap-3">{Array.from({ length: 4 }).map((_, index) => <div key={index} className="aspect-video rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center"><Video className="text-gray-300" /></div>)}</div>}</div>;
+    }
+    case 'slideshow':
+    case 'hero-slideshow': {
+      const slide = slides[slideIndex] || slides[0];
+      return (
+        <div className="relative h-52 overflow-hidden bg-slate-900 text-white">
+          {slide?.imageUrl && <img src={slide.imageUrl} alt={slide.title} className="absolute inset-0 h-full w-full object-cover" />}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/45 to-transparent" />
+          <div className="relative flex h-full max-w-[65%] flex-col justify-center px-7">
+            <h3 className="text-2xl font-bold">{slide?.title || 'Campaign headline'}</h3>
+            {slide?.subtitle && <p className="mt-2 text-sm text-white/85">{slide.subtitle}</p>}
+            {slide?.buttonText && <span className="mt-4 w-fit rounded bg-[#ff9900] px-4 py-2 text-xs font-bold">{slide.buttonText}</span>}
+          </div>
+          <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-2">
+            {slides.map((_, index) => <button key={index} aria-label={`Show slide ${index + 1}`} onClick={() => setSlideIndex(index)} className={`h-2 rounded-full transition-all ${index === slideIndex ? 'w-6 bg-white' : 'w-2 bg-white/50'}`} />)}
+          </div>
+        </div>
+      );
+    }
+    case 'shop-now-banner':
+      return <div className="relative min-h-52 overflow-hidden bg-[#febd69] p-8" style={{ backgroundColor: String(p('backgroundColor') || '#febd69'), color: String(p('textColor') || '#131921') }}>{p('imageUrl') && <img src={String(p('imageUrl'))} alt="" className="absolute inset-0 h-full w-full object-cover" />}<div className="relative max-w-md"><h3 className="text-2xl font-bold">{String(p('title') || 'Shop our products')}</h3><p className="mt-2 text-sm">{String(p('subtitle') || '')}</p><span className="mt-4 inline-block rounded bg-[#ff9900] px-4 py-2 text-xs font-bold">{String(p('buttonText') || 'Shop Now')}</span></div></div>;
+    case 'seasonal-sale':
+      return <div className="p-8 text-center text-white" style={{ backgroundColor: String(p('backgroundColor') || '#cc0c39'), color: String(p('textColor') || '#fff') }}><p className="text-xs font-bold uppercase">{String(p('discount') || '')}</p><h3 className="mt-1 text-2xl font-bold">{String(p('title') || 'Seasonal Sale')}</h3><p className="mt-1 text-sm">{String(p('subtitle') || '')}</p><span className="mt-4 inline-block rounded bg-white px-4 py-2 text-xs font-bold text-gray-900">{String(p('buttonText') || 'Shop Sale')}</span></div>;
+    case 'product-comparison': {
+      const features = (props.features as unknown as string[]) || [];
+      const products = (props.products as unknown as Array<{ name?: string; values?: string[] }>) || [];
+      return <div className="overflow-x-auto bg-white p-5"><h3 className="mb-3 text-lg font-bold">{String(p('title') || 'Compare Products')}</h3>{products.length ? <table className="w-full min-w-[500px] border-collapse text-xs"><thead><tr><th className="border bg-gray-50 p-2 text-left">Feature</th>{products.map((product, index) => <th key={index} className="border p-2 text-left">{product.name || `Product ${index + 1}`}</th>)}</tr></thead><tbody>{features.map((feature, row) => <tr key={row}><td className="border bg-gray-50 p-2 font-semibold">{feature}</td>{products.map((product, column) => <td key={column} className="border p-2">{product.values?.[row] || '—'}</td>)}</tr>)}</tbody></table> : <div className="rounded border-2 border-dashed border-gray-200 p-8 text-center text-xs text-gray-400">Add products from the Properties panel</div>}</div>;
+    }
     case 'hero':
       return (
         <div className="relative h-44 overflow-hidden bg-black flex">
@@ -698,14 +898,15 @@ function StorefrontModulePreview({ mod, storeId }: { mod: StorefrontModule; stor
       );
 
     case 'video':
+      const source = videoSource(String(p('videoUrl') || ''));
       return (
         <div className="aspect-video rounded-lg bg-black/10 flex items-center justify-center">
           {p('videoUrl') ? (
-            <iframe
-              src={p('videoUrl') as string}
-              className="h-full w-full rounded-lg"
-              allowFullScreen
-            />
+            source.kind === 'file' ? (
+              <video src={source.url} className="h-full w-full rounded-lg bg-black object-contain" controls playsInline />
+            ) : (
+              <iframe src={source.url} title={String(p('title') || 'Store video')} className="h-full w-full rounded-lg" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+            )
           ) : (
             <div className="text-center text-gray-500">
               <Video size={32} className="mx-auto mb-2" />
@@ -786,6 +987,8 @@ function StorefrontModulePreview({ mod, storeId }: { mod: StorefrontModule; stor
           </div>
         </div>
       );
+    case 'new-arrivals':
+    case 'trending-now':
     case 'recommended-products':
     case 'double-row-products':
       if (productsLoading) {
@@ -899,7 +1102,7 @@ function StorefrontModulePreview({ mod, storeId }: { mod: StorefrontModule; stor
       const stats = (props.stats as unknown as Array<{ value: string; label: string; suffix: string }>) || [];
       return (
         <div className="relative overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=1200&q=60" alt="factory" className="absolute inset-0 h-full w-full object-cover" />
+          {p('backgroundImage') ? <img src={String(p('backgroundImage'))} alt="" className="absolute inset-0 h-full w-full object-cover" /> : null}
           <div className="absolute inset-0 bg-black/55" />
           <div className="relative p-4" style={{ backgroundColor: `${String(p('backgroundColor') || '#0f4fd8')}ee` }}>
             <div className="grid grid-cols-4 gap-4 text-center">
@@ -954,16 +1157,18 @@ function StorefrontModulePreview({ mod, storeId }: { mod: StorefrontModule; stor
       );
 
     case 'certifications':
-      const certs = (props.certifications as unknown as Array<{ name: string; description: string }>) || [];
+      const certs = (props.certifications as unknown as Array<{ name: string; issuer?: string; certificateNumber?: string; imageUrl?: string; description: string }>) || [];
       return (
         <div className="rounded-lg border border-gray-200 p-4">
           <h3 className="text-lg font-bold text-gray-900 mb-4">{String(p('title') || 'Certifications')}</h3>
           <div className="flex flex-wrap gap-3">
             {certs.map((cert, i) => (
-              <div key={i} className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
-                <ShieldCheck size={20} className="text-green-500" />
+              <div key={i} className="flex min-w-56 items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                {cert.imageUrl && cert.imageUrl.startsWith('data:application/pdf') ? <div className="flex h-14 w-14 items-center justify-center rounded bg-red-50 text-xs font-bold text-red-600">PDF</div> : cert.imageUrl ? <img src={cert.imageUrl} alt={cert.name} className="h-14 w-14 rounded object-cover" /> : <ShieldCheck size={28} className="text-green-500" />}
                 <div>
                   <p className="text-sm font-semibold text-gray-900">{cert.name}</p>
+                  {cert.issuer && <p className="text-xs font-medium text-gray-600">Issued by {cert.issuer}</p>}
+                  {cert.certificateNumber && <p className="text-[10px] text-gray-500">No. {cert.certificateNumber}</p>}
                   <p className="text-xs text-gray-500">{cert.description}</p>
                 </div>
               </div>
@@ -1006,14 +1211,15 @@ function StorefrontPreview({ config }: { config: StorefrontConfig }) {
   const [activeTab, setActiveTab] = useState('home');
   const activeSection = config.sections.find((s) => s.id === activeTab);
   return (
-    <div className="max-w-4xl mx-auto bg-[#f5f7fa] border border-gray-200">
-      {/* Alibaba Header - light blue gradient */}
-      <div className="bg-gradient-to-r from-[#e6f0ff] to-[#cfe3ff] px-4 py-3 flex items-center justify-between">
+    <div className="w-full max-w-6xl mx-auto bg-[#f5f7fa] border border-gray-200">
+      {/* Supplier identity header */}
+      <div className="bg-gradient-to-r from-[#e6f0ff] via-white to-[#cfe3ff] px-5 py-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="bg-white px-2 py-1 rounded font-black text-[#1677ff] text-xs tracking-wider">BAOFENG</div>
-          <div>
-            <p className="text-xs font-bold text-gray-900">Fujian Baofeng Electronics Co., Ltd.</p>
-            <p className="text-[10px] text-gray-500">Gold Supplier • 15 years • Verified</p>
+          {config.header?.profileImage ? <img src={config.header.profileImage} alt={config.header.companyName} className="h-14 w-14 rounded-xl border-2 border-white object-cover shadow" /> : <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-[#17233c] text-lg font-black text-white shadow">{(config.header?.companyName || 'YC').split(/\s+/).slice(0, 2).map((word) => word[0]).join('').toUpperCase()}</div>}
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold text-gray-900">{config.header?.companyName || 'Your Company'}</p>
+            <p className="mt-0.5 text-[11px] text-gray-600">{config.header?.tagline || 'Wholesale supplier and trusted business partner'}</p>
+            <div className="mt-1 flex flex-wrap gap-1.5"><span className="rounded bg-blue-600 px-1.5 py-0.5 text-[9px] font-bold text-white">✓ {config.header?.verificationLabel || 'Verified Supplier'}</span><span className="rounded bg-white/80 px-1.5 py-0.5 text-[9px] text-gray-600">{config.header?.yearsActive || 'New supplier'}</span></div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -1040,12 +1246,11 @@ function StorefrontPreview({ config }: { config: StorefrontConfig }) {
           <div className="space-y-0">{activeSection?.modules.map((mod) => (<StorefrontModulePreview key={mod.id} mod={mod} storeId={config.storeId} />))}</div>
         )}
       </div>
-      <div className="border-t border-gray-200 bg-gray-50 px-6 py-3 text-center text-[10px] text-gray-500">Alibaba.com • Powered by Nzanila Express • Terms & Privacy</div>
     </div>
   );
 }
 
-const STORE_BASE = (import.meta as any).env?.VITE_STORE_URL || 'https://nzanila-express.pages.dev';
+const STORE_BASE = (import.meta as any).env?.VITE_STORE_URL || 'https://nzanila.pages.dev';
 
 export function StorefrontBuilder({ storeId, onBack }: StorefrontBuilderProps) {
   const [config, setConfig] = useState<StorefrontConfig>(DEFAULT_STOREFRONT_CONFIG);
@@ -1054,12 +1259,17 @@ export function StorefrontBuilder({ storeId, onBack }: StorefrontBuilderProps) {
   const [librarySearch, setLibrarySearch] = useState('');
   const [libraryCategory, setLibraryCategory] = useState('all');
   const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [loading, setLoading] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [hasExistingConfig, setHasExistingConfig] = useState(false);
   const [storeSlug, setStoreSlug] = useState<string | null>(null);
+  const [showLibrary, setShowLibrary] = useState(true);
+  const [showProperties, setShowProperties] = useState(true);
   const dragItem = useRef<{ type: ModuleType } | null>(null);
+  const autoSaveReady = useRef(false);
+  const lastSavedConfig = useRef('');
 
   useEffect(() => {
     const persist = async (cfg: StorefrontConfig) => {
@@ -1099,18 +1309,14 @@ export function StorefrontBuilder({ storeId, onBack }: StorefrontBuilderProps) {
           if (data && Array.isArray(data.sections) && data.sections.length > 0) {
             const hasModules = data.sections.some((s: any) => s.modules?.length > 0);
             if (hasModules) {
-              setConfig({ ...DEFAULT_STOREFRONT_CONFIG, ...data, storeId });
+              setConfig(withoutLegacyAutoModules({ ...DEFAULT_STOREFRONT_CONFIG, ...data, storeId } as StorefrontConfig));
               setHasExistingConfig(true);
             } else {
-              const tpl = STOREFRONT_TEMPLATES.find(t=>t.id==='food-grocery');
-              if (tpl) {
-                const cfg = { ...DEFAULT_STOREFRONT_CONFIG, ...tpl.config, storeId, updatedAt: new Date().toISOString() } as StorefrontConfig;
-                setConfig(cfg);
-                setHasExistingConfig(false);
-                persist(cfg);
-              }
+              setConfig(withoutLegacyAutoModules({ ...DEFAULT_STOREFRONT_CONFIG, ...data, storeId } as StorefrontConfig));
+              setHasExistingConfig(false);
+              setShowTemplateSelector(true);
             }
-            setShowTemplateSelector(false);
+            if (hasModules) setShowTemplateSelector(false);
             } else {
               let storeTemplate = data?.template;
               if (!storeTemplate) {
@@ -1121,50 +1327,45 @@ export function StorefrontBuilder({ storeId, onBack }: StorefrontBuilderProps) {
                 }
               }
               const matchedTemplate = storeTemplate ? STOREFRONT_TEMPLATES.find(t => t.id === storeTemplate) : null;
-              const tpl = matchedTemplate || STOREFRONT_TEMPLATES.find(t=>t.id==='food-grocery');
+              const tpl = matchedTemplate;
             if (tpl) {
               const cfg = { ...DEFAULT_STOREFRONT_CONFIG, ...tpl.config, storeId, updatedAt: new Date().toISOString() } as StorefrontConfig;
               setConfig(cfg);
               setHasExistingConfig(false);
-              persist(cfg);
+              setShowTemplateSelector(true);
             }
-            setShowTemplateSelector(false);
+            if (!tpl) setShowTemplateSelector(true);
           }
         } else {
           const storeRes = await fetch(`${API}/api/stores/${storeId}`);
-          let storeTemplate = 'food-grocery';
+          let storeTemplate = '';
           if (storeRes.ok) {
             const storeData = await storeRes.json();
             if (storeData.store?.storeTemplate) storeTemplate = storeData.store.storeTemplate;
           }
-          const tpl = STOREFRONT_TEMPLATES.find(t=>t.id===storeTemplate) || STOREFRONT_TEMPLATES.find(t=>t.id==='food-grocery');
+          const tpl = STOREFRONT_TEMPLATES.find(t=>t.id===storeTemplate);
           if (tpl) {
             const cfg = { ...DEFAULT_STOREFRONT_CONFIG, ...tpl.config, storeId, updatedAt: new Date().toISOString() } as StorefrontConfig;
             setConfig(cfg);
             setHasExistingConfig(false);
-            persist(cfg);
           }
-          setShowTemplateSelector(false);
+          setShowTemplateSelector(true);
         }
       } catch (err) {
         console.error('Load error:', err);
         const storeRes = await fetch(`${API}/api/stores/${storeId}`);
-        let storeTemplate = 'food-grocery';
+        let storeTemplate = '';
         if (storeRes.ok) {
           const storeData = await storeRes.json();
           if (storeData.store?.storeTemplate) storeTemplate = storeData.store.storeTemplate;
         }
-        const tpl = STOREFRONT_TEMPLATES.find(t=>t.id===storeTemplate) || STOREFRONT_TEMPLATES.find(t=>t.id==='food-grocery');
+        const tpl = STOREFRONT_TEMPLATES.find(t=>t.id===storeTemplate);
         if (tpl) {
           const cfg = { ...DEFAULT_STOREFRONT_CONFIG, ...tpl.config, storeId, updatedAt: new Date().toISOString() } as StorefrontConfig;
           setConfig(cfg);
           setHasExistingConfig(false);
-          try {
-            const token = localStorage.getItem('sc_token');
-            await fetch(`${API}/api/stores/${storeId}/storefront`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token || ''}` }, body: JSON.stringify(cfg) });
-          } catch {}
         }
-        setShowTemplateSelector(false);
+        setShowTemplateSelector(true);
       } finally {
         setLoading(false);
       }
@@ -1173,13 +1374,39 @@ export function StorefrontBuilder({ storeId, onBack }: StorefrontBuilderProps) {
     loadConfig();
   }, [storeId]);
 
+  useEffect(() => {
+    if (loading || showTemplateSelector) return;
+    const serialized = JSON.stringify({ ...config, storeId });
+    if (!autoSaveReady.current) {
+      autoSaveReady.current = true;
+      lastSavedConfig.current = serialized;
+      return;
+    }
+    if (serialized === lastSavedConfig.current) return;
+    setSaveStatus('idle');
+    const timer = window.setTimeout(async () => {
+      setSaveStatus('saving');
+      try {
+        const token = localStorage.getItem('sc_token');
+        const response = await fetch(`${API}/api/stores/${storeId}/storefront`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token || ''}` }, body: serialized });
+        if (!response.ok) throw new Error(`Autosave returned ${response.status}`);
+        lastSavedConfig.current = serialized;
+        setSaveStatus('saved');
+      } catch (error) {
+        console.error('Autosave error:', error);
+        setSaveStatus('error');
+      }
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [config, loading, showTemplateSelector, storeId]);
+
   const handleSelectTemplate = (template: StorefrontTemplate) => {
-    const cfg = {
+    const cfg = withoutLegacyAutoModules({
       ...DEFAULT_STOREFRONT_CONFIG,
       ...template.config,
       storeId: storeId,
       updatedAt: new Date().toISOString(),
-    } as StorefrontConfig;
+    } as StorefrontConfig);
     setConfig(cfg);
     setShowTemplateSelector(false);
     setHasExistingConfig(true);
@@ -1286,6 +1513,25 @@ export function StorefrontBuilder({ storeId, onBack }: StorefrontBuilderProps) {
     [selectedSection],
   );
 
+  const handleReorderModule = useCallback(
+    (moduleId: string, targetIndex: number) => {
+      setConfig((prev) => ({
+        ...prev,
+        sections: prev.sections.map((section) => {
+          if (section.id !== selectedSection) return section;
+          const fromIndex = section.modules.findIndex((module) => module.id === moduleId);
+          if (fromIndex < 0 || fromIndex === targetIndex || fromIndex + 1 === targetIndex) return section;
+          const modules = [...section.modules];
+          const [moved] = modules.splice(fromIndex, 1);
+          const insertionIndex = fromIndex < targetIndex ? targetIndex - 1 : targetIndex;
+          modules.splice(Math.max(0, Math.min(insertionIndex, modules.length)), 0, moved);
+          return { ...section, modules };
+        }),
+      }));
+    },
+    [selectedSection],
+  );
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -1299,9 +1545,12 @@ export function StorefrontBuilder({ storeId, onBack }: StorefrontBuilderProps) {
         body: JSON.stringify({ ...config, storeId: storeId }),
       });
       if (!res.ok) throw new Error('Failed to save');
+      lastSavedConfig.current = JSON.stringify({ ...config, storeId });
+      setSaveStatus('saved');
       alert('Storefront saved successfully');
     } catch (err) {
       console.error('Save error:', err);
+      setSaveStatus('error');
       alert('Failed to save storefront');
     } finally {
       setIsSaving(false);
@@ -1357,6 +1606,8 @@ export function StorefrontBuilder({ storeId, onBack }: StorefrontBuilderProps) {
         )}
         <h1 className="text-lg font-bold text-gray-900">Storefront Builder</h1>
         <div className="ml-auto flex items-center gap-3">
+          <button onClick={() => setShowLibrary((visible) => !visible)} className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">{showLibrary ? 'Hide' : 'Show'} Library</button>
+          <button onClick={() => setShowProperties((visible) => !visible)} className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">{showProperties ? 'Hide' : 'Show'} Properties</button>
           {storeSlug && (
             <a
               href={`${STORE_BASE}/store/${storeSlug}`}
@@ -1379,7 +1630,7 @@ export function StorefrontBuilder({ storeId, onBack }: StorefrontBuilderProps) {
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar - Module Library */}
-        <aside className="w-72 border-r border-gray-200 bg-white overflow-hidden flex flex-col">
+        {showLibrary && <aside className="w-64 shrink-0 border-r border-gray-200 bg-white overflow-hidden flex flex-col">
           <div className="border-b border-gray-200 p-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-bold text-gray-900">Module Library</h2>
@@ -1414,8 +1665,9 @@ export function StorefrontBuilder({ storeId, onBack }: StorefrontBuilderProps) {
             searchQuery={librarySearch}
             selectedCategory={libraryCategory}
             onDragStart={handleDragStart}
+            onAdd={(type) => handleDropModule(type)}
           />
-        </aside>
+        </aside>}
 
         {/* Center - Canvas Area */}
         <CanvasArea
@@ -1425,6 +1677,7 @@ export function StorefrontBuilder({ storeId, onBack }: StorefrontBuilderProps) {
           onSelectSection={setSelectedSection}
           onSelectModule={setSelectedModule}
           onDropModule={handleDropModule}
+          onReorderModule={handleReorderModule}
           onUpdateModule={handleUpdateModule}
           onRemoveModule={handleRemoveModule}
           onMoveModule={handleMoveModule}
@@ -1440,14 +1693,16 @@ export function StorefrontBuilder({ storeId, onBack }: StorefrontBuilderProps) {
               },
             }))
           }
+          onUpdateHeader={(updates) => setConfig((prev) => ({ ...prev, header: { ...(prev.header || DEFAULT_STOREFRONT_CONFIG.header!), ...updates } }))}
           onSave={handleSave}
           isSaving={isSaving}
+          saveStatus={saveStatus}
           loading={loading}
           onPreview={() => setShowPreview(true)}
         />
 
         {/* Right Sidebar - Properties Panel */}
-        <aside className="w-80 border-l border-gray-200 bg-white overflow-hidden flex flex-col">
+        {showProperties && <aside className="w-72 shrink-0 border-l border-gray-200 bg-white overflow-hidden flex flex-col">
           <PropertiesPanel
             module={selectedModuleData}
             onUpdate={(props) =>
@@ -1455,7 +1710,7 @@ export function StorefrontBuilder({ storeId, onBack }: StorefrontBuilderProps) {
             }
             onClose={() => setSelectedModule(null)}
           />
-        </aside>
+        </aside>}
       </div>
 
       {/* Preview Modal */}

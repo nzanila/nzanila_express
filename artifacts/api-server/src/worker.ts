@@ -1,7 +1,11 @@
+import { researchChat } from "./ai-research";
+
 export interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_KEY: string;
   SUPPLIER_ID: string;
+  GROQ_API_KEY?: string;
+  AI?: Ai;
 }
 
 const SUPPLIER_ID_DEFAULT = 1;
@@ -162,6 +166,14 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
 
   // CORS preflight
   if (method === "OPTIONS") return cors();
+
+  if (path === "/api/ai/research" && method === "POST") {
+    if (!env.GROQ_API_KEY && !env.AI) return json({ error: "AI research is not configured yet" }, 503);
+    return researchChat(request, env.GROQ_API_KEY, env.AI, async () => {
+      const products = await supabaseGet(env, "marketplace_products", "order=featured.desc,rating.desc") as Record<string, unknown>[];
+      return products.map(product => dtoProduct(product));
+    });
+  }
 
   // Health check
   if (path === "/api/health") return json({ status: "ok" });

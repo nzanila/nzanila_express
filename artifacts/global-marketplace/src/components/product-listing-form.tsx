@@ -17,7 +17,7 @@ export function ProductListingForm({ onSubmit, onCancel, categories }: ProductLi
     minimumOrderQuantity: 1,
     availableStock: 0,
     condition: 'new',
-    deliveryAvailable: true,
+    deliveryAvailable: false,
     pickupAvailable: false,
   });
 

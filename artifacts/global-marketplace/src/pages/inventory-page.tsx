@@ -8,6 +8,8 @@ import {
 import { SellerWorkspace } from '@/components/seller-workspace';
 import { useAuth } from '@/lib/auth-context';
 
+const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-seller-api.nzanilaexpress.workers.dev');
+
 interface InventoryItem {
   id: number;
   name: string;
@@ -34,21 +36,50 @@ export function InventoryDashboardPage() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
-    // Mock inventory data
-    const mockInventory: InventoryItem[] = [
-      { id: 1, name: 'Premium Cassava Flour (50kg)', sku: 'GRN-001', category: 'Grains & Flour', price: 45.00, cost: 32.00, stock: 120, reservedStock: 15, availableStock: 105, lowStockThreshold: 20, status: 'active', lastUpdated: new Date(Date.now() - 86400000).toISOString() },
-      { id: 2, name: 'Fresh Beans (25kg)', sku: 'LEG-002', category: 'Legumes', price: 32.00, cost: 22.00, stock: 8, reservedStock: 3, availableStock: 5, lowStockThreshold: 10, status: 'low_stock', lastUpdated: new Date(Date.now() - 172800000).toISOString() },
-      { id: 3, name: 'Vegetable Oil (20L)', sku: 'OIL-003', category: 'Oils & Fats', price: 58.50, cost: 42.00, stock: 34, reservedStock: 5, availableStock: 29, lowStockThreshold: 10, status: 'active', lastUpdated: new Date(Date.now() - 259200000).toISOString() },
-      { id: 4, name: 'Maize Grain (100kg)', sku: 'GRN-004', category: 'Grains & Flour', price: 67.00, cost: 48.00, stock: 5, reservedStock: 2, availableStock: 3, lowStockThreshold: 15, status: 'low_stock', lastUpdated: new Date(Date.now() - 345600000).toISOString() },
-      { id: 5, name: 'Sugar (50kg)', sku: 'SWT-005', category: 'Sweeteners', price: 42.00, cost: 35.00, stock: 89, reservedStock: 10, availableStock: 79, lowStockThreshold: 20, status: 'active', lastUpdated: new Date(Date.now() - 432000000).toISOString() },
-      { id: 6, name: 'Rice (25kg)', sku: 'GRN-006', category: 'Grains & Flour', price: 38.00, cost: 28.00, stock: 0, reservedStock: 0, availableStock: 0, lowStockThreshold: 15, status: 'out_of_stock', lastUpdated: new Date(Date.now() - 518400000).toISOString() },
-      { id: 7, name: 'Salt (20kg)', sku: 'SEZ-007', category: 'Seasonings', price: 12.00, cost: 8.00, stock: 150, reservedStock: 20, availableStock: 130, lowStockThreshold: 30, status: 'active', lastUpdated: new Date(Date.now() - 604800000).toISOString() },
-      { id: 8, name: 'Onions (10kg)', sku: 'VEG-008', category: 'Vegetables', price: 15.00, cost: 10.00, stock: 0, reservedStock: 0, availableStock: 0, lowStockThreshold: 25, status: 'out_of_stock', lastUpdated: new Date(Date.now() - 691200000).toISOString() },
-      { id: 9, name: 'Tomatoes (5kg)', sku: 'VEG-009', category: 'Vegetables', price: 8.00, cost: 5.00, stock: 25, reservedStock: 5, availableStock: 20, lowStockThreshold: 15, status: 'active', lastUpdated: new Date(Date.now() - 777600000).toISOString() },
-      { id: 10, name: 'Cooking Gas (12kg)', sku: 'FUL-010', category: 'Fuel', price: 35.00, cost: 28.00, stock: 15, reservedStock: 2, availableStock: 13, lowStockThreshold: 5, status: 'active', lastUpdated: new Date(Date.now() - 864000000).toISOString() },
-    ];
-    setTimeout(() => { setInventory(mockInventory); setLoading(false); }, 400);
-  }, []);
+    let cancelled = false;
+    const loadInventory = async () => {
+      if (!user?.id) { setInventory([]); setLoading(false); return; }
+      setLoading(true);
+      try {
+        const storesResponse = await fetch(`${API}/api/stores/seller/${user.id}`);
+        const storesPayload = storesResponse.ok ? await storesResponse.json() : null;
+        const stores = Array.isArray(storesPayload) ? storesPayload : (storesPayload?.stores || (storesPayload?.store ? [storesPayload.store] : []));
+        const results = await Promise.all(stores.map(async (store: any) => {
+          const response = await fetch(`${API}/api/stores/${store.id}/products`);
+          if (!response.ok) return [];
+          const payload = await response.json();
+          return Array.isArray(payload) ? payload : (payload?.products || []);
+        }));
+        const products = results.flat();
+        const rows: InventoryItem[] = products.map((product: any) => {
+          const stock = Number(product.stock_quantity ?? product.stock ?? 0) || 0;
+          const threshold = Number(product.low_stock_threshold ?? 10) || 10;
+          return {
+            id: Number(product.id),
+            name: product.name || 'Unnamed product',
+            sku: product.sku || product.slug || `SKU-${product.id}`,
+            category: product.category_name || product.category || product.unit_type || 'Uncategorized',
+            price: Number(product.base_price ?? product.price ?? 0) || 0,
+            cost: Number(product.cost_price ?? 0) || 0,
+            stock,
+            reservedStock: Number(product.reserved_stock ?? 0) || 0,
+            availableStock: Number(product.available_stock ?? stock) || 0,
+            lowStockThreshold: threshold,
+            status: stock <= 0 ? 'out_of_stock' : stock <= threshold ? 'low_stock' : 'active',
+            lastUpdated: product.updated_at || product.created_at || new Date().toISOString(),
+            imageUrl: product.primary_image || product.image_url || product.image || undefined,
+          };
+        });
+        if (!cancelled) setInventory(rows);
+      } catch {
+        if (!cancelled) setInventory([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    loadInventory();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   const filteredInventory = inventory.filter(item => {
     const matchesSearch = 

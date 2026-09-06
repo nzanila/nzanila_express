@@ -21,11 +21,12 @@ import {
   User,
   X,
 } from 'lucide-react';
-import { useGetCart } from '@workspace/api-client-react';
+import { useGetCart, useListCategories } from '@workspace/api-client-react';
 import { useLocale } from '@/lib/i18n/locale-context';
 import { useAuth } from '@/lib/auth-context';
 import { locales } from '@/lib/i18n/translations';
 import { CategoriesModal } from '@/components/categories-modal';
+import { recordSearch } from '@/lib/search-history';
 
 export type NavTab = 'ai' | 'products' | 'suppliers' | 'market' | 'profile';
 
@@ -74,6 +75,7 @@ function HeroSearch({ activeTab, onCategoriesClick }: { activeTab?: NavTab; onCa
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
+    if (!isAi) recordSearch(query);
     if (isAi) setLocation(`/ai-research?q=${encodeURIComponent(query)}`);
     else setLocation(`/products?search=${encodeURIComponent(query)}`);
   };
@@ -103,7 +105,6 @@ function HeroSearch({ activeTab, onCategoriesClick }: { activeTab?: NavTab; onCa
         </form>
         <div className="mt-2.5 flex flex-wrap gap-x-5 text-xs text-gray-600">
           <Link href="/products" className="hover:text-[#ff6a00] hover:underline">All categories</Link>
-          <Link href="/suppliers" className="hover:text-[#ff6a00] hover:underline">Verified manufacturers</Link>
           <Link href="/products?category=Shipping+%26+Logistics" className="hover:text-[#ff6a00] hover:underline">Dropshipping</Link>
         </div>
       </div>
@@ -114,15 +115,13 @@ function HeroSearch({ activeTab, onCategoriesClick }: { activeTab?: NavTab; onCa
 function ModeTabs({ activeTab }: { activeTab?: NavTab }) {
   const [location] = useLocation();
   const tabs: { id: NavTab; href: string; label: string; icon: typeof Sparkles }[] = [
+    { id: 'market', href: '/', label: 'Home', icon: Home },
     { id: 'ai', href: '/ai-research', label: 'AI Mode', icon: Sparkles },
     { id: 'products', href: '/products', label: 'Products', icon: LayoutGrid },
-    { id: 'suppliers', href: '/suppliers', label: 'Manufacturers', icon: Store },
-    { id: 'market', href: '/', label: 'Worldwide', icon: Globe2 },
   ];
   const resolved = activeTab ?? (
     location.startsWith('/ai-research') ? 'ai'
     : location.startsWith('/products') ? 'products'
-    : location.startsWith('/suppliers') ? 'suppliers'
     : 'market'
   );
 
@@ -156,21 +155,67 @@ function isPwaMode() {
   );
 }
 
-export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = false }: { children: ReactNode; mode?: 'buyer' | 'supplier'; activeTab?: NavTab; hideSearch?: boolean }) {
+export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = false, hideSidebar = false, hideFooter = false, sidebarContent, discoveryContent }: { children: ReactNode; mode?: 'buyer' | 'supplier'; activeTab?: NavTab; hideSearch?: boolean; hideSidebar?: boolean; hideFooter?: boolean; sidebarContent?: ReactNode; discoveryContent?: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [pwa, setPwa] = useState(false);
-  const { data: cart } = useGetCart({ query: { queryKey: ['cart'], staleTime: 30_000 } });
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [location, setLocation] = useLocation();
+  const { user, isAuthenticated, logout } = useAuth();
+  const { data: cart } = useGetCart({ query: { queryKey: ['cart', user?.id], enabled: isAuthenticated, retry: false, staleTime: 30_000 } });
+  const { data: catalogCategories } = useListCategories();
   const isSupplier = mode === 'supplier';
   const { tr } = useLocale();
-  const { user, isAuthenticated, logout } = useAuth();
   const ordersHref = isAuthenticated && user?.role === 'seller' ? '/supplier/orders' : '/orders';
   const accountHref = isAuthenticated ? (user?.role === 'seller' ? '/seller/profile' : '/buyer/dashboard') : '/onboarding';
 
   useEffect(() => {
     setPwa(isPwaMode());
+  }, []);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const updateKeyboardState = () => {
+      const offset = Math.max(0, window.innerHeight - viewport.height);
+      document.documentElement.style.setProperty('--nzanila-keyboard-offset', `${offset}px`);
+      const active = document.activeElement;
+      const editing = window.innerWidth <= 767 && (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement);
+      setKeyboardOpen(window.innerHeight - viewport.height > 150 || editing);
+    };
+    updateKeyboardState();
+    viewport.addEventListener('resize', updateKeyboardState);
+    viewport.addEventListener('scroll', updateKeyboardState);
+    return () => {
+      viewport.removeEventListener('resize', updateKeyboardState);
+      viewport.removeEventListener('scroll', updateKeyboardState);
+      document.documentElement.style.removeProperty('--nzanila-keyboard-offset');
+    };
+  }, []);
+
+  useEffect(() => {
+    const onFocusIn = (event: FocusEvent) => {
+      if (window.innerWidth <= 767 && (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)) {
+        document.documentElement.classList.add('nzanila-keyboard-open');
+        setKeyboardOpen(true);
+      }
+    };
+    const onFocusOut = () => {
+      window.setTimeout(() => {
+        const active = document.activeElement;
+        if (!(active instanceof HTMLInputElement) && !(active instanceof HTMLTextAreaElement)) {
+          document.documentElement.classList.remove('nzanila-keyboard-open');
+          setKeyboardOpen(false);
+        }
+      }, 100);
+    };
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('focusout', onFocusOut);
+    return () => {
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('focusout', onFocusOut);
+    };
   }, []);
 
   return (
@@ -196,18 +241,19 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
         )}
         <div className="mx-auto flex h-[60px] max-w-[1440px] items-center gap-4 px-4 lg:px-8">
           <button className="rounded p-2 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Menu"><Menu size={22} /></button>
+          {location !== '/' && <button type="button" onClick={() => { if (window.history.length > 1) window.history.back(); else setLocation('/'); }} className="hidden items-center gap-1 rounded px-2 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 sm:flex" aria-label="Back"><ChevronRight size={16} className="rotate-180" />Back</button>}
           <Logo />
           <nav className="ml-auto flex items-center gap-0.5">
-            <Link href={ordersHref} className="hidden items-center gap-1 rounded px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 sm:flex">
+            {isAuthenticated && <Link href={ordersHref} className="hidden items-center gap-1 rounded px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 sm:flex">
               <Truck size={16} /> Orders
-            </Link>
+            </Link>}
             <Link href="/messages" className="hidden items-center gap-1 rounded px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 sm:flex">
               <MessageSquare size={16} /> Messages
             </Link>
-            <Link href="/cart" className="relative rounded p-2.5 text-gray-700 hover:bg-gray-100" data-testid="link-cart">
+            {isAuthenticated && <Link href="/cart" className="relative rounded p-2.5 text-gray-700 hover:bg-gray-100" data-testid="link-cart">
               <ShoppingBag size={20} />
               {cart?.itemCount ? <span className="absolute -right-0.5 -top-0.5 grid min-w-[16px] place-items-center rounded-full bg-[#ff6a00] px-1 text-[10px] font-bold text-white">{cart.itemCount}</span> : null}
-            </Link>
+            </Link>}
             <LanguageSelector />
             {isAuthenticated ? (
               <>
@@ -245,53 +291,47 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
       )}
 
       <main className="mx-auto max-w-[1440px] pb-14 lg:pb-0">
-        <div className={`grid grid-cols-1 ${!hideSearch && !isSupplier ? 'lg:grid-cols-[288px_1fr]' : ''}`}>
+        <div className={`grid grid-cols-1 ${!hideSearch && !hideSidebar && !isSupplier ? discoveryContent ? 'lg:grid-cols-[210px_minmax(0,1fr)] px-3 sm:px-4 lg:px-8 py-4 gap-3' : 'lg:grid-cols-[150px_1fr]' : ''}`}>
           {/* Categories Sidebar - Desktop */}
 
-          {!isSupplier && !hideSearch && (
-            <div className={`hidden lg:block transition-all duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'}`}>
-              <div className="sticky lg:top-[90px] h-[calc(100vh-100px)] m-4 rounded-xl border border-border bg-card shadow-sm overflow-hidden flex flex-col">
-                  <div className="p-5 flex-shrink-0">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-base font-bold text-card-foreground">{tr('sidebar.categories')}</h3>
-                      <button onClick={() => setSidebarOpen(!sidebarOpen)} className="rounded p-1.5 hover:bg-muted transition-colors">
-                        <ChevronDown size={18} className={`text-muted-foreground transition-transform ${sidebarOpen ? 'rotate-0' : '-rotate-90'}`} />
-                      </button>
-                    </div>
-                  </div>
-                  <nav className="flex-1 overflow-y-auto px-5 pb-5 space-y-1">
-                    {[
-                      { id: 'consumer-electronics', name: tr('cat.consumerElectronics') },
-                      { id: 'sports-entertainment', name: tr('cat.sportsEntertainment') },
-                      { id: 'jewelry-eyewear', name: tr('cat.jewelryEyewear') },
-                      { id: 'shoes-accessories', name: tr('cat.shoesAccessories') },
-                      { id: 'home-garden', name: tr('cat.homeGarden') },
-                      { id: 'sportswear-outdoor', name: tr('cat.sportswearOutdoor') },
-                      { id: 'beauty', name: tr('cat.beauty') },
-                      { id: 'luggage-bags', name: tr('cat.luggageBags') },
-                      { id: 'packaging-printing', name: tr('cat.packagingPrinting') },
-                      { id: 'parents-kids-toys', name: tr('cat.parentsKidsToys') },
-                      { id: 'personal-care', name: tr('cat.personalCare') },
-                    ].map((category) => (
-                      <button
-                        key={category.id}
-                        onClick={() => { setSelectedCategory(category.id); setCategoriesOpen(true); }}
-                        className="w-full flex items-center justify-between rounded-lg px-4 py-3 text-base text-card-foreground hover:bg-muted transition-colors text-left"
-                      >
-                        <span>{category.name}</span>
-                        <ChevronRight size={16} className="text-muted-foreground shrink-0" />
-                      </button>
-                    ))}
-                  </nav>
+          {!isSupplier && !hideSearch && !hideSidebar && (
+            <div className="hidden lg:block">
+              <div className={discoveryContent ? 'h-[230px] flex flex-col overflow-hidden rounded-lg border border-border bg-card' : 'm-3 rounded-lg border border-border bg-card shadow-sm'}>
+                <button onClick={() => { setSelectedCategory(undefined); setCategoriesOpen(true); }} className="flex w-full items-center justify-between px-3 py-3 text-left text-sm font-bold text-card-foreground hover:bg-muted">
+                  <span>{tr('sidebar.categories')}</span>
+                  <ChevronRight size={15} className="text-muted-foreground" />
+                </button>
+                <div className="border-t border-border px-3 py-2">
+                  <button onClick={() => { setSelectedCategory(undefined); setCategoriesOpen(true); }} className="text-[11px] font-semibold text-primary hover:underline">View all categories</button>
                 </div>
+                <nav className="min-h-0 max-h-[220px] overflow-y-auto overscroll-contain border-t border-border px-2 py-1.5">
+                  {catalogCategories === undefined ? Array.from({ length: 6 }).map((_, index) => <div key={index} className="my-1 h-6 animate-pulse rounded bg-muted" />) : catalogCategories.map((category) => (
+                    <button key={category.id} onClick={() => { setSelectedCategory(category.id); setCategoriesOpen(true); }} className="flex w-full items-center justify-between gap-2 rounded px-2 py-2 text-left text-sm text-card-foreground hover:bg-muted">
+                      <span>{category.name}</span><ChevronRight size={14} className="shrink-0 text-muted-foreground" />
+                    </button>
+                  ))}
+                </nav>
+                {sidebarContent && <div className="border-t border-border p-2">{sidebarContent}</div>}
+              </div>
             </div>
           )}
-          <div className="flex-1">{children}</div>
+          <div className="min-w-0 flex-1">{discoveryContent || children}</div>
         </div>
+        {discoveryContent && children}
       </main>
       </div>
 
-      {!isSupplier && (
+      {!isSupplier && !hideFooter && <footer className="mt-8 border-t border-gray-200 bg-white pb-20 lg:pb-6">
+        <div className="mx-auto grid max-w-[1440px] gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4 lg:px-8">
+          <div><Logo /><p className="mt-4 max-w-xs text-sm leading-relaxed text-gray-500">Discover products, explore stores, and connect with sellers on Nzanila.</p></div>
+          <div><h2 className="mb-4 text-sm font-bold">Shop on Nzanila</h2><nav aria-label="Footer shopping" className="flex flex-col items-start gap-3 text-sm text-gray-600"><Link href="/products" className="hover:text-orange-500">Browse products</Link><button onClick={() => { setSelectedCategory(undefined); setCategoriesOpen(true); }} className="hover:text-orange-500">All categories</button>{isAuthenticated && <Link href="/cart" className="hover:text-orange-500">Your cart</Link>}</nav></div>
+          <div><h2 className="mb-4 text-sm font-bold">Your account</h2><nav aria-label="Footer account" className="flex flex-col items-start gap-3 text-sm text-gray-600"><Link href={accountHref} className="hover:text-orange-500">My account</Link>{isAuthenticated && <Link href={ordersHref} className="hover:text-orange-500">My orders</Link>}<Link href="/messages" className="hover:text-orange-500">Messages</Link></nav></div>
+          <div><h2 className="mb-4 text-sm font-bold">For sellers</h2><Link href="/supplier" className="text-sm text-gray-600 hover:text-orange-500">Seller Central</Link><p className="mt-4 text-xs leading-relaxed text-gray-500">Manage your products and stores, and connect with buyers.</p></div>
+        </div>
+        <div className="mx-auto flex max-w-[1440px] flex-wrap justify-between gap-3 border-t border-gray-100 px-4 pt-5 text-xs text-gray-500 lg:px-8"><span>© {new Date().getFullYear()} Nzanila. All rights reserved.</span><span>Online payments coming soon</span></div>
+      </footer>}
+
+      {!isSupplier && !keyboardOpen && (
         <div className="fixed bottom-24 right-0 z-40 hidden flex-col gap-1 lg:flex">
           {[
             { icon: MessageSquare, label: 'Messenger' },
@@ -312,7 +352,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
           <aside className="relative h-full w-[280px] bg-white p-4 shadow-xl">
             <div className="flex justify-between"><Logo /><button onClick={() => setMobileOpen(false)}><X size={20} /></button></div>
             <nav className="mt-6 space-y-1">
-              {[['/', 'Home'], ['/ai-research', 'AI Mode'], ['/products', 'Products'], ['/suppliers', 'Manufacturers'], ['/cart', 'Cart'], ['/orders', 'Orders'], ['/messages', 'Messages']].map(([href, label]) => (
+              {[['/', 'Home'], ['/ai-research', 'AI Mode'], ['/products', 'Products'], ['/cart', 'Cart'], ['/orders', 'Orders'], ['/messages', 'Messages']].filter(([href]) => isAuthenticated || !['/cart', '/orders'].includes(href)).map(([href, label]) => (
                 <Link key={href} href={href} onClick={() => setMobileOpen(false)} className="block rounded px-3 py-2.5 text-sm font-semibold hover:bg-gray-100">{label}</Link>
               ))}
               <Link href="/categories" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded px-3 py-2.5 text-sm font-semibold hover:bg-gray-100">
@@ -326,7 +366,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
       {/* Mobile Bottom Navigation */}
       {!isSupplier && (
         <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-white lg:hidden">
-          <div className="grid grid-cols-5">
+          <div className={`grid ${isAuthenticated ? 'grid-cols-6' : 'grid-cols-5'}`}>
             <Link href="/" className="flex flex-col items-center gap-0.5 py-2 text-muted-foreground hover:text-primary">
               <Home size={20} />
               <span className="text-[10px] font-medium">Home</span>
@@ -335,6 +375,10 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
               <LayoutGrid size={20} />
               <span className="text-[10px] font-medium">Categories</span>
             </Link>
+            <Link href="/ai-research" className="flex flex-col items-center gap-0.5 py-2 text-muted-foreground hover:text-primary">
+              <Sparkles size={20} />
+              <span className="text-[10px] font-medium">AI Research</span>
+            </Link>
             <Link href="/messages" className="flex flex-col items-center gap-0.5 py-2 text-muted-foreground hover:text-primary">
               <div className="relative">
                 <MessageSquare size={20} />
@@ -342,13 +386,13 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
               </div>
               <span className="text-[10px] font-medium">Messages</span>
             </Link>
-            <Link href="/cart" className="flex flex-col items-center gap-0.5 py-2 text-muted-foreground hover:text-primary">
+            {isAuthenticated && <Link href="/cart" className="flex flex-col items-center gap-0.5 py-2 text-muted-foreground hover:text-primary">
               <div className="relative">
                 <ShoppingBag size={20} />
                 {cart?.itemCount ? <span className="absolute -top-1 -right-1.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-primary px-1 text-[7px] font-bold leading-none text-primary-foreground">{cart.itemCount}</span> : null}
               </div>
               <span className="text-[10px] font-medium">Cart</span>
-            </Link>
+            </Link>}
             <Link href={accountHref} className="flex flex-col items-center gap-0.5 py-2 text-muted-foreground hover:text-primary">
               <Globe2 size={20} />
               <span className="text-[10px] font-medium">Account</span>
@@ -357,7 +401,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
         </nav>
       )}
 
-      <CategoriesModal isOpen={categoriesOpen} onClose={() => setCategoriesOpen(false)} initialCategory={selectedCategory} />
+      <CategoriesModal key={`${categoriesOpen}:${selectedCategory || 'all'}`} isOpen={categoriesOpen} onClose={() => setCategoriesOpen(false)} initialCategory={selectedCategory} />
       <PwaInstallPrompt />
     </div>
   );

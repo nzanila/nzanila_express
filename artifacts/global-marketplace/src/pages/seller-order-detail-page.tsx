@@ -31,6 +31,7 @@ interface OrderDetail {
   pickupPoint?: string;
   landmark?: string;
   buyerDirections?: string;
+  deliveryPhoto?: string;
   exactLocation?: {
     latitude: number;
     longitude: number;
@@ -245,12 +246,19 @@ export function SellerOrderDetailPage() {
               </div>
             )}
             
-            {order.buyerDirections && (
+                {order.buyerDirections && (
               <div className="mt-3 rounded-lg bg-blue-50 p-3 text-sm">
                 <p className="font-medium text-blue-900 mb-1">Buyer directions:</p>
                 <p className="text-blue-800">{order.buyerDirections}</p>
               </div>
-            )}
+                )}
+                {order.deliveryPhoto && (
+                  <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <p className="mb-2 text-xs font-bold text-gray-700">Buyer location photo</p>
+                    <img src={order.deliveryPhoto} alt="Buyer delivery location" className="max-h-56 w-full rounded-lg object-cover" />
+                    <p className="mt-2 text-[11px] text-gray-500">Use this photo to confirm the delivery point with the buyer before dispatch.</p>
+                  </div>
+                )}
           </div>
         </div>
 

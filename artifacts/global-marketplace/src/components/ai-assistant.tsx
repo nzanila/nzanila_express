@@ -55,8 +55,8 @@ function buildAiResponse(query: string, products: { name: string; id: number; pr
   if (q.includes('ship') || q.includes('logistic')) {
     return {
       role: 'assistant',
-      text: 'For shipping, I recommend verified suppliers with documented lead times. Most listings ship within 7–14 days to US/EU. Filter by supplier response rate on the Suppliers page for faster fulfillment.',
-      links: [{ href: '/suppliers', label: 'Browse verified suppliers' }],
+      text: 'For shipping, check each product listing for the seller-provided delivery details and available fulfillment options.',
+      links: [{ href: '/products', label: 'Browse products' }],
     };
   }
 

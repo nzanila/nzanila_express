@@ -4,7 +4,7 @@ import { ShoppingBag, Package, MapPin, ArrowRight, Clock, CheckCircle2, Truck, R
 import { AppShell } from '@/components/marketplace-shell';
 import { useAuth } from '@/lib/auth-context';
 
-const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : '');
+const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-api-server.nzanilaexpress.workers.dev');
 
 function money(amount: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'BIF', maximumFractionDigits: 0 }).format(amount);
@@ -30,42 +30,30 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof
 };
 
 export function BuyerDashboardPage() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Hardcoded mock data for preview
-    const mockData = {
-      orderCount: 18,
-      activeOrderCount: 3,
-      totalSpent: 8450.00,
-      activeOrders: [
-        { id: 1847, status: 'processing', sellerName: 'Kigali Fresh Traders', itemCount: 12, total: 485.00, date: new Date(Date.now() - 3600000).toISOString() },
-        { id: 1845, status: 'confirmed', sellerName: 'Nyamirambo Wholesalers', itemCount: 8, total: 320.50, date: new Date(Date.now() - 7200000).toISOString() },
-        { id: 1842, status: 'out_for_delivery', sellerName: 'Huye Distributors', itemCount: 5, total: 195.00, date: new Date(Date.now() - 14400000).toISOString() },
-      ],
-      recentOrders: [
-        { id: 1838, status: 'delivered', sellerName: 'Musanze Traders', itemCount: 6, total: 275.00, date: new Date(Date.now() - 172800000).toISOString() },
-        { id: 1835, status: 'delivered', sellerName: 'Gisenyi Markets', itemCount: 15, total: 892.50, date: new Date(Date.now() - 259200000).toISOString() },
-        { id: 1831, status: 'delivered', sellerName: 'Kigali Fresh Traders', itemCount: 4, total: 156.00, date: new Date(Date.now() - 345600000).toISOString() },
-      ],
-      reorderableProducts: [
-        { productName: 'Premium Cassava Flour (50kg)', unitPrice: 45.00, quantity: 20, sellerName: 'Kigali Fresh Traders' },
-        { productName: 'Fresh Beans (25kg)', unitPrice: 32.00, quantity: 50, sellerName: 'Nyamirambo Wholesalers' },
-        { productName: 'Vegetable Oil (20L)', unitPrice: 58.50, quantity: 15, sellerName: 'Huye Distributors' },
-      ],
-      defaultAddress: {
-        addressName: 'Main Warehouse',
-        province: 'Kigali City',
-        commune: 'Nyarugenge',
-        zone: 'Nyamirambo',
-        landmark: 'Near the main market',
-      },
+    let cancelled = false;
+    const loadDashboard = async () => {
+      if (!user?.id || !session?.accessToken) { setData(null); setLoading(false); return; }
+      setLoading(true);
+      try {
+        const response = await fetch(`${API}/api/buyers/dashboard`, {
+          headers: { Authorization: `Bearer ${session.accessToken}` },
+        });
+        const payload = response.ok ? await response.json() : null;
+        if (!cancelled) setData(payload);
+      } catch {
+        if (!cancelled) setData(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
-
-    setTimeout(() => { setData(mockData); setLoading(false); }, 400);
-  }, []);
+    loadDashboard();
+    return () => { cancelled = true; };
+  }, [user?.id, session?.accessToken]);
 
   if (loading) {
     return (

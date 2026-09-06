@@ -8,6 +8,10 @@ export type ModuleType =
   | 'marketing'
   | 'company'
   | 'hero'
+  | 'hero-slideshow'
+  | 'slideshow'
+  | 'image-grid'
+  | 'video-grid'
   | 'product-category'
   | 'double-row-products'
   | 'store-sign'
@@ -16,7 +20,12 @@ export type ModuleType =
   | 'features'
   | 'company-capacity'
   | 'certifications'
-  | 'company-performance';
+  | 'company-performance'
+  | 'shop-now-banner'
+  | 'product-comparison'
+  | 'seasonal-sale'
+  | 'new-arrivals'
+  | 'trending-now';
 
 export interface StorefrontModule {
   id: string;
@@ -42,6 +51,13 @@ export interface StorefrontConfig {
   } | null;
   template: string;
   updatedAt: string;
+  header?: {
+    companyName: string;
+    tagline: string;
+    profileImage: string | null;
+    verificationLabel: string;
+    yearsActive: string;
+  };
 }
 
 export interface ModuleDefinition {
@@ -163,6 +179,68 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
       height: 320,
     },
     category: 'content',
+  },
+  {
+    type: 'hero-slideshow',
+    label: 'Hero Slideshow',
+    description: 'Rotating campaign banners with calls to action',
+    icon: () => null,
+    defaultProps: {
+      autoplaySeconds: 5,
+      slides: [
+        { title: 'New arrivals', subtitle: 'Discover products built for your business', imageUrl: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=1200&q=80', buttonText: 'Shop now', buttonUrl: '/products' },
+        { title: 'Wholesale value', subtitle: 'Competitive pricing and dependable supply', imageUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80', buttonText: 'View catalog', buttonUrl: '/products' },
+      ],
+    },
+    category: 'content',
+  },
+  {
+    type: 'slideshow', label: 'Slideshow', description: 'Rotating image banners with text and action buttons', icon: () => null,
+    defaultProps: { autoplay: true, interval: 5000, slides: [] }, category: 'content',
+  },
+  {
+    type: 'shop-now-banner', label: 'Shop Now Banner', description: 'Promotional banner with an image and shop button', icon: () => null,
+    defaultProps: { title: 'Shop our products', subtitle: '', imageUrl: '', buttonText: 'Shop Now', buttonUrl: '/products', backgroundColor: '#febd69', textColor: '#131921', height: 280 }, category: 'content',
+  },
+  {
+    type: 'product-comparison', label: 'Product Comparison', description: 'Compare selected products and their features', icon: () => null,
+    defaultProps: { title: 'Compare Products', features: ['Feature 1'], products: [] }, category: 'products',
+  },
+  {
+    type: 'seasonal-sale', label: 'Seasonal Sale', description: 'Optional sale campaign banner', icon: () => null,
+    defaultProps: { title: 'Seasonal Sale', subtitle: '', discount: '', buttonText: 'Shop Sale', buttonUrl: '/products', backgroundColor: '#cc0c39', textColor: '#ffffff' }, category: 'content',
+  },
+  {
+    type: 'new-arrivals', label: 'New Arrivals', description: 'Show the newest real products in this store', icon: () => null,
+    defaultProps: { title: 'New Arrivals', limit: 8 }, category: 'products',
+  },
+  {
+    type: 'trending-now', label: 'Store Picks', description: 'Show real products selected from the store catalog', icon: () => null,
+    defaultProps: { title: 'Store Picks', limit: 4 }, category: 'products',
+  },
+  {
+    type: 'image-grid',
+    label: 'Image Grid',
+    description: 'A responsive gallery of uploaded or linked images',
+    icon: () => null,
+    defaultProps: {
+      title: 'Gallery',
+      columns: 3,
+      images: [],
+    },
+    category: 'media',
+  },
+  {
+    type: 'video-grid',
+    label: 'Video Grid',
+    description: 'Show multiple uploaded videos or YouTube links',
+    icon: () => null,
+    defaultProps: {
+      title: 'Videos',
+      columns: 2,
+      videos: [],
+    },
+    category: 'media',
   },
   {
     type: 'product-category',
@@ -354,6 +432,13 @@ export const DEFAULT_STOREFRONT_CONFIG: StorefrontConfig = {
     },
   ],
   updatedAt: new Date().toISOString(),
+  header: {
+    companyName: 'Your Company',
+    tagline: 'Wholesale supplier and trusted business partner',
+    profileImage: null,
+    verificationLabel: 'Verified Supplier',
+    yearsActive: 'New supplier',
+  },
 };
 
 export interface StorefrontTemplate {
@@ -366,6 +451,33 @@ export interface StorefrontTemplate {
 }
 
 export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
+  {
+    id: 'default-ready',
+    name: 'Default Ready Store',
+    description: 'A complete no-image starter with colors, product placeholders, contact details, location, and supplier information.',
+    preview: 'data:image/svg+xml,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 viewBox%3D%220 0 400 225%22%3E%3Crect width%3D%22400%22 height%3D%22225%22 fill%3D%22%23232f3e%22%2F%3E%3Crect y%3D%2270%22 width%3D%22400%22 height%3D%22155%22 fill%3D%22%23f5f7fa%22%2F%3E%3Crect x%3D%2225%22 y%3D%2225%22 width%3D%22120%22 height%3D%2212%22 rx%3D%226%22 fill%3D%22%23ff9900%22%2F%3E%3Crect x%3D%2225%22 y%3D%22100%22 width%3D%22100%22 height%3D%2270%22 rx%3D%226%22 fill%3D%22%23ff9900%22%2F%3E%3Crect x%3D%22150%22 y%3D%22100%22 width%3D%22100%22 height%3D%2270%22 rx%3D%226%22 fill%3D%22%231677ff%22%2F%3E%3Crect x%3D%22275%22 y%3D%22100%22 width%3D%22100%22 height%3D%2270%22 rx%3D%226%22 fill%3D%22%231a5f4a%22%2F%3E%3C%2Fsvg%3E',
+    category: 'starter',
+    config: {
+      template: 'default-ready',
+      shopSign: null,
+      sections: [
+        { id: 'home', name: 'Home', slug: 'home', modules: [
+          { id: 'default-welcome', type: 'marketing', position: 1, props: { title: 'Welcome to your store', description: 'Quality products, dependable supply, and straightforward wholesale service.', buttonText: 'Browse products', buttonUrl: '/products', backgroundColor: '#fff7ed', textColor: '#c2410c' } },
+          { id: 'default-categories', type: 'product-category', position: 2, props: { title: 'Featured products', categoryName: '', productCount: 6, layout: 'grid' } },
+          { id: 'default-stats', type: 'stats', position: 3, props: { title: 'Our capability', backgroundColor: '#232f3e', textColor: '#ffffff', backgroundImage: '', stats: [{ value: 'Fast', label: 'Response time', suffix: '' }, { value: 'Flexible', label: 'Order sizes', suffix: '' }, { value: 'Trusted', label: 'Supplier service', suffix: '' }, { value: 'Local', label: 'Buyer support', suffix: '' }] } },
+        ] },
+        { id: 'products', name: 'Products', slug: 'products', modules: [
+          { id: 'default-products', type: 'recommended-products', position: 1, props: { title: 'Product catalog', productSource: 'all', productIds: [], limit: 8, columns: 4 } },
+        ] },
+        { id: 'company-profile', name: 'Company Profile', slug: 'company-profile', modules: [
+          { id: 'default-company', type: 'company', position: 1, props: { title: 'About this company', description: 'Add your company story, certifications, warehouse capacity, and buyer services here.', showCertification: true, showYearsActive: true, showEmployees: true, layout: 'cards' } },
+        ] },
+        { id: 'contacts', name: 'Contacts', slug: 'contacts', modules: [
+          { id: 'default-contact', type: 'company', position: 1, props: { title: 'Contact and location', description: 'Phone: Add your phone number\nEmail: Add your email\nLocation: Add your warehouse or showroom address', showCertification: false, showYearsActive: false, showEmployees: false, layout: 'cards' } },
+        ] },
+      ],
+    },
+  },
   {
     id: 'blank',
     name: 'Blank Canvas',
@@ -707,16 +819,14 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
           slug: 'home',
           modules: [
             {
-              id: 'hero-1',
-              type: 'hero',
+              id: 'hero-slideshow-1',
+              type: 'hero-slideshow',
               props: {
-                title: 'Kigali Fresh Traders',
-                subtitle: 'Premium agricultural products and fresh produce from Burundi. We specialize in high-quality rice, beans, cassava flour, and fresh vegetables. Serving buyers across East Africa since 2018.',
-                imageUrl: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80',
-                buttonText: 'View More',
-                buttonUrl: '#',
-                height: 200,
-                brand: 'Meet Kigali Fresh Traders',
+                autoplaySeconds: 5,
+                slides: [
+                  { title: 'Kigali Fresh Traders', subtitle: 'Premium agricultural products and fresh produce from Burundi.', imageUrl: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80', buttonText: 'View products', buttonUrl: '/products' },
+                  { title: 'Fresh produce, dependable supply', subtitle: 'Rice, beans, cassava flour, and vegetables for buyers across East Africa.', imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80', buttonText: 'Contact supplier', buttonUrl: '/contacts' },
+                ],
               },
               position: 1,
             },
@@ -1060,4 +1170,55 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
       ],
     },
   },
+  {
+    id: 'warehouse',
+    name: 'Warehouse & Wholesale',
+    description: 'A complete warehouse storefront with campaigns, product discovery, fulfillment strengths, video, and supplier trust details',
+    preview: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=400&q=80',
+    category: 'warehouse',
+    config: {
+      template: 'warehouse',
+      shopSign: null,
+      sections: [
+        {
+          id: 'home', name: 'Home', slug: 'home', modules: [
+            { id: 'warehouse-slides', type: 'hero-slideshow', position: 1, props: { autoplaySeconds: 5, slides: [
+              { title: 'Ready to ship from our warehouse', subtitle: 'Wholesale inventory, dependable fulfillment, and flexible order quantities.', imageUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80', buttonText: 'Browse inventory', buttonUrl: '/products' },
+              { title: 'Built for business buyers', subtitle: 'Request samples, compare products, and contact our team.', imageUrl: 'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=1200&q=80', buttonText: 'Contact us', buttonUrl: '/contacts' },
+            ] } },
+            { id: 'warehouse-categories', type: 'category-cards', position: 2, props: { title: 'Shop by category', backgroundColor: '#1677ff', textColor: '#ffffff', categories: [
+              { name: 'Ready to Ship', sublabel: 'Fast', imageUrl: 'https://images.unsplash.com/photo-1553413077-190dd305871c?auto=format&fit=crop&w=400&q=80', link: '/products' },
+              { name: 'Bulk Orders', sublabel: 'Wholesale', imageUrl: 'https://images.unsplash.com/photo-1587293852726-70cdb56c2866?auto=format&fit=crop&w=400&q=80', link: '/products' },
+            ] } },
+            { id: 'warehouse-products', type: 'recommended-products', position: 3, props: { title: 'Featured warehouse inventory', productSource: 'all', productIds: [], limit: 8, columns: 4 } },
+            { id: 'warehouse-stats', type: 'stats', position: 4, props: { title: 'Fulfillment capability', backgroundColor: '#0f4fd8', textColor: '#ffffff', stats: [
+              { value: '2,000', label: 'Warehouse area', suffix: ' m²' }, { value: '24', label: 'Dispatch target', suffix: ' hrs' }, { value: '10K+', label: 'Units available', suffix: '' }, { value: '98%', label: 'On-time shipping', suffix: '' },
+            ] } },
+            { id: 'warehouse-video', type: 'video', position: 5, props: { title: 'Warehouse tour', videoUrl: '', videoType: 'upload', aspectRatio: '16:9', autoplay: false } },
+          ],
+        },
+        { id: 'products', name: 'Products', slug: 'products', modules: [
+          { id: 'warehouse-catalog', type: 'double-row-products', position: 1, props: { title: 'All warehouse products', productSource: 'all', productIds: [], limit: 10, rows: 2, columns: 5 } },
+        ] },
+        { id: 'company-profile', name: 'Company Profile', slug: 'company-profile', modules: [
+          { id: 'warehouse-company', type: 'company', position: 1, props: { title: 'Warehouse and company profile', description: 'Introduce your facilities, sourcing standards, fulfillment team, and buyer services.', showCertification: true, showYearsActive: true, showEmployees: true, layout: 'cards' } },
+          { id: 'warehouse-capacity', type: 'company-capacity', position: 2, props: { title: 'Operational capability', tradeInfo: { yearsInBusiness: '5+', mainMarkets: 'East Africa', exportPercentage: '60%', nearestPort: 'Dar es Salaam' }, rdInfo: { rdEngineers: '2', rdStaff: '5', oemServices: true, odmServices: false }, productionInfo: { factorySize: '2,000 m²', workers: '25+', monthlyCapacity: '10,000 units', productionLines: '3' } } },
+          { id: 'warehouse-certifications', type: 'certifications', position: 3, props: { title: 'Verification and certifications', certifications: [{ name: 'Business verified', imageUrl: '', description: 'Company documentation reviewed' }] } },
+        ] },
+        { id: 'contacts', name: 'Contacts', slug: 'contacts', modules: [] },
+      ],
+    },
+  },
 ];
+
+export async function loadStorefrontTemplates(apiBase: string): Promise<StorefrontTemplate[]> {
+  try {
+    const response = await fetch(`${apiBase}/api/storefront-templates`);
+    if (!response.ok) throw new Error(`Templates API returned ${response.status}`);
+    const templates = await response.json() as StorefrontTemplate[];
+    return templates.filter((template) => template?.id && template?.config?.sections);
+  } catch (error) {
+    console.warn('Using offline template catalog.', error);
+    return STOREFRONT_TEMPLATES;
+  }
+}

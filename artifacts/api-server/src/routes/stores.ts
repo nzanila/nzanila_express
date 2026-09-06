@@ -9,16 +9,16 @@ const router = Router();
 // Keep this before /:slug so "seller" is not treated as a store slug.
 router.get("/seller/:sellerId", async (req, res) => {
   try {
-    const [store] = await db
+    const stores = await db
       .select()
       .from(storesTable)
       .where(eq(storesTable.sellerId, parseInt(req.params.sellerId)));
 
-    if (!store) {
+    if (!stores.length) {
       return res.status(404).json({ error: "No store found for this seller" });
     }
 
-    res.json({ store });
+    res.json({ stores, store: stores[0] });
   } catch (error) {
     console.error("Error fetching seller store:", error);
     res.status(500).json({ error: "Failed to fetch store" });
@@ -92,6 +92,38 @@ router.get("/:id/products", async (req, res) => {
   } catch (error) {
     console.error("Error fetching store products:", error);
     res.status(500).json({ error: "Failed to fetch products" });
+  }
+});
+
+// POST /api/stores/:id/products - Create a storefront product from Seller Central
+router.post("/:id/products", async (req, res) => {
+  try {
+    const storeId = parseInt(req.params.id);
+    const {
+      name, description = "", base_price = 0, unit_type = "piece",
+      stock_quantity = 0, minimum_order_quantity = 1, category_id = null,
+      primary_image = null, delivery_available = true, pickup_available = false,
+      delivery_areas = [], preparation_time = null,
+    } = req.body;
+    if (!name || !String(name).trim()) return res.status(400).json({ error: "Product name is required" });
+    if (!delivery_available && !pickup_available) return res.status(400).json({ error: "Choose at least one fulfillment option" });
+    const [store] = await db.select().from(storesTable).where(eq(storesTable.id, storeId));
+    if (!store) return res.status(404).json({ error: "Store not found" });
+    if (req.body.seller_id && Number(req.body.seller_id) !== store.sellerId) return res.status(403).json({ error: "You do not own this store" });
+    const slug = `${String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}-${Date.now()}`;
+    const [product] = await db.insert(newProductsTable).values({
+      sellerId: store.sellerId, storeId, categoryId: category_id,
+      name: String(name).trim(), slug, description: String(description),
+      basePrice: String(base_price), unitType: unit_type, stockQuantity: Number(stock_quantity) || 0,
+      minimumOrderQuantity: Number(minimum_order_quantity) || 1, status: "approved",
+      deliveryAvailable: Boolean(delivery_available), pickupAvailable: Boolean(pickup_available),
+      deliveryAreas: Array.isArray(delivery_areas) ? delivery_areas : [], preparationTime: preparation_time,
+      primaryImage: primary_image,
+    }).returning();
+    res.status(201).json({ product });
+  } catch (error) {
+    console.error("Error creating store product:", error);
+    res.status(500).json({ error: "Failed to create product" });
   }
 });
 

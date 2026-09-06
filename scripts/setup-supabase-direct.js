@@ -69,7 +69,10 @@ async function setupSchema() {
         total NUMERIC NOT NULL,
         item_count INTEGER NOT NULL,
         buyer_name TEXT NOT NULL DEFAULT 'Demo buyer',
-        destination TEXT NOT NULL
+        destination TEXT NOT NULL,
+        fulfillment_method TEXT NOT NULL DEFAULT 'seller_delivery',
+        delivery_photo TEXT,
+        terms_accepted BOOLEAN NOT NULL DEFAULT FALSE
       );
     `;
     console.log('✓ marketplace_orders table created');

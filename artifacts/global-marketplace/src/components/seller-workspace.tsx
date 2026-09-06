@@ -122,7 +122,7 @@ export function SellerWorkspace({ children, title }: SellerWorkspaceProps) {
   const { user } = useAuth();
   const [location] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [expandedItems, setExpandedItems] = useState<string[]>(['Dashboard']);
+  const [expandedItems, setExpandedItems] = useState<string[]>(['Stores']);
   const [searchQuery, setSearchQuery] = useState('');
 
   const toggleExpanded = (label: string) => {
@@ -140,22 +140,22 @@ export function SellerWorkspace({ children, title }: SellerWorkspaceProps) {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-[#f5f5f7]">
       {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-[#232f3e] text-white transition-all duration-300 flex flex-col`}>
+      <aside className={`${sidebarOpen ? 'w-64' : 'w-[68px]'} shrink-0 bg-white text-[#333] border-r border-[#e8e8e8] transition-all duration-300 flex flex-col shadow-[2px_0_12px_rgba(0,0,0,0.03)]`}>
         {/* Sidebar Header */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-gray-700">
+        <div className="flex h-[68px] items-center justify-between px-4 border-b border-[#eeeeee]">
           {sidebarOpen && (
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-[#ff9900] flex items-center justify-center">
+              <div className="h-8 w-8 rounded-full bg-[#ff6a00] flex items-center justify-center">
                 <Store size={18} className="text-white" />
               </div>
-              <span className="font-bold text-sm">Seller Central</span>
+              <div className="leading-tight"><span className="block font-bold text-[#ff6a00]">Nzanila.com</span><span className="text-[10px] text-gray-500">Seller Center</span></div>
             </div>
           )}
           <button 
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1.5 rounded-lg hover:bg-gray-700 transition-colors"
+            className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
           >
             {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
@@ -163,15 +163,15 @@ export function SellerWorkspace({ children, title }: SellerWorkspaceProps) {
 
         {/* Search */}
         {sidebarOpen && (
-          <div className="px-4 py-3 border-b border-gray-700">
-            <div className="flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-2">
+          <div className="px-3 py-3 border-b border-[#eeeeee]">
+            <div className="flex items-center gap-2 bg-[#f5f5f5] border border-[#e8e8e8] rounded px-3 py-2">
               <Search size={14} className="text-gray-400" />
               <input
                 type="text"
-                placeholder="Search..."
+                placeholder="Search seller tools"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-transparent text-sm outline-none w-full placeholder-gray-400"
+                className="bg-transparent text-xs text-gray-700 outline-none w-full placeholder-gray-400"
               />
             </div>
           </div>
@@ -191,8 +191,8 @@ export function SellerWorkspace({ children, title }: SellerWorkspaceProps) {
                     onClick={() => toggleExpanded(item.label)}
                     className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
                       active 
-                        ? 'bg-[#ff9900] text-white' 
-                        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                        ? 'bg-[#fff3eb] text-[#ff6a00] border-r-2 border-[#ff6a00]'
+                        : 'text-gray-700 hover:bg-[#f7f7f7] hover:text-[#ff6a00]'
                     }`}
                   >
                     <Icon size={18} />
@@ -204,15 +204,15 @@ export function SellerWorkspace({ children, title }: SellerWorkspaceProps) {
                     )}
                   </button>
                   {sidebarOpen && isExpanded && (
-                    <div className="bg-gray-800">
+                    <div className="bg-[#fafafa] border-y border-[#f0f0f0]">
                       {item.children.map((child) => (
                         <Link
                           key={child.href}
                           href={child.href}
                           className={`block px-12 py-2 text-sm transition-colors ${
                             isActive(child.href)
-                              ? 'bg-[#ff9900]/20 text-[#ff9900] border-l-2 border-[#ff9900]'
-                              : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                              ? 'bg-[#fff3eb] text-[#ff6a00] border-r-2 border-[#ff6a00]'
+                              : 'text-gray-500 hover:bg-[#f1f1f1] hover:text-[#ff6a00]'
                           }`}
                         >
                           {child.label}
@@ -230,8 +230,8 @@ export function SellerWorkspace({ children, title }: SellerWorkspaceProps) {
                 href={item.href || '#'}
                 className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
                   active 
-                    ? 'bg-[#ff9900] text-white' 
-                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                    ? 'bg-[#fff3eb] text-[#ff6a00] border-r-2 border-[#ff6a00]'
+                    : 'text-gray-700 hover:bg-[#f7f7f7] hover:text-[#ff6a00]'
                 }`}
               >
                 <Icon size={18} />
@@ -243,14 +243,14 @@ export function SellerWorkspace({ children, title }: SellerWorkspaceProps) {
 
         {/* Sidebar Footer */}
         {sidebarOpen && (
-          <div className="border-t border-gray-700 p-4">
+          <div className="border-t border-[#eeeeee] p-4">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-[#ff9900] flex items-center justify-center text-white font-bold">
+              <div className="h-10 w-10 rounded-full bg-[#ff6a00] flex items-center justify-center text-white font-bold">
                 {user?.name?.charAt(0) || 'S'}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{user?.name || 'Seller'}</p>
-                <p className="text-xs text-gray-400 truncate">{user?.phone}</p>
+                <p className="text-xs text-gray-400 truncate">{user?.phone || 'Seller account'}</p>
               </div>
             </div>
           </div>
@@ -260,27 +260,28 @@ export function SellerWorkspace({ children, title }: SellerWorkspaceProps) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+        <header className="h-[68px] bg-white border-b border-gray-200 px-6 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <h1 className="text-lg font-bold text-gray-900">{title || 'Seller Central'}</h1>
+            <div><p className="text-[10px] uppercase tracking-wider text-gray-400">My Nzanila</p><h1 className="text-lg font-bold text-gray-900">{title || 'Seller Center'}</h1></div>
           </div>
           <div className="flex items-center gap-4">
             <button className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
               <Bell size={20} />
-              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-[#ff9900]"></span>
+              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-[#ff6a00]"></span>
             </button>
             <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
               <HelpCircle size={20} />
             </button>
-            <div className="h-8 w-8 rounded-full bg-[#232f3e] flex items-center justify-center text-white font-bold text-sm">
+            <Link href="/supplier/stores" className="hidden sm:flex items-center gap-2 border-l border-gray-200 pl-4 text-xs font-semibold text-gray-700 hover:text-[#ff6a00]"><Store size={16} /> My Stores</Link>
+            <div className="h-8 w-8 rounded-full bg-[#ff6a00] flex items-center justify-center text-white font-bold text-sm">
               {user?.name?.charAt(0) || 'S'}
             </div>
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto bg-gray-50">
-          {children}
+        <main className="flex-1 overflow-y-auto bg-[#f5f5f7]">
+          <div className="mx-auto w-full max-w-[1500px] p-4 sm:p-6 lg:p-8">{children}</div>
         </main>
       </div>
     </div>

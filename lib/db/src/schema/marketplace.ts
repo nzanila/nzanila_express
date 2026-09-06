@@ -57,6 +57,9 @@ export const ordersTable = pgTable("marketplace_orders", {
   itemCount: integer("item_count").notNull(),
   buyerName: text("buyer_name").notNull().default("Demo buyer"),
   destination: text("destination").notNull(),
+  fulfillmentMethod: text("fulfillment_method").notNull().default("seller_delivery"),
+  deliveryPhoto: text("delivery_photo"),
+  termsAccepted: boolean("terms_accepted").notNull().default(false),
 });
 
 export const orderItemsTable = pgTable("marketplace_order_items", {

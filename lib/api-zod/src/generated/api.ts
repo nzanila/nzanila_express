@@ -332,6 +332,8 @@ export const ListOrdersResponseItem = zod.object({
   "itemCount": zod.number().int(),
   "buyerName": zod.string(),
   "destination": zod.string(),
+  "fulfillmentMethod": zod.enum(["seller_delivery", "buyer_pickup"]).optional(),
+  "deliveryPhoto": zod.string().optional(),
   "items": zod.array(zod.object({
   "id": zod.number(),
   "orderId": zod.number(),
@@ -350,7 +352,11 @@ export const ListOrdersResponse = zod.array(ListOrdersResponseItem)
  * @summary Create order
  */
 export const CreateOrderBody = zod.object({
-  "destination": zod.string()
+  "destination": zod.string(),
+  "fulfillmentMethod": zod.enum(["seller_delivery", "buyer_pickup"]).optional(),
+  "deliveryAddress": zod.string().min(2).optional(),
+  "deliveryPhoto": zod.string().optional(),
+  "termsAccepted": zod.boolean().optional()
 })
 
 export const CreateOrderResponse = zod.object({
@@ -625,5 +631,3 @@ export const UpdateSupplierOrderStatusResponse = zod.object({
   "supplierName": zod.string()
 }))
 })
-
-

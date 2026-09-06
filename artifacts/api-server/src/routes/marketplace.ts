@@ -278,10 +278,21 @@ router.post("/orders", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Cart is empty" });
     return;
   }
+  if (parsed.data.termsAccepted === false) {
+    res.status(400).json({ error: "Please accept the fulfillment and payment terms" });
+    return;
+  }
+  const fulfillmentMethod = parsed.data.fulfillmentMethod ?? "seller_delivery";
+  const destination = fulfillmentMethod === "buyer_pickup"
+    ? `Buyer pickup — collect from the seller's store (seller will confirm the exact pickup address)`
+    : parsed.data.deliveryAddress ?? parsed.data.destination;
   const [order] = await db.insert(ordersTable).values({
     total: cart.total.toString(),
     itemCount: cart.itemCount,
-    destination: parsed.data.destination,
+    destination,
+    fulfillmentMethod,
+    deliveryPhoto: parsed.data.fulfillmentMethod === "seller_delivery" ? parsed.data.deliveryPhoto ?? null : null,
+    termsAccepted: parsed.data.termsAccepted === true,
     status: "processing",
     buyerName: "Demo buyer",
   }).returning();
