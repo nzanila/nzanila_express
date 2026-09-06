@@ -228,7 +228,7 @@ export function LocationSearchPicker({
   };
 
   // Only require what's available - landmark and phone always required
-  const isAddressValid = locationName.trim() && phone.trim();
+  const isAddressValid = Boolean(locationName.trim());
 
   // MAP SECTION (shared between both phases)
   const MapSection = ({ showOverlay = true }: { showOverlay?: boolean }) => (
@@ -513,7 +513,7 @@ export function LocationSearchPicker({
 
         {/* Mobile form */}
         <div className="flex-1 overflow-y-auto px-4 py-5 space-y-4">
-          <MobileFormFields {...{ locationName, setLocationName, freeProvince, setFreeProvince, freeCommune, setFreeCommune, freeZone, setFreeZone, landmark, setLandmark, landmarkPhoto, setLandmarkPhoto, directions, setDirections, phone, setPhone, meetAtPublicLandmark, setMeetAtPublicLandmark, locale, tr }} />
+          <MobileFormFields {...{ locationName, setLocationName, freeProvince, setFreeProvince, freeCommune, setFreeCommune, freeZone, setFreeZone, landmark, setLandmark, landmarkPhoto, setLandmarkPhoto, directions, setDirections, phone, setPhone, meetAtPublicLandmark, setMeetAtPublicLandmark, locale, tr, showPhone: mode === 'seller' }} />
         </div>
 
         {/* Mobile save */}
@@ -546,7 +546,7 @@ export function LocationSearchPicker({
 
           {/* Form fields */}
           <div className="flex-1 overflow-y-auto px-8 py-6 space-y-5">
-            <DesktopFormFields {...{ locationName, setLocationName, freeProvince, setFreeProvince, freeCommune, setFreeCommune, freeZone, setFreeZone, landmark, setLandmark, landmarkPhoto, setLandmarkPhoto, directions, setDirections, phone, setPhone, meetAtPublicLandmark, setMeetAtPublicLandmark, locale, tr }} />
+            <DesktopFormFields {...{ locationName, setLocationName, freeProvince, setFreeProvince, freeCommune, setFreeCommune, freeZone, setFreeZone, landmark, setLandmark, landmarkPhoto, setLandmarkPhoto, directions, setDirections, phone, setPhone, meetAtPublicLandmark, setMeetAtPublicLandmark, locale, tr, showPhone: mode === 'seller' }} />
           </div>
 
           {/* Save button */}
@@ -584,7 +584,7 @@ export function LocationSearchPicker({
 }
 
 // MOBILE FORM FIELDS
-function MobileFormFields({ locationName, setLocationName, freeProvince, setFreeProvince, freeCommune, setFreeCommune, freeZone, setFreeZone, landmark, setLandmark, landmarkPhoto, setLandmarkPhoto, directions, setDirections, phone, setPhone, meetAtPublicLandmark, setMeetAtPublicLandmark, locale, tr }: any) {
+function MobileFormFields({ locationName, setLocationName, freeProvince, setFreeProvince, freeCommune, setFreeCommune, freeZone, setFreeZone, landmark, setLandmark, landmarkPhoto, setLandmarkPhoto, directions, setDirections, phone, setPhone, meetAtPublicLandmark, setMeetAtPublicLandmark, locale, tr, showPhone }: any) {
   return (
     <>
       {locationName !== 'GPS Location' && locationName !== 'Shop' && locationName !== 'Home' && (
@@ -610,7 +610,7 @@ function MobileFormFields({ locationName, setLocationName, freeProvince, setFree
       <LocationSelect label={tr('onboarding.province')} value={freeProvince} onChange={setFreeProvince} options={[]} placeholder={locale === 'fr' ? 'Province' : 'Province'} icon={<MapPin size={18} className="text-gray-400" />} locale={locale} />
       <LocationSelect label={tr('onboarding.city')} value={freeCommune} onChange={setFreeCommune} options={[]} placeholder={locale === 'fr' ? 'Commune / Ville' : 'Commune / City'} icon={<svg className="w-[18px] h-[18px] text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>} locale={locale} />
       <LocationSelect label={tr('onboarding.zone')} value={freeZone} onChange={setFreeZone} options={[]} placeholder={locale === 'fr' ? 'Quartier / Zone' : 'Area / Zone'} icon={<svg className="w-[18px] h-[18px] text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>} locale={locale} />
-      <div className="bg-white rounded-2xl p-5 shadow-sm">
+      <div className={showPhone ? 'bg-white rounded-2xl p-5 shadow-sm' : 'hidden'}>
         <label className="mb-2 block text-sm font-bold text-gray-800">{locale === 'fr' ? 'Photo du repère' : 'Landmark photo'}</label>
         <p className="mb-3 text-xs text-gray-500">{locale === 'fr' ? 'Ajoutez une photo du repère proche (optionnel)' : 'Add a photo of a nearby landmark (optional)'}</p>
         <div className="relative">
@@ -644,7 +644,7 @@ function MobileFormFields({ locationName, setLocationName, freeProvince, setFree
         <textarea value={directions} onChange={(e) => setDirections(e.target.value)} placeholder={locale === 'fr' ? 'Expliquez comment vous trouver...' : 'How to find you...'} rows={3}
           className="w-full rounded-xl border-2 border-gray-100 bg-gray-50 px-4 py-4 text-base outline-none focus:border-[#ff6a00] focus:bg-white transition-all resize-none" />
       </div>
-      <div className="bg-white rounded-2xl p-5 shadow-sm">
+      <div className={showPhone ? 'bg-white rounded-2xl p-5 shadow-sm' : 'hidden'}>
         <label className="mb-2 block text-sm font-bold text-gray-800">{locale === 'fr' ? 'Numéro de téléphone' : 'Phone number'} <span className="text-red-500">*</span></label>
         <div className="relative">
           <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+257 XX XXX XXX" type="tel"
@@ -669,7 +669,7 @@ function MobileFormFields({ locationName, setLocationName, freeProvince, setFree
 }
 
 // DESKTOP FORM FIELDS
-function DesktopFormFields({ locationName, setLocationName, freeProvince, setFreeProvince, freeCommune, setFreeCommune, freeZone, setFreeZone, landmark, setLandmark, landmarkPhoto, setLandmarkPhoto, directions, setDirections, phone, setPhone, meetAtPublicLandmark, setMeetAtPublicLandmark, locale, tr }: any) {
+function DesktopFormFields({ locationName, setLocationName, freeProvince, setFreeProvince, freeCommune, setFreeCommune, freeZone, setFreeZone, landmark, setLandmark, landmarkPhoto, setLandmarkPhoto, directions, setDirections, phone, setPhone, meetAtPublicLandmark, setMeetAtPublicLandmark, locale, tr, showPhone }: any) {
   return (
     <>
       {locationName !== 'GPS Location' && locationName !== 'Shop' && locationName !== 'Home' && (
@@ -695,7 +695,7 @@ function DesktopFormFields({ locationName, setLocationName, freeProvince, setFre
       <LocationSelect label={tr('onboarding.province')} value={freeProvince} onChange={setFreeProvince} options={[]} placeholder={locale === 'fr' ? 'Province' : 'Province'} icon={<MapPin size={18} className="text-gray-400" />} locale={locale} />
       <LocationSelect label={tr('onboarding.city')} value={freeCommune} onChange={setFreeCommune} options={[]} placeholder={locale === 'fr' ? 'Commune / Ville' : 'Commune / City'} icon={<svg className="w-[18px] h-[18px] text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>} locale={locale} />
       <LocationSelect label={tr('onboarding.zone')} value={freeZone} onChange={setFreeZone} options={[]} placeholder={locale === 'fr' ? 'Quartier / Zone' : 'Area / Zone'} icon={<svg className="w-[18px] h-[18px] text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>} locale={locale} />
-      <div>
+      <div className={showPhone ? '' : 'hidden'}>
         <label className="mb-2 block text-sm font-bold text-gray-800">{locale === 'fr' ? 'Photo du repère' : 'Landmark photo'}</label>
         <p className="mb-3 text-xs text-gray-500">{locale === 'fr' ? 'Ajoutez une photo du repère proche (optionnel)' : 'Add a photo of a nearby landmark (optional)'}</p>
         <div className="relative">
@@ -729,7 +729,7 @@ function DesktopFormFields({ locationName, setLocationName, freeProvince, setFre
         <textarea value={directions} onChange={(e) => setDirections(e.target.value)} placeholder={locale === 'fr' ? 'Expliquez comment vous trouver...' : 'How to find you...'} rows={3}
           className="w-full rounded-xl border-2 border-gray-100 bg-gray-50 px-4 py-4 text-base outline-none focus:border-[#ff6a00] focus:bg-white transition-all resize-none" />
       </div>
-      <div>
+      <div className={showPhone ? '' : 'hidden'}>
         <label className="mb-2 block text-sm font-bold text-gray-800">{locale === 'fr' ? 'Numéro de téléphone' : 'Phone number'} <span className="text-red-500">*</span></label>
         <div className="relative">
           <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+257 XX XXX XXX" type="tel"
