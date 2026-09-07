@@ -6,8 +6,13 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const supabaseUrl = 'https://pvjztlwjuccmiggorwps.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2anp0bHdqdWNjbWlnZ29yd3BzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4ODExODExMiwiZXhwIjoyMTAzNjk0MTEyfQ.4kKrn9URu0RPisHw5yi7oK8vCJuhQAKqXEjAZPkPw6A';
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKeyEnv = process.env.SUPABASE_SERVICE_KEY;
+if (!supabaseUrl || !supabaseKeyEnv) {
+  console.error('Missing SUPABASE_URL / SUPABASE_SERVICE_KEY. Export them before running this script; never hardcode them.');
+  process.exit(1);
+}
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 

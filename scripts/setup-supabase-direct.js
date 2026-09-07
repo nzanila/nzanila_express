@@ -1,7 +1,11 @@
 const postgres = require('postgres');
 
 // Direct PostgreSQL connection to Supabase
-const connectionString = 'postgres://postgres.pvjztlwjuccmiggorwps:[YOUR-PASSWORD]@aws-0-us-east-1.pooler.supabase.com:6543/postgres';
+const connectionString = process.env.SUPABASE_DB_URL;
+if (!connectionString) {
+  console.error('Missing SUPABASE_DB_URL. Export it before running this script; never hardcode it.');
+  process.exit(1);
+}
 
 async function setupSchema() {
   console.log('Setting up Supabase schema via direct connection...');
