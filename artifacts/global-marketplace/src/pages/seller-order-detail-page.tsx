@@ -11,12 +11,13 @@ import {
   Clock,
   AlertTriangle,
   Truck,
-  ShoppingBag
+  ShoppingBag,
+  ExternalLink
 } from 'lucide-react';
 import { SellerWorkspace } from '@/components/seller-workspace';
 import { useAuth } from '@/lib/auth-context';
 
-const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : '');
+const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-api-server.nzanilaexpress.workers.dev');
 
 interface OrderDetail {
   id: number;
@@ -26,7 +27,7 @@ interface OrderDetail {
   buyerEmail?: string;
   status: 'new' | 'confirmed' | 'preparing' | 'ready' | 'out_for_delivery' | 'delivered' | 'cancelled' | 'disputed';
   total: number;
-  deliveryMethod: 'seller_delivery' | 'buyer_pickup';
+  deliveryMethod?: 'seller_delivery' | 'buyer_pickup' | 'pending';
   deliveryLocation?: string;
   pickupPoint?: string;
   landmark?: string;
@@ -129,6 +130,10 @@ export function SellerOrderDetailPage() {
   };
 
   const canShowExactLocation = order.status !== 'new' && order.status !== 'cancelled';
+  const shippingFee = Number((order as any).shipping_fee ?? (order as any).shippingFee ?? 0);
+  const subtotal = Math.max(0, Number(order.total || 0) - shippingFee);
+  const mapTarget = order.exactLocation ? `${order.exactLocation.latitude},${order.exactLocation.longitude}` : (order as any).delivery_latitude && (order as any).delivery_longitude ? `${(order as any).delivery_latitude},${(order as any).delivery_longitude}` : order.deliveryLocation || '';
+  const googleMapsUrl = mapTarget ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapTarget)}` : '';
 
   return (
     <SellerWorkspace title={`Order #${order.orderNumber}`}>
@@ -194,15 +199,15 @@ export function SellerOrderDetailPage() {
           <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Subtotal</span>
-              <span className="font-medium">{order.total.toLocaleString()} BIF</span>
+              <span className="font-medium">{subtotal.toLocaleString()} BIF</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Delivery fee</span>
-              <span className="font-medium">5,000 BIF</span>
+              <span className="text-gray-600">Shipping fee</span>
+              <span className="font-medium">{shippingFee.toLocaleString()} BIF</span>
             </div>
             <div className="flex justify-between text-lg font-bold">
               <span>Total</span>
-              <span>{(order.total + 5000).toLocaleString()} BIF</span>
+              <span>{order.total.toLocaleString()} BIF</span>
             </div>
           </div>
         </div>
@@ -214,17 +219,18 @@ export function SellerOrderDetailPage() {
             <div className="flex items-center gap-2 text-sm">
               <span className="font-medium text-gray-700">Method:</span>
               <span className="text-gray-900">
-                {order.deliveryMethod === 'seller_delivery' ? 'Seller delivery' : 'Buyer pickup'}
+                {order.deliveryMethod === 'seller_delivery' ? 'Seller delivery' : order.deliveryMethod === 'buyer_pickup' ? 'Buyer pickup' : 'Waiting for buyer choice'}
               </span>
             </div>
             
-            {order.deliveryMethod === 'seller_delivery' ? (
+            {order.deliveryMethod === 'pending' ? <p className="rounded-lg bg-blue-50 p-3 text-xs text-blue-800">The buyer will choose delivery or pickup after placing the order.</p> : order.deliveryMethod === 'seller_delivery' ? (
               <>
                 <div className="flex items-start gap-2 text-sm">
                   <MapPin size={16} className="text-gray-500 mt-0.5" />
                   <div>
                     <p className="font-medium text-gray-900">{order.deliveryLocation}</p>
                     {order.landmark && <p className="text-gray-600">Near {order.landmark}</p>}
+                    {googleMapsUrl && <a href={googleMapsUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#ff6a00] px-3 py-2 text-xs font-bold text-white hover:bg-orange-600"><MapPin size={14} /> Open in Google Maps <ExternalLink size={13} /></a>}
                   </div>
                 </div>
                 

@@ -46,6 +46,20 @@ function productCategory(product: any) {
   return product.category_name || product.custom_category_suggestion || CATEGORY_LABELS[Number(product.category_id)] || 'Other';
 }
 
+// The public store products API returns a marketplace-shaped record (`image`,
+// `price`, `moq`, `unit`), while Canvas modules historically used the seller
+// record names. Normalize once so every Canvas module renders the same data.
+export function normalizeStoreProduct(product: any) {
+  return {
+    ...product,
+    primary_image: product.primary_image || product.image || product.primaryImage || '',
+    base_price: product.base_price ?? product.price ?? 0,
+    minimum_order_quantity: product.minimum_order_quantity ?? product.moq ?? 1,
+    unit_type: product.unit_type || product.unit || 'piece',
+    category_name: product.category_name || product.category || '',
+  };
+}
+
 function sortProducts(products: any[], sort: string) {
   const rows = [...products];
   if (sort === 'price-low') return rows.sort((a, b) => Number(a.base_price) - Number(b.base_price));
@@ -95,7 +109,8 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
       .then(d => {
         if (cancelled) return;
         if (Array.isArray(d)) {
-          const categoryFiltered = categoryFilter === 'all' ? d : d.filter(product => productCategory(product) === categoryFilter);
+          const normalizedProducts = d.map(normalizeStoreProduct);
+          const categoryFiltered = categoryFilter === 'all' ? normalizedProducts : normalizedProducts.filter(product => productCategory(product) === categoryFilter);
           const query = productSearch.trim().toLowerCase().replace(/s$/, '');
           const filtered = query
             ? categoryFiltered.filter(product => `${product.name || ''} ${product.description || ''} ${productCategory(product)}`.toLowerCase().replace(/s\b/g, '').includes(query))
@@ -582,7 +597,7 @@ export function StorefrontRenderer({ config }: { config: StorefrontConfig }) {
   useEffect(() => {
     fetch(`${API}/api/stores/${config.storeId}/products`)
       .then(response => response.ok ? response.json() : Promise.reject(new Error(`Products API returned ${response.status}`)))
-      .then(data => setStoreProducts(Array.isArray(data) ? data : []))
+      .then(data => setStoreProducts(Array.isArray(data) ? data.map(normalizeStoreProduct) : []))
       .catch(() => setStoreProducts([]));
   }, [config.storeId]);
 
@@ -690,14 +705,14 @@ export function StorefrontRenderer({ config }: { config: StorefrontConfig }) {
 
       {/* Content */}
       <div className="flex min-h-[650px] flex-1 bg-[#f5f7fa]">
-        <aside className="sticky top-16 hidden h-fit max-h-[calc(100vh-72px)] w-44 shrink-0 overflow-y-auto border-r border-gray-200 bg-[#f4f5f6] p-2 lg:block">
+        <aside className="sticky top-16 hidden h-fit max-h-[calc(100vh-72px)] w-56 shrink-0 overflow-y-auto border-r border-gray-200 bg-[#f4f5f6] p-3 lg:block xl:w-64">
           <button type="button" onClick={() => chooseCategory('all')} className="mb-2 flex w-full items-center gap-2 bg-[#e8f0f7] px-2.5 py-2 text-left text-xs font-medium text-[#3f4d5a] hover:bg-[#dceaf5]"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#8eafd0] text-white"><LayoutGrid size={12} /></span> Top picks</button>
           <div className="border border-[#cbd8e5] bg-white shadow-sm">
-            <div className="border-b border-gray-200 px-3 py-2.5 text-xs font-bold text-gray-900">Product categories</div>
-            <div className="px-2.5 py-2">
-              <button onClick={() => chooseCategory('all')} className={`w-full truncate rounded px-1.5 py-1.5 text-left text-[10px] hover:bg-[#f5f8fb] hover:text-[#ff6a00] ${selectedCategory === 'all' ? 'bg-orange-50 font-bold text-[#ff6a00]' : 'text-gray-700'}`}>All products <span className="text-gray-400">({storeProducts.length})</span></button>
-              {visibleCategories.map(([category, count]) => <button title={category} key={category} onClick={() => chooseCategory(category)} className={`flex w-full items-center justify-between gap-1 rounded px-1.5 py-1.5 text-left text-[10px] hover:bg-[#f5f8fb] hover:text-[#ff6a00] ${selectedCategory === category ? 'bg-orange-50 font-bold text-[#ff6a00]' : 'text-gray-600'}`}><span className="truncate">{category}</span><span className="shrink-0 text-gray-400">{count}</span></button>)}
-              {visibleCategories.length === 0 && <p className="px-1 py-2 text-[10px] text-gray-400">No categories yet.</p>}
+            <div className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-900">Product categories</div>
+            <div className="px-3 py-3">
+              <button onClick={() => chooseCategory('all')} className={`w-full truncate rounded px-2 py-2 text-left text-xs hover:bg-[#f5f8fb] hover:text-[#ff6a00] ${selectedCategory === 'all' ? 'bg-orange-50 font-bold text-[#ff6a00]' : 'text-gray-700'}`}>All products <span className="text-gray-400">({storeProducts.length})</span></button>
+              {visibleCategories.map(([category, count]) => <button title={category} key={category} onClick={() => chooseCategory(category)} className={`flex min-h-9 w-full items-center justify-between gap-2 rounded px-2 py-2 text-left text-xs hover:bg-[#f5f8fb] hover:text-[#ff6a00] ${selectedCategory === category ? 'bg-orange-50 font-bold text-[#ff6a00]' : 'text-gray-600'}`}><span className="truncate">{category}</span><span className="shrink-0 text-gray-400">{count}</span></button>)}
+              {visibleCategories.length === 0 && <p className="px-2 py-2 text-xs text-gray-400">No categories yet.</p>}
             </div>
           </div>
           {storeProducts.length > 0 && <div className="mt-3 border border-[#cbd8e5] bg-white p-1 shadow-sm">{storeProducts.slice(0, 4).map(product => <Link href={`/products/${product.id}`} key={product.id} className="flex gap-2 border-b border-gray-100 p-1.5 last:border-0 hover:bg-orange-50"><div className="h-12 w-12 shrink-0 overflow-hidden border border-gray-100 bg-gray-100"><img src={product.primary_image || ''} alt={product.name} className="h-full w-full object-cover" /></div><div className="min-w-0"><p className="line-clamp-2 text-[9px] leading-tight text-gray-700">{product.name}</p><p className="mt-1 truncate text-[9px] font-bold text-[#b12704]">{Number(product.base_price).toLocaleString()} BIF</p><p className="truncate text-[8px] text-gray-400">Min. order {product.minimum_order_quantity}</p></div></Link>)}</div>}

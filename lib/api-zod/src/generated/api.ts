@@ -356,7 +356,8 @@ export const CreateOrderBody = zod.object({
   "fulfillmentMethod": zod.enum(["seller_delivery", "buyer_pickup"]).optional(),
   "deliveryAddress": zod.string().min(2).optional(),
   "deliveryPhoto": zod.string().optional(),
-  "termsAccepted": zod.boolean().optional()
+  "termsAccepted": zod.boolean().optional(),
+  "productIds": zod.array(zod.number().int()).min(1).optional()
 })
 
 export const CreateOrderResponse = zod.object({

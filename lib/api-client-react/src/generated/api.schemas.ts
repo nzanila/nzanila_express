@@ -99,6 +99,14 @@ export interface Order {
 
 export interface OrderInput {
   destination: string;
+  fulfillmentMethod?: 'seller_delivery' | 'buyer_pickup';
+  deliveryAddress?: string;
+  deliveryPhoto?: string;
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
+  shippingFee?: number;
+  termsAccepted?: boolean;
+  productIds?: number[];
 }
 
 export interface SalesPoint {
@@ -208,4 +216,3 @@ export const ListProductsSort = {
   rating: 'rating',
   featured: 'featured',
 } as const;
-

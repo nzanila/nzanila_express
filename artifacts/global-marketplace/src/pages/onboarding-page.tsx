@@ -20,11 +20,10 @@ type OnboardingStep =
   | 'seller-complete';
 
 type Language = 'en' | 'fr' | 'rn' | 'sw';
-type CountryCode = 'BI' | 'RW';
+type CountryCode = 'BI';
 
 const COUNTRY_OPTIONS: Record<CountryCode, { label: string; flag: string; dialCode: string }> = {
   BI: { label: 'Burundi', flag: '🇧🇮', dialCode: '+257' },
-  RW: { label: 'Rwanda', flag: '🇷🇼', dialCode: '+250' },
 };
 
 const STEP_LABELS: Record<OnboardingStep, string> = {

@@ -149,7 +149,7 @@ async function buildCart(env: Env, userId?: number) {
     return { productId: p.id, product: dtoProduct(p), quantity: item.quantity, subtotal: Number(p.price) * Number(item.quantity) };
   }).filter(Boolean);
   const subtotal = items.reduce((s: number, i: any) => s + i.subtotal, 0);
-  const shipping = items.length > 0 ? 12 : 0;
+  const shipping = 0;
   return { items, subtotal: +subtotal.toFixed(2), shipping, total: +(subtotal + shipping).toFixed(2), itemCount: items.reduce((s: number, i: any) => s + i.quantity, 0) };
 }
 
@@ -795,20 +795,32 @@ const whatsappUrl = buildWhatsAppUrl("+" + normalizedPhone, otp);
 
     if (path === "/orders" && method === "POST") {
       const user = await getUser();
-      const body = await request.json() as { destination: string };
+      const body = await request.json() as { destination: string; productIds?: number[]; fulfillmentMethod?: "seller_delivery" | "buyer_pickup"; deliveryAddress?: string; deliveryPhoto?: string; termsAccepted?: boolean };
       const uid = user?.profile?.id as number | undefined;
       const cart = await buildCart(env, uid);
       if (!cart.items.length) return json({ error: "Cart is empty" }, 400);
+      if (body.termsAccepted === false) return json({ error: "Please accept the fulfillment and payment terms" }, 400);
+      const selectedIds = Array.isArray(body.productIds) && body.productIds.length ? new Set(body.productIds.map(Number).filter(Number.isFinite)) : null;
+      const selectedItems = selectedIds ? cart.items.filter((item: any) => selectedIds.has(Number(item.productId))) : cart.items;
+      if (!selectedItems.length) return json({ error: "No cart items selected" }, 400);
+      const fulfillmentMethod = body.fulfillmentMethod || "seller_delivery";
+      const destination = fulfillmentMethod === "buyer_pickup" ? "Store pickup" : body.deliveryAddress || body.destination;
+      if (fulfillmentMethod === "seller_delivery" && !destination) return json({ error: "Delivery address is required" }, 400);
       const buyerName = user?.profile?.name || "Demo buyer";
       const [order] = await sbPost(env, "marketplace_orders", {
-        total: cart.total, item_count: cart.itemCount, destination: body.destination,
+        total: Number(selectedItems.reduce((sum: number, item: any) => sum + Number(item.subtotal || 0), 0).toFixed(2)),
+        item_count: selectedItems.reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0), destination,
+        fulfillment_method: fulfillmentMethod,
+        delivery_photo: fulfillmentMethod === "seller_delivery" ? body.deliveryPhoto || null : null,
+        terms_accepted: body.termsAccepted === true,
         status: "processing", buyer_name: buyerName, user_id: uid ?? null,
       });
-      await sbPost(env, "marketplace_order_items", cart.items.map((i: any) => ({
+      await sbPost(env, "marketplace_order_items", selectedItems.map((i: any) => ({
         order_id: order.id, product_id: i.productId, product_name: i.product.name,
         quantity: i.quantity, unit_price: i.product.price, supplier_name: i.product.supplier_name,
       })));
-      await sbDelete(env, "marketplace_cart_items", uid ? `user_id=eq.${uid}` : "user_id=is.null");
+      const productFilter = selectedItems.length === cart.items.length ? "" : `&product_id=in.(${selectedItems.map((item: any) => Number(item.productId)).join(",")})`;
+      await sbDelete(env, "marketplace_cart_items", `${uid ? `user_id=eq.${uid}` : "user_id=is.null"}${productFilter}`);
       const all = await buildOrders(env, false, uid);
       return json(all.find((o: any) => o.id === order.id), 201);
     }

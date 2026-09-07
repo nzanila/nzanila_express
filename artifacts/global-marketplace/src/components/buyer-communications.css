@@ -4,6 +4,8 @@
 @media(max-width:800px){.bc-page-heading{align-items:flex-start;flex-direction:column;gap:12px}.bc-page-heading h2{font-size:25px}.bc-inbox{display:flex;max-height:none;height:650px;min-height:0}.bc-conversations{width:100%;border:0}.bc-thread{display:none;width:100%}.bc-chat-open .bc-conversations{display:none}.bc-chat-open .bc-thread{display:flex}.bc-mobile-back{display:block}.bc-notification-layout{display:block}.bc-activity-sidebar{display:flex;gap:5px;overflow:auto;margin-bottom:15px}.bc-activity-sidebar>.bc-eyebrow,.bc-activity-note{display:none}.bc-activity-sidebar>button{width:auto;flex-shrink:0;padding:10px}.bc-feed-toolbar{flex-wrap:wrap;padding:15px}.bc-notification{padding:18px 15px;gap:10px}.bc-feed-footer{flex-wrap:wrap;padding:15px}.bc-thread-header{padding:15px}.bc-composer{padding:12px}.bc-bubble{max-width:92%}}
 @media(max-width:480px){.bc-comms{padding:14px 10px}.bc-count{margin-left:4px;font-size:10px}.bc-preview{font-size:10px}.bc-notification>.bc-avatar{width:32px;height:32px;border-radius:9px}.bc-thread-person p{font-size:10px}.bc-notification-actions{gap:12px}.bc-topic{padding:12px;font-size:10px}}
 
+.bc-avatar img{width:100%;height:100%;object-fit:cover;border-radius:inherit}.bc-website-link{display:block;margin-top:5px;color:#b15a00;font-size:10px;font-weight:650;text-decoration:none}.bc-website-link:hover{text-decoration:underline}.bc-thread-person h3{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 /* Notification center */
 .buyer-notification-center{max-width:1120px;padding:42px 36px 28px}
 .bn-heading{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:30px}
@@ -88,3 +90,6 @@
 @media(max-width:800px){.buyer-messenger-frame{height:calc(100dvh - 240px);min-height:400px}.buyer-notifications-dialog .buyer-notification-center{padding:8px 12px 16px}}
 @media(max-width:1100px){.bc-messenger .bc-inbox{grid-template-columns:290px minmax(0,1fr)}}
 @media(max-width:800px){.bc-messenger .bc-inbox{height:100%;min-height:0}.bc-messenger .bc-thread-header{padding:12px;gap:8px}.bc-messenger .bc-topic{padding:10px 16px;font-size:11px}.bc-messenger .bc-bubble{max-width:90%;font-size:13px}.bc-messenger .bc-composer{padding:10px 12px}.bc-messenger .bc-quick-replies button{font-size:10px}.bc-messenger .bc-message-history{padding:20px 16px}.bc-messenger .bc-inbox-heading{padding-top:18px}}
+ .bc-store-link{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;color:#b15a00!important;font-size:11px}.bc-store-link span{font-weight:700}
+.bc-delete-button{margin-left:auto;color:#9a5b5b;border-color:#f0dede;background:#fffafa}.bc-delete-button:hover{color:#b42318;background:#fff1f0;border-color:#efb8b3}.bc-messenger .bc-compose-box textarea::placeholder{color:#a0a8b2}.bc-messenger .bc-compose-box textarea:focus{outline:none}
+.bc-message-row{display:flex;align-items:center;gap:7px}.bc-message-delete{display:inline-flex;align-items:center;justify-content:center;padding:5px;border:0;border-radius:6px;color:#a4adb7;background:transparent}.bc-message-delete:hover{color:#b42318;background:#fff1f0}

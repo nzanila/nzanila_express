@@ -10,6 +10,13 @@ import { useAuth } from '@/lib/auth-context';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-seller-api.nzanilaexpress.workers.dev');
 
+function authHeaders(): HeadersInit {
+  try {
+    const auth = JSON.parse(localStorage.getItem('nz_auth') || 'null');
+    return auth?.session?.accessToken ? { Authorization: `Bearer ${auth.session.accessToken}` } : {};
+  } catch { return {}; }
+}
+
 interface Store {
   id: number;
   name: string;
@@ -38,13 +45,13 @@ export function StoresPage() {
       if (!user?.id) { setStores([]); setLoading(false); return; }
       setLoading(true);
       try {
-        const response = await fetch(`${API}/api/stores/seller/${user.id}`);
+        const response = await fetch(`${API}/api/stores/seller/${user.id}`, { headers: authHeaders() });
         const payload = response.ok ? await response.json() : null;
         const rawStores = Array.isArray(payload) ? payload : (payload?.stores || (payload?.store ? [payload.store] : []));
         const mapped = await Promise.all(rawStores.map(async (store: any) => {
           let products: any[] = [];
           try {
-            const productsResponse = await fetch(`${API}/api/stores/${store.id}/products`);
+            const productsResponse = await fetch(`${API}/api/stores/${store.id}/products`, { headers: authHeaders() });
             const productPayload = productsResponse.ok ? await productsResponse.json() : [];
             products = Array.isArray(productPayload) ? productPayload : (productPayload?.products || []);
           } catch { /* keep the store visible if product count is unavailable */ }

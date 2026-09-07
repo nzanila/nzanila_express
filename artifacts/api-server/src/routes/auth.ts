@@ -67,8 +67,14 @@ function normalizePhone(phone: string): string {
   let normalized = phone.replace(/\s/g, "");
   if (normalized.startsWith("+")) normalized = normalized.slice(1);
   if (normalized.startsWith("0")) normalized = "257" + normalized.slice(1);
-  if (!normalized.startsWith("257") && !normalized.startsWith("250")) normalized = "257" + normalized;
+  if (!normalized.startsWith("257")) normalized = "257" + normalized;
+  if (normalized.startsWith("2570")) normalized = "257" + normalized.slice(4);
   return normalized;
+}
+
+function isBurundianPhone(phone: string): boolean {
+  const raw = phone.replace(/\s/g, "");
+  return !raw.startsWith("+250") && !raw.startsWith("250");
 }
 
 function createSession(userId: number, phone: string) {
@@ -137,6 +143,10 @@ function dtoUser(u: Record<string, unknown>) {
 router.post("/signup", async (req, res) => {
   try {
     const { phone, name, role, password } = req.body;
+    if (typeof phone !== "string" || !isBurundianPhone(phone)) {
+      res.status(400).json({ error: "Only Burundian phone numbers are supported" });
+      return;
+    }
 
     if (typeof phone !== "string" || !/\d/.test(phone) || !name || !role || !password) {
       res.status(400).json({ error: "Phone, name, role, and password are required" });
@@ -196,6 +206,10 @@ router.post("/signup", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { phone, password } = req.body;
+    if (typeof phone !== "string" || !isBurundianPhone(phone)) {
+      res.status(400).json({ error: "Only Burundian phone numbers are supported" });
+      return;
+    }
 
     if (!phone || !password) {
       res.status(400).json({ error: "Phone and password are required" });

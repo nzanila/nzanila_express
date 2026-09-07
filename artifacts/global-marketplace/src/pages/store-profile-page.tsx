@@ -6,7 +6,7 @@ import {
   Truck, LogOut,
   Mail, Phone, ExternalLink,
 } from 'lucide-react';
-import { StorefrontRenderer } from '../components/storefront-renderer';
+import { StorefrontRenderer, normalizeStoreProduct } from '../components/storefront-renderer';
 import { Logo } from '../components/marketplace-shell';
 import { useAuth } from '../lib/auth-context';
 
@@ -30,7 +30,9 @@ export default function StoreProfilePage() {
           setStore(s);
 
           // Fetch storefront config
-          const cfgRes = await fetch(`${API_BASE}/api/stores/${s.id}/storefront`);
+          // Storefront configs are keyed by seller_id in the API, while the
+          // public store URL resolves the store row by its own id.
+          const cfgRes = await fetch(`${API_BASE}/api/stores/${s.seller_id}/storefront`);
           if (cfgRes.ok) {
             const cfg = await cfgRes.json();
             if (cfg && Array.isArray(cfg.sections) && cfg.sections.length > 0) {
@@ -43,7 +45,7 @@ export default function StoreProfilePage() {
           const prodRes = await fetch(`${API_BASE}/api/stores/${s.id}/products`);
           if (prodRes.ok) {
             const prodData = await prodRes.json();
-            setProducts(Array.isArray(prodData) ? prodData : []);
+            setProducts(Array.isArray(prodData) ? prodData.map(normalizeStoreProduct) : []);
           }
         }
       } catch {}
@@ -76,7 +78,7 @@ export default function StoreProfilePage() {
 
   const savedHeader = storefrontConfig?.header || {};
   const displayName = savedHeader.companyName || store.name;
-  const profileImage = savedHeader.profileImage || store.logo;
+  const profileImage = savedHeader.profileImage || store.logo || store.profile_image || store.profileImage || store.gallery_images?.[0] || store.galleryImages?.[0];
   const tagline = savedHeader.tagline || store.description || store.business_category || 'Wholesale supplier';
   const yearsLabel = savedHeader.yearsActive || (store.years_active ? `${store.years_active} years` : 'New supplier');
   const verificationLabel = savedHeader.verificationLabel || 'Verified Supplier';
@@ -122,8 +124,8 @@ export default function StoreProfilePage() {
           </div>
         </div>
         <div className="flex shrink-0 gap-2 sm:w-32 sm:flex-col">
-          <Link href={`/messages?store=${store.id}`} className="flex-1 rounded-full bg-[#ff6a00] px-4 py-2 text-center text-[11px] font-bold text-white hover:bg-[#e85f00]">Contact supplier</Link>
-          <Link href={`/messages?store=${store.id}`} className="flex-1 rounded-full border border-white bg-white/60 px-4 py-2 text-center text-[11px] font-semibold text-[#34465a] hover:bg-white">Chat now</Link>
+          <Link href={`/messages?store=${store.id}&seller=${store.seller_id || ''}`} className="flex-1 rounded-full bg-[#ff6a00] px-4 py-2 text-center text-[11px] font-bold text-white hover:bg-[#e85f00]">Contact supplier</Link>
+          <Link href={`/messages?store=${store.id}&seller=${store.seller_id || ''}`} className="flex-1 rounded-full border border-white bg-white/60 px-4 py-2 text-center text-[11px] font-semibold text-[#34465a] hover:bg-white">Chat now</Link>
         </div>
       </div>
     </div>
@@ -194,6 +196,7 @@ export default function StoreProfilePage() {
           <div className="p-6 sm:p-8 lg:p-10">
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#ff6a00]">Supplier information</p>
             <h2 className="mt-2 text-2xl font-bold text-gray-900">About {store.name}</h2>
+            <p className="mt-2 text-xs font-semibold text-gray-500">Store owner: {store.owner_name || store.ownerName || store.seller_name || store.sellerName || 'Contact this supplier for owner details'}</p>
             <p className="mt-3 text-sm leading-6 text-gray-600">{store.description || 'Contact this supplier for company and product information.'}</p>
             <div className="mt-7 border-l-4 border-[#ff6a00] pl-4">
               <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Warehouse or showroom</p><p className="mt-1 text-sm font-bold text-gray-900">{store.location_address || store.address || locationLabel || 'Location available from supplier'}</p><a href={directionsUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-[#1677d2] hover:text-[#ff6a00]">Open directions <ExternalLink size={13} /></a>

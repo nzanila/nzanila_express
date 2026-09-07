@@ -5,10 +5,9 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { LocaleProvider } from '@/lib/i18n/locale-context';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
-import { setBaseUrl } from '@workspace/api-client-react';
+import { setBaseUrl, setAuthTokenGetter } from '@workspace/api-client-react';
 import NotFound from '@/pages/not-found';
 import { AiResearchPage } from '@/pages/ai-research-page';
-import { AiSearchPage } from '@/pages/ai-search-page';
 import { AuthPage } from '@/pages/auth-page';
 import { SignupPage } from '@/pages/signup-page';
 import { CategoriesPage } from '@/pages/categories-page';
@@ -44,6 +43,16 @@ import {
 
 const apiBase = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-api-server.nzanilaexpress.workers.dev');
 setBaseUrl(apiBase || null);
+setAuthTokenGetter(() => {
+  try {
+    const stored = localStorage.getItem('nz_auth');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed?.session?.accessToken || null;
+    }
+  } catch {}
+  return null;
+});
 
 const queryClient = new QueryClient();
 const SELLER_CENTRAL_URL = 'https://seller-central.pages.dev';
@@ -67,14 +76,14 @@ function OnboardingGuard({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (loading) return;
     if (!isAuthenticated || !user) return;
-    if ((user as any).onboardingCompleted === false && !location.startsWith('/onboarding') && !location.startsWith('/auth')) {
+    if (user.role !== 'seller' && (user as any).onboardingCompleted === false && !location.startsWith('/onboarding') && !location.startsWith('/auth')) {
       setLocation('/onboarding');
     }
   }, [loading, isAuthenticated, user, location, setLocation]);
 
   if (loading) return null;
   if (!isAuthenticated || !user) return <>{children}</>;
-  if ((user as any).onboardingCompleted === false && !location.startsWith('/onboarding') && !location.startsWith('/auth')) {
+  if (user.role !== 'seller' && (user as any).onboardingCompleted === false && !location.startsWith('/onboarding') && !location.startsWith('/auth')) {
     return null;
   }
 
@@ -131,7 +140,7 @@ function Router() {
         <Route path="/auth/signup" component={SignupPage} />
         <Route path="/onboarding" component={OnboardingPage} />
         <Route path="/ai-research" component={AiResearchPage} />
-        <Route path="/ai-search" component={AiSearchPage} />
+        <Route path="/ai-search" component={() => <Redirect to="/products" />} />
         <Route path="/categories" component={CategoriesPage} />
         <Route path="/products" component={ProductsPage} />
         <Route path="/products/:id" component={ProductDetailPage} />

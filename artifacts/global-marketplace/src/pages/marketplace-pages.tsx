@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import {
   getGetCartQueryKey,
+  getGetProductQueryKey,
   getGetSupplierDashboardQueryKey,
   getListMySupplierProductsQueryKey,
   getListOrdersQueryKey,
@@ -69,12 +70,19 @@ import {
 } from '@/components/marketplace-shell';
 import { useLocale } from '@/lib/i18n/locale-context';
 import { readSearchHistory, recordSearch, clearSearchHistory } from '@/lib/search-history';
+import { LocationSearchPicker, type LocationData } from '@/components/location-search-picker';
 
 const money = (value: number) => new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'BIF',
   maximumFractionDigits: 0,
 }).format(Number(value) || 0);
+const directionsFor = (product: Product) => {
+  const supplied = String((product as Product & { storeDirections?: string }).storeDirections || '').trim();
+  if (/^https?:\/\//i.test(supplied)) return supplied;
+  const location = String((product as Product & { storeLocation?: string }).storeLocation || product.supplierName || '').trim();
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+};
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString('en-US', {
     month: 'short',
@@ -82,30 +90,74 @@ const formatDate = (value: string) =>
     year: 'numeric',
   });
 
-function AiReasoningPanel({ query, onProducts, onFailure }: { query: string; onProducts: (products: Product[]) => void; onFailure: () => void }) {
-  const [summary, setSummary] = useState(`I’m interpreting “${query}” as a product search and matching it against names, categories, specifications, supplier verification, MOQ, stock, and price.`);
-  const [step, setStep] = useState('Matching products and search keywords');
-  const [matched, setMatched] = useState(false);
-  const [expanded, setExpanded] = useState(true);
-  useEffect(() => {
-    let cancelled = false;
-    const apiBase = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-api-server.nzanilaexpress.workers.dev');
-    fetch(`${apiBase}/api/ai/research`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query, messages: [], stream: false }) })
-      .then(async response => { if (!response.ok) throw new Error('AI unavailable'); return response.json() as Promise<{ products?: Product[] }>; })
-      .then(result => { if (!cancelled) { onProducts(Array.isArray(result.products) ? result.products : []); setSummary(`I’m interpreting “${query}” in its original language and matching it against live product names, categories, specifications, supplier verification, MOQ, stock, and price.`); setStep('Products matched and ranked'); setMatched(true); window.setTimeout(() => setExpanded(false), 450); } })
-      .catch(() => { if (!cancelled) { setStep('Switching to regular product search'); onFailure(); } });
-    return () => { cancelled = true; };
-  }, [query, onProducts]);
-  return <section className="mb-5 rounded-lg border border-[#ff6a00] bg-white p-4"><button type="button" onClick={() => setExpanded(value => !value)} className="flex w-full items-center gap-2 text-left text-lg font-bold text-[#ff5a00]"><Sparkles size={19} /> Deep Search results <span className="text-xs font-normal text-gray-500">{matched ? 'Completed' : 'AI prediction'}</span><ChevronDown size={16} className={`ml-auto transition-transform ${expanded ? 'rotate-180' : ''}`} /></button><div className={`overflow-hidden transition-all duration-500 ${expanded ? 'mt-3 max-h-80 opacity-100' : 'max-h-0 opacity-0'}`}><div className="space-y-3 text-sm"><div className="flex gap-2"><Check size={16} className="mt-0.5 shrink-0 text-[#ff5a00]" /><div><p className="font-semibold">Predicted product requirement</p><p className="mt-1 border-l border-gray-200 pl-3 text-gray-500">Product search for <b>{query}</b>.</p></div></div><div className="flex gap-2"><Check size={16} className="mt-0.5 shrink-0 text-[#ff5a00]" /><div><p className="font-semibold">Search strategy</p><p className="mt-1 border-l border-gray-200 pl-3 text-gray-500">{summary}</p></div></div><div className="flex gap-2">{matched ? <Check size={16} className="mt-0.5 shrink-0 text-[#ff5a00]" /> : <span className="mt-0.5 h-4 w-4 animate-pulse rounded-full border-2 border-dotted border-[#ff5a00]" />}<p className="font-semibold">{step}</p></div></div></div></section>;
-}
-
-function aiCatalogQuery(query: string): string {
-  const lower = query.toLowerCase();
-  const category = /\bfoo(?:d|s)?\b/.test(lower) || lower.includes('grocery') ? 'Food' : lower.includes('shirt') || lower.includes('clothing') || lower.includes('dress') ? 'Clothing' : lower.includes('phone') || lower.includes('electronics') ? 'Electronics' : '';
-  if (category) return category;
-  const stopWords = new Set('i need a an the cheapest cheap item in for of please find show me looking want to with and or'.split(' '));
-  return query.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(word => word.length > 2 && !stopWords.has(word)).slice(0, 4).join(' ');
-}
+const SEARCH_STOP_WORDS = new Set('a an and for i in me of please the to want with find show looking need'.split(' '));
+const SEARCH_SYNONYMS: Record<string, string[]> = {
+  phone: ['mobile', 'smartphone', 'telephone', 'telephone'], mobile: ['phone', 'smartphone'],
+  laptop: ['computer', 'notebook', 'pc'], computer: ['laptop', 'notebook', 'pc'],
+  shoe: ['shoes', 'footwear', 'sneaker', 'sandal', 'viatu', 'inkweto'], shoes: ['shoe', 'footwear', 'sneaker', 'sandal', 'viatu', 'inkweto'],
+  shirt: ['clothing', 'apparel', 'tee', 'top', 'chemise'], clothing: ['apparel', 'garment', 'shirt', 'clothes'],
+  rice: ['grain', 'cereal', 'umuceri', 'mpunga', 'riz'], grain: ['rice', 'cereal'],
+  bag: ['bags', 'luggage', 'backpack', 'suitcase'], bags: ['bag', 'luggage', 'backpack'],
+  water: ['drink', 'beverage', 'amazi', 'maji', 'eau'], drink: ['beverage', 'water'],
+  watch: ['watches', 'timepiece', 'montre', 'isaha', 'saa'], watches: ['watch', 'timepiece'],
+};
+const normalizeSearch = (value: unknown) => String(value || '').toLocaleLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+const searchTokens = (value: string) => normalizeSearch(value).split(/\s+/).filter(token => token.length > 0 && !SEARCH_STOP_WORDS.has(token));
+const expandedSearchTokens = (value: string) => [...new Set(searchTokens(value).flatMap(token => [token, ...(SEARCH_SYNONYMS[token] || [])]))];
+const editSimilarity = (left: string, right: string) => {
+  if (left === right) return 1;
+  if (!left || !right) return 0;
+  if (left.includes(right) || right.includes(left)) return Math.min(left.length, right.length) / Math.max(left.length, right.length) * 0.92 + 0.08;
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let row = 1; row <= left.length; row++) {
+    let diagonal = previous[0]; previous[0] = row;
+    for (let column = 1; column <= right.length; column++) {
+      const saved = previous[column];
+      previous[column] = Math.min(previous[column] + 1, previous[column - 1] + 1, diagonal + (left[row - 1] === right[column - 1] ? 0 : 1));
+      diagonal = saved;
+    }
+  }
+  return 1 - previous[right.length] / Math.max(left.length, right.length);
+};
+const ngrams = (value: string, size = 3) => {
+  const normalized = normalizeSearch(value).replace(/\s+/g, ' ');
+  if (normalized.length <= size) return new Set([normalized]);
+  return new Set(Array.from({ length: normalized.length - size + 1 }, (_, index) => normalized.slice(index, index + size)));
+};
+const ngramSimilarity = (left: string, right: string) => {
+  const a = ngrams(left);
+  const b = ngrams(right);
+  if (!a.size || !b.size) return 0;
+  let shared = 0;
+  a.forEach(gram => { if (b.has(gram)) shared += 1; });
+  return (2 * shared) / (a.size + b.size);
+};
+const manualMatchScore = (query: string, product: Product) => {
+  const tokens = expandedSearchTokens(query);
+  const originalTokens = searchTokens(query);
+  const fields = [normalizeSearch(product.name), normalizeSearch(product.category), normalizeSearch(product.description), normalizeSearch(product.supplierName)];
+  const fieldWeights = [1, 0.82, 0.58, 0.38];
+  const fieldWords = fields.map(field => field.split(' ').filter(Boolean));
+  const phrase = normalizeSearch(query);
+  const phraseBoost = fields[0].includes(phrase) ? 1.2 : fields.some(field => field.includes(phrase)) ? 0.35 : 0;
+  const tokenScore = tokens.reduce((total, token) => {
+    const best = fieldWords.reduce((score, words, index) => {
+      const similarity = Math.max(...words.map(word => {
+        if (token.length === 1) return word.startsWith(token) ? 0.7 : word.includes(token) ? 0.45 : 0;
+        return Math.max(editSimilarity(token, word), ngramSimilarity(token, word) * 0.96);
+      }), 0);
+      return Math.max(score, similarity * fieldWeights[index]);
+    }, 0);
+    const threshold = token.length === 1 ? 0.35 : token.length === 2 ? 0.58 : 0.52;
+    return total + (best >= threshold ? best : 0);
+  }, 0);
+  const coverage = originalTokens.length ? originalTokens.reduce((count, token) => {
+    const matched = tokens.some(candidate => candidate === token && fieldWords.some(words => words.some(word => editSimilarity(token, word) >= (token.length < 3 ? 0.7 : 0.72))));
+    return count + (matched ? 1 : 0);
+  }, 0) / originalTokens.length : 0;
+  const popularity = Math.min(0.12, ((Number(product.rating) || 0) / 5) * 0.06 + ((Number((product as Product & { totalSales?: number }).totalSales) || 0) > 0 ? 0.06 : 0));
+  return tokenScore + phraseBoost + coverage * 0.35 + popularity;
+};
 
 function soldCount(product: Product): number | null {
   const totalSales = (product as Product & { totalSales?: number }).totalSales;
@@ -117,19 +169,23 @@ import { SellerWorkspace } from '@/components/seller-workspace';
 
 function ProductImage({
   product,
+  image,
   className = '',
 }: {
   product: Product;
+  image?: string;
   className?: string;
 }) {
   const [broken, setBroken] = useState(false);
+  useEffect(() => setBroken(false), [image]);
+  const imageSource = image || product.image;
   return (
-    <div className={`relative overflow-hidden bg-secondary ${className}`}>
-      {!broken && product.image ? (
+    <div className={`relative overflow-hidden rounded-xl bg-secondary ${className}`}>
+      {!broken && imageSource ? (
         <img
-          src={product.image}
+          src={imageSource}
           alt={product.name}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          className="h-full w-full rounded-[inherit] object-cover transition-transform duration-500 group-hover:scale-105"
           onError={() => setBroken(true)}
         />
       ) : (
@@ -204,6 +260,7 @@ function ProductCard({ product }: { product: Product }) {
             {tr('product.moq')}: {product.moq} {product.unit}(s)
           </span>
           {sold !== null && <span>{sold.toLocaleString()} {tr('product.sold')}</span>}
+          <span className="text-green-600 font-medium">{product.stock.toLocaleString()} in stock</span>
         </div>
         <div className="mt-1 flex items-center gap-1.5">
           {product.verified && (
@@ -238,7 +295,7 @@ function ProductCard({ product }: { product: Product }) {
             </>
           )}
         </button>}
-        {add.isError && <p role="alert" className="mt-2 text-xs text-red-600">Couldn’t add this product. Check available stock and try again.</p>}
+        {add.isError && <p role="alert" className="mt-2 text-xs text-red-600">{(add.error as any)?.message || "Couldn’t add this product. Check available stock."}</p>}
       </div>
     </article>
   );
@@ -398,36 +455,22 @@ function SupplierMini({ supplier }: { supplier: Supplier }) {
 }
 
 export function ProductsPage() {
-  const [location, setLocation] = useLocation();
   const params = new URLSearchParams(
     typeof window !== 'undefined' ? window.location.search : ''
   );
   const initialSearch = params.get('search') ?? '';
   const initialCategory = params.get('category') ?? '';
-  const [aiQuery, setAiQuery] = useState(initialSearch);
-  const [aiProducts, setAiProducts] = useState<Product[] | null>(null);
-  const [aiFailed, setAiFailed] = useState(false);
-  const [showAiReasoning, setShowAiReasoning] = useState(Boolean(initialSearch));
-  const aiSearch = Boolean(aiQuery);
   const [search, setSearch] = useState(initialSearch);
-  const catalogSearch = aiSearch ? aiCatalogQuery(aiQuery) : search;
   useEffect(() => {
     setSearch(initialSearch);
-    setAiProducts(null);
-    setAiFailed(false);
-    setShowAiReasoning(Boolean(initialSearch));
-    setAiQuery(initialSearch);
   }, [initialSearch]);
   useEffect(() => {
-    const handleAiSearch = (event: Event) => {
-      const query = (event as CustomEvent<string>).detail;
-      if (typeof query === 'string') { setAiProducts(null); setAiFailed(false); setShowAiReasoning(true); setAiQuery(query); setSearch(query); }
+    const handleLiveSearch = (event: Event) => {
+      const value = (event as CustomEvent<string>).detail;
+      if (typeof value === 'string') setSearch(value);
     };
-    window.addEventListener('nzanila-ai-search', handleAiSearch);
-    return () => window.removeEventListener('nzanila-ai-search', handleAiSearch);
-  }, []);
-  const handleAiProducts = useCallback((matches: Product[]) => {
-    setAiProducts(matches);
+    window.addEventListener('nzanila-manual-search', handleLiveSearch);
+    return () => window.removeEventListener('nzanila-manual-search', handleLiveSearch);
   }, []);
   useEffect(() => {
     if (!search.trim() || search === initialSearch) return;
@@ -437,7 +480,7 @@ export function ProductsPage() {
   const [category, setCategory] = useState(initialCategory);
   const [sort, setSort] = useState<
     'featured' | 'price-low' | 'price-high' | 'rating'
-  >(aiSearch && /\b(cheap|cheapest|lowest|low price)\b/i.test(aiQuery) ? 'price-low' : 'rating');
+  >('rating');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [tradeAssurance, setTradeAssurance] = useState(false);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
@@ -449,17 +492,25 @@ export function ProductsPage() {
     isError,
     refetch,
   } = useListProducts({
-    search: aiSearch && !aiFailed && aiProducts === null ? undefined : ((aiSearch && !aiFailed ? (catalogSearch || search) : search) || undefined),
+    search: undefined,
     category: category || undefined,
     sort,
   });
-  const visibleProducts = useMemo(() => (aiSearch && aiProducts !== null ? aiProducts : (products ?? [])).filter((product) => {
+  const visibleProducts = useMemo(() => {
+    const ranked = (products as Product[] | undefined ?? []).map((product: Product) => ({ product, score: search.trim() ? manualMatchScore(search, product) : 0 }))
+    .sort((a: { score: number }, b: { score: number }) => search.trim() ? b.score - a.score : 0)
+    const matches = ranked.filter(item => !search.trim() || item.score > 0);
+    // Keep the catalog useful for very short or imperfect queries: when no
+    // token clears the confidence threshold, show the closest ranked listings
+    // instead of presenting a dead-end empty state.
+    return (matches.length ? matches : ranked.slice(0, 12)).map((item: { product: Product }) => item.product).filter((product: Product) => {
     const item = product as Product & { verified?: boolean; tradeAssurance?: boolean; minimumOrderQuantity?: number };
     if (verifiedOnly && item.verified !== true) return false;
     if (tradeAssurance && item.tradeAssurance !== true) return false;
     if (minOrder && Number(item.minimumOrderQuantity ?? 0) > Number(minOrder)) return false;
     return true;
-  }), [products, aiProducts, aiSearch, verifiedOnly, tradeAssurance, minOrder]);
+    });
+  }, [products, search, verifiedOnly, tradeAssurance, minOrder]);
   return (
     <AppShell activeTab="products" hideSidebar>
       <div className="bg-[#f3f3f3] px-4 py-6 lg:px-8">
@@ -477,34 +528,7 @@ export function ProductsPage() {
             </button>
           }
         />
-        {aiSearch && showAiReasoning && <AiReasoningPanel query={aiQuery} onProducts={handleAiProducts} onFailure={() => { setAiFailed(true); setShowAiReasoning(false); }} />}
-        {aiSearch && <div className="mb-5 flex flex-wrap items-center gap-2 text-xs"><span className="mr-1 font-bold text-gray-600">Quick filters:</span>{['All products', 'Verified suppliers', 'In stock', 'Food & Beverages', 'Textiles & Clothing', 'Home & Kitchen'].map(filter => <button key={filter} onClick={() => { if (filter === 'Verified suppliers') setVerifiedOnly(true); else if (filter === 'All products') { setCategory(''); setVerifiedOnly(false); } else if (filter === 'In stock') setTradeAssurance(false); else setCategory(filter); }} className="rounded-full border border-gray-200 bg-white px-3 py-1.5 hover:border-[#ff6a00] hover:text-[#e85d00]">{filter}</button>)}</div>}
-        {(!aiSearch || aiProducts !== null) && <div className="mb-6 flex flex-col gap-3 sm:flex-row">
-          <div className="flex h-11 flex-1 items-center rounded-lg border border-border bg-card px-3 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
-            <Search size={17} className="text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  setAiQuery(search);
-                  window.dispatchEvent(new CustomEvent('nzanila-ai-search', { detail: search.trim() }));
-                  setLocation(`/products?search=${encodeURIComponent(search)}&ai=1`);
-                }
-              }}
-              className="min-w-0 flex-1 bg-transparent px-3 text-sm outline-none"
-              placeholder={aiSearch ? 'Manual catalog search…' : 'Search by product, material, or supplier'}
-              data-testid="input-product-search"
-            />
-            <button
-              onClick={() => setSearch('')}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              aria-label="Clear"
-              data-testid="button-clear-search"
-            >
-              {search && <X size={15} />}
-            </button>
-          </div>
+        <div className="mb-6 flex justify-end">
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as typeof sort)}
@@ -515,7 +539,7 @@ export function ProductsPage() {
             <option value="price-low">Price: low to high</option>
             <option value="price-high">Price: high to low</option>
           </select>
-        </div>}
+        </div>
         <div className="grid items-start gap-5 lg:grid-cols-[210px_minmax(0,1fr)]">
           <aside className={`${filtersOpen ? 'block' : 'hidden'} rounded-xl border border-border bg-card p-4 lg:sticky lg:top-4 lg:block`}>
             <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold">Filters</h2><button className="text-xs text-muted-foreground lg:hidden" onClick={() => setFiltersOpen(false)}>Close</button></div>
@@ -529,7 +553,7 @@ export function ProductsPage() {
           <section className="min-w-0">
             {isError ? <ErrorState onRetry={() => refetch()} /> : <>
               <div className="mb-4 flex items-center justify-between text-xs text-gray-500"><span>{isLoading ? 'Finding products…' : `${visibleProducts.length} products in view`}</span><span>{category || 'All categories'}</span></div>
-              {aiSearch && !aiFailed && aiProducts === null ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{Array.from({ length: 10 }).map((_, index) => <div key={index} className="h-72 animate-pulse rounded-xl bg-white" />)}</div> : <PaginatedProducts key={`${search}:${category}:${sort}:${verifiedOnly}:${tradeAssurance}:${minOrder}`} products={visibleProducts} loading={isLoading} />}
+              <PaginatedProducts key={`${search}:${category}:${sort}:${verifiedOnly}:${tradeAssurance}:${minOrder}`} products={visibleProducts} loading={isLoading} />
             </>}
           </section>
         </div>
@@ -553,6 +577,10 @@ export function ProductDetailPage() {
   } = useGetProduct(productId);
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
+  const [activeImage, setActiveImage] = useState('');
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [brokenImages, setBrokenImages] = useState<Set<string>>(() => new Set());
+  const touchStartX = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState<'description' | 'attributes' | 'supplier'>('description');
   const add = useAddCartItem();
 
@@ -560,11 +588,51 @@ export function ProductDetailPage() {
     category: product?.category,
     limit: 8,
   });
+  const cartQuery = useGetCart({
+    query: {
+      enabled: isAuthenticated,
+      retry: false,
+      staleTime: 30_000,
+    },
+  });
   const relatedProducts = (relatedQuery.data ?? []).filter(
     (p) => p.id !== productId
   );
 
   const sold = product ? soldCount(product) : null;
+  const cartItem = cartQuery.data?.items?.find((item) => item.productId === productId);
+  const cartStatusLoading = isAuthenticated && cartQuery.isLoading;
+
+  const addToCart = useCallback(() => {
+    if (!product) return;
+
+    add.mutate(
+      {
+        data: {
+          productId: product.id,
+          quantity: Math.max(quantity, product.moq),
+        },
+      },
+      {
+        onSuccess: () => {
+          setAdded(true);
+          queryClient.invalidateQueries({
+            queryKey: getGetCartQueryKey(),
+          });
+        },
+        onError: () => {
+          setAdded(false);
+        },
+      }
+    );
+  }, [add, product, quantity, queryClient]);
+
+  useEffect(() => {
+    if (!add.isSuccess) return;
+    queryClient.invalidateQueries({
+      queryKey: getGetProductQueryKey(productId),
+    });
+  }, [add.isSuccess, productId, queryClient]);
 
   if (isLoading)
     return (
@@ -593,24 +661,15 @@ export function ProductDetailPage() {
     );
 
   const productImages = ((product as Product & { images?: string[] }).images || [product.image]).filter(Boolean);
-
-  const addToCart = () =>
-    add.mutate(
-      {
-        data: {
-          productId: product.id,
-          quantity: Math.max(quantity, product.moq),
-        },
-      },
-      {
-        onSuccess: () => {
-          setAdded(true);
-          queryClient.invalidateQueries({
-            queryKey: getGetCartQueryKey(),
-          });
-        },
-      }
-    );
+  const visibleProductImages = productImages.filter(image => !brokenImages.has(image));
+  const selectedImage = (activeImage && !brokenImages.has(activeImage) ? activeImage : visibleProductImages[0]) || product.image;
+  const markBrokenImage = (image: string) => setBrokenImages(current => new Set(current).add(image));
+  const changeImageBy = (direction: number) => {
+    if (visibleProductImages.length < 2) return;
+    const currentIndex = Math.max(0, visibleProductImages.indexOf(selectedImage));
+    const nextIndex = (currentIndex + direction + visibleProductImages.length) % visibleProductImages.length;
+    setActiveImage(visibleProductImages[nextIndex]);
+  };
 
   const tabs = [
     { key: 'description' as const, label: tr('detail.description') },
@@ -620,7 +679,7 @@ export function ProductDetailPage() {
 
   return (
     <AppShell activeTab="products" hideSearch>
-      <div className="mt-4 rounded-t-xl bg-background px-4 py-5 sm:px-5 sm:py-8 lg:px-10">
+      <div className="mt-4 max-w-full overflow-x-hidden rounded-t-xl bg-background px-4 py-5 sm:px-5 sm:py-8 lg:px-10">
         {/* ── Breadcrumb ── */}
         <nav className="mb-4 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground sm:mb-6 sm:text-xs">
           <Link href="/" className="hover:text-foreground transition-colors">{tr('nav.products')}</Link>
@@ -634,56 +693,64 @@ export function ProductDetailPage() {
 
         <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr_320px] lg:gap-6 xl:gap-8">
           {/* ════ LEFT COLUMN: image + supplier ════ */}
-          <div>
+          <div className="min-w-0">
             {/* Image gallery */}
             <div className="hidden sm:flex gap-3 lg:gap-3">
               <div className="flex flex-col gap-2">
-                {productImages.map((image, i) => (
-                  <div
+                {visibleProductImages.map((image, i) => (
+                  <button
+                    type="button"
+                    onClick={() => setActiveImage(image)}
                     key={`${image}-${i}`}
                     className={`h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border-2 lg:h-[68px] lg:w-[68px] ${
-                      i === 0 ? 'border-primary' : 'border-border hover:border-primary/50'
+                      image === selectedImage ? 'border-primary' : 'border-border hover:border-primary/50'
                     }`}
                   >
                     {image ? (
-                      <img src={image} alt={`${product.name} view ${i + 1}`} className="h-full w-full object-cover" />
+                      <img src={image} alt={`${product.name} view ${i + 1}`} className="h-full w-full bg-white object-contain p-1" onError={() => markBrokenImage(image)} />
                     ) : (
                       <div className="grid h-full w-full place-items-center bg-secondary">
                         <PackageCheck size={14} className="text-muted-foreground" />
                       </div>
                     )}
-                  </div>
+                  </button>
                 ))}
               </div>
-              <div className="group min-w-0 flex-1 overflow-hidden rounded-xl border border-border">
-                <ProductImage product={product} className="aspect-square" />
+              <div className="group min-w-0 flex-1 cursor-zoom-in overflow-hidden rounded-xl" onClick={() => setGalleryOpen(true)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setGalleryOpen(true); }}>
+                <ProductImage product={product} image={selectedImage} className="aspect-[4/3]" />
               </div>
             </div>
             <div className="sm:hidden">
-              <div className="group overflow-hidden rounded-xl border border-border">
-                <ProductImage product={product} className="aspect-square" />
+              <div className="group touch-pan-y cursor-zoom-in overflow-hidden rounded-xl" onTouchStart={(event) => { touchStartX.current = event.changedTouches[0]?.clientX ?? null; }} onTouchEnd={(event) => { const start = touchStartX.current; touchStartX.current = null; if (start == null) return; const delta = event.changedTouches[0]?.clientX - start; if (Math.abs(delta) > 40) { changeImageBy(delta < 0 ? 1 : -1); } }} onClick={() => setGalleryOpen(true)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setGalleryOpen(true); }}>
+                <ProductImage product={product} image={selectedImage} className="aspect-[4/3]" />
               </div>
-              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-                {productImages.map((image, i) => (
-                  <div key={`${image}-${i}`} className={`h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg border-2 ${i === 0 ? 'border-primary' : 'border-border'}`}>
+              <div className="mt-3 flex max-w-full gap-2 overflow-x-auto pb-1">
+                {visibleProductImages.map((image, i) => (
+                  <button type="button" onClick={() => setActiveImage(image)} key={`${image}-${i}`} className={`h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg border-2 bg-white ${image === selectedImage ? 'border-primary' : 'border-border'}`} aria-label={`View image ${i + 1}`}>
                     {image ? (
-                      <img src={image} alt={`${product.name} view ${i + 1}`} className="h-full w-full object-cover" />
+                      <img src={image} alt={`${product.name} view ${i + 1}`} className="h-full w-full object-contain p-1" onError={() => markBrokenImage(image)} />
                     ) : (
                       <div className="grid h-full w-full place-items-center bg-secondary"><PackageCheck size={12} className="text-muted-foreground" /></div>
                     )}
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
 
+            {galleryOpen && selectedImage && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-4" role="dialog" aria-modal="true" aria-label="Product image viewer" onClick={() => setGalleryOpen(false)}>
+              <button type="button" className="absolute right-4 top-4 rounded-full bg-white/15 p-2 text-white hover:bg-white/25" aria-label="Close image viewer" onClick={() => setGalleryOpen(false)}><X size={22} /></button>
+              <img src={selectedImage} alt={product.name} className="max-h-[90vh] max-w-full object-contain" onClick={(event) => event.stopPropagation()} onError={() => { markBrokenImage(selectedImage); setGalleryOpen(false); }} />
+            </div>}
+
             {/* Supplier card — below image */}
-            <div className="mt-4 rounded-xl border border-border bg-card p-4">
-              <div className="flex items-center gap-3">
+            <div className="mt-4 min-w-0 rounded-xl border border-border bg-card p-3 sm:p-4">
+              <div className="flex min-w-0 flex-wrap items-start gap-3">
                 <div className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
                   <Store size={20} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-foreground">{product.supplierName}</p>
+                  <p className="break-words text-sm font-bold leading-tight text-foreground">{product.supplierName}</p>
+                  <p className="mt-0.5 break-words text-[10px] text-muted-foreground">Store owner / supplier: {product.supplierName}</p>
                   <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                     {product.verified && (
                       <span className="flex items-center gap-0.5 text-emerald-600">
@@ -692,21 +759,28 @@ export function ProductDetailPage() {
                     )}
                   </div>
                 </div>
-                <Link href={(product as Product & { storeSlug?: string }).storeSlug ? `/store/${encodeURIComponent((product as Product & { storeSlug?: string }).storeSlug as string)}` : '/products'} className="flex-shrink-0 rounded-lg border border-primary px-3 py-1.5 text-[11px] font-bold text-primary hover:bg-primary/5">
-                  {tr('detail.viewProfile')}
-                </Link>
+                <div className="flex w-full max-w-full flex-wrap gap-1.5 sm:w-auto">
+                  <Link href={directionsFor(product)} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 rounded-lg border border-primary px-2 py-1.5 text-center text-[11px] font-bold text-primary hover:bg-primary/5 sm:flex-none sm:px-3">
+                    Get directions
+                  </Link>
+                  {(product as any).storeSlug ? (
+                    <Link href={`/store/${encodeURIComponent((product as Product & { storeSlug?: string }).storeSlug as string)}`} className="min-w-0 flex-1 rounded-lg border border-primary px-2 py-1.5 text-center text-[11px] font-bold text-primary hover:bg-primary/5 sm:flex-none sm:px-3">
+                      View profile
+                    </Link>
+                  ) : null}
+                </div>
               </div>
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                <div className="rounded-lg bg-background p-2 text-center">
-                  <p className="text-xs font-bold text-foreground">{product.rating.toFixed(1)}/5</p>
-                  <p className="text-[10px] text-muted-foreground">{tr('detail.storeRating')}</p>
+              <div className="mt-3 grid min-w-0 grid-cols-3 gap-2">
+                <div className="min-w-0 rounded-lg bg-background p-2 text-center">
+                  <p className="break-words text-[11px] font-bold leading-tight text-foreground">{(product as any).storeLocation || product.supplierName}</p>
+                  <p className="text-[10px] text-muted-foreground">{tr('detail.supplier')}</p>
                 </div>
-                <div className="rounded-lg bg-background p-2 text-center">
-                  <p className="text-xs font-bold text-foreground">{product.reviews.toLocaleString()}</p>
-                  <p className="text-[10px] text-muted-foreground">{tr('detail.reviews')}</p>
+                <div className="min-w-0 rounded-lg bg-background p-2 text-center">
+                  <p className="text-[11px] font-bold text-foreground">{(product as any).storeProductCount || 0}</p>
+                  <p className="text-[10px] text-muted-foreground">Products</p>
                 </div>
-                <div className="rounded-lg bg-background p-2 text-center">
-                  <p className="text-xs font-bold text-foreground">{product.stock.toLocaleString()}</p>
+                <div className="min-w-0 rounded-lg bg-background p-2 text-center">
+                  <p className="text-[11px] font-bold text-foreground">{product.stock.toLocaleString()}</p>
                   <p className="text-[10px] text-muted-foreground">{tr('detail.stock')}</p>
                 </div>
               </div>
@@ -729,11 +803,18 @@ export function ProductDetailPage() {
             {/* Rating + stats */}
             <div className="mt-3 flex flex-wrap items-center gap-2 text-xs sm:text-sm">
               <span className="flex items-center gap-1 font-bold text-foreground">
-                <Star size={14} className="fill-amber-400 text-amber-400" /> {product.rating.toFixed(1)}
+                <Star size={14} className="fill-amber-400 text-amber-400" />
+                {product.rating > 0 ? product.rating.toFixed(1) : '—'}
               </span>
-              <span className="text-muted-foreground">({product.reviews.toLocaleString()} {tr('detail.reviews')})</span>
+              <span className="text-muted-foreground">
+                ({product.reviews > 0 ? product.reviews.toLocaleString() : 0} {tr('detail.reviews')})
+              </span>
               <span className="h-4 w-px bg-border" />
-              {sold !== null && <span className="text-muted-foreground">{sold.toLocaleString()} {tr('product.sold')}</span>}
+              {sold !== null && (
+                <span className="text-muted-foreground">
+                  {sold.toLocaleString()} {tr('product.sold')}
+                </span>
+              )}
             </div>
 
             {/* Price tiers */}
@@ -760,22 +841,67 @@ export function ProductDetailPage() {
               {isAuthenticated && <>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <div className="flex h-11 items-center rounded-lg border border-border bg-background sm:h-12">
-                  <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="px-3 text-lg font-bold text-foreground" data-testid="button-decrease-quantity">−</button>
-                  <span className="w-10 text-center text-sm font-bold text-foreground" data-testid="text-product-quantity">{quantity}</span>
-                  <button onClick={() => setQuantity(quantity + 1)} className="px-3 text-lg font-bold text-foreground" data-testid="button-increase-quantity">+</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (add.isPending) return;
+                      setQuantity((prev) => Math.max(1, prev - 1));
+                    }}
+                    disabled={add.isPending || quantity <= 1}
+                    className="px-3 text-lg font-bold text-foreground disabled:opacity-50"
+                    data-testid="button-decrease-quantity"
+                  >
+                    −
+                  </button>
+                  <span className="w-10 text-center text-sm font-bold text-foreground" data-testid="text-product-quantity">
+                    {cartItem?.quantity ?? quantity}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (add.isPending) return;
+                      setQuantity((prev) => prev + 1);
+                    }}
+                    disabled={add.isPending}
+                    className="px-3 text-lg font-bold text-foreground disabled:opacity-50"
+                    data-testid="button-increase-quantity"
+                  >
+                    +
+                  </button>
                 </div>
               </div>
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                 <button
+                  type="button"
                   onClick={addToCart}
-                  disabled={add.isPending || added}
+                  disabled={add.isPending || added || cartStatusLoading || Boolean(cartItem)}
                   className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg border-2 border-primary bg-primary text-sm font-bold text-primary-foreground hover:bg-primary/90 sm:h-12"
                   data-testid="button-detail-add-cart"
                 >
-                  {added ? <><Check size={16} /> {tr('product.added')}</> : add.isPending ? tr('product.adding') : tr('product.addCart')}
+                  {cartStatusLoading ? (
+                    tr('product.adding')
+                  ) : added || cartItem ? (
+                    <>
+                      <Check size={16} /> {cartItem ? 'Already in cart' : tr('product.added')}
+                    </>
+                  ) : add.isPending ? (
+                    tr('product.adding')
+                  ) : (
+                    tr('product.addCart')
+                  )}
                 </button>
                 <button
-                  onClick={() => { addToCart(); setTimeout(() => setLocation('/cart'), 400); }}
+                  type="button"
+                  onClick={() => {
+                    if (cartItem) {
+                      setLocation('/cart');
+                      return;
+                    }
+                    if (add.isPending) return;
+                    addToCart();
+                    setTimeout(() => setLocation('/cart'), 400);
+                  }}
+                  disabled={add.isPending || added || cartStatusLoading}
                   className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background text-sm font-bold text-foreground hover:bg-muted sm:h-12"
                   data-testid="button-start-order"
                 >
@@ -783,7 +909,22 @@ export function ProductDetailPage() {
                 </button>
               </div>
               {added && (
-                <button onClick={() => setLocation('/cart')} className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-primary py-2.5 text-xs font-bold text-primary" data-testid="button-go-cart">
+                <button
+                  type="button"
+                  onClick={() => setLocation('/cart')}
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-primary py-2.5 text-xs font-bold text-primary"
+                  data-testid="button-go-cart"
+                >
+                  {tr('cart.view')} <ArrowRight size={14} />
+                </button>
+              )}
+              {cartItem && !added && (
+                <button
+                  type="button"
+                  onClick={() => setLocation('/cart')}
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-primary py-2.5 text-xs font-bold text-primary"
+                  data-testid="button-go-cart-existing"
+                >
                   {tr('cart.view')} <ArrowRight size={14} />
                 </button>
               )}
@@ -804,11 +945,15 @@ export function ProductDetailPage() {
                 </div>
                 <div>
                   <p className="text-muted-foreground">{tr('product.moq')}</p>
-                  <p className="mt-0.5 font-bold text-foreground">{product.moq} {product.unit}</p>
+                  <p className="mt-0.5 font-bold text-foreground">
+                    {product.moq > 0 ? `${product.moq} ${product.unit}` : product.unit}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">{tr('detail.stock')}</p>
-                  <p className="mt-0.5 font-bold text-foreground">{product.stock.toLocaleString()} units</p>
+                  <p className="mt-0.5 font-bold text-foreground">
+                    {product.stock > 0 ? `${product.stock.toLocaleString()} units` : 'Out of stock'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -848,10 +993,19 @@ export function ProductDetailPage() {
             <div className="rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-3">
                 <MessageSquare size={18} className="flex-shrink-0 text-primary" />
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold text-foreground">{tr('detail.needHelp')}</p>
                   <p className="text-[11px] text-muted-foreground">{tr('detail.chatWithSupplier')}</p>
                 </div>
+                {isAuthenticated ? (
+                  <Link href={`/messages?store=${encodeURIComponent(String((product as any).store_id || (product as any).storeId || ''))}&seller=${encodeURIComponent(String((product as any).supplier_id || (product as any).supplierId || ''))}`} className="flex-shrink-0 rounded-lg border border-primary px-3 py-1.5 text-[11px] font-bold text-primary hover:bg-primary/5" data-testid="link-message-supplier">
+                    Message supplier
+                  </Link>
+                ) : (
+                  <Link href="/auth" className="flex-shrink-0 rounded-lg border border-primary px-3 py-1.5 text-[11px] font-bold text-primary hover:bg-primary/5" data-testid="link-message-supplier-login">
+                    Sign in to message
+                  </Link>
+                )}
               </div>
             </div>
           </div>
@@ -906,16 +1060,59 @@ export function ProductDetailPage() {
 
             {activeTab === 'supplier' && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <div className="rounded-xl border border-border bg-card p-4 text-center">
-                    <Star size={18} className="mx-auto fill-amber-400 text-amber-400" />
-                    <p className="mt-1 text-sm font-bold text-foreground">{product.rating.toFixed(1)}</p>
-                    <p className="text-[10px] text-muted-foreground">{tr('detail.rating')}</p>
+                <div className="rounded-xl border border-border bg-card p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+                      <Store size={20} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-foreground">{product.supplierName}</p>
+                      <p className="mt-0.5 truncate text-[10px] text-muted-foreground">Store owner / supplier: {product.supplierName}</p>
+                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                        {product.verified && (
+                          <span className="flex items-center gap-0.5 text-emerald-600">
+                            <BadgeCheck size={12} /> {tr('product.verified')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <Link href={directionsFor(product)} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 rounded-lg border border-primary px-3 py-1.5 text-[11px] font-bold text-primary hover:bg-primary/5">
+                        Get directions
+                      </Link>
+                      {(product as any).storeSlug ? (
+                        <Link href={`/store/${encodeURIComponent((product as Product & { storeSlug?: string }).storeSlug as string)}`} className="flex-shrink-0 rounded-lg border border-primary px-3 py-1.5 text-[11px] font-bold text-primary hover:bg-primary/5">
+                          View profile
+                        </Link>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="rounded-xl border border-border bg-card p-4 text-center">
-                    <RefreshCw size={18} className="mx-auto text-primary" />
-                    <p className="mt-1 text-sm font-bold text-foreground">{product.stock.toLocaleString()}</p>
-                    <p className="text-[10px] text-muted-foreground">{tr('detail.stock')}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-border bg-background p-3 text-center">
+                      <p className="text-sm font-bold text-foreground">{(product as any).storeLocation || tr('detail.supplier')}</p>
+                      <div className="mt-2 flex justify-center gap-2">
+                        <MapPin size={12} className="text-muted-foreground" />
+                        <a href={directionsFor(product)} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-primary hover:underline">
+                          Get directions
+                        </a>
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-background p-3 text-center">
+                      <p className="text-sm font-bold text-foreground">{product.supplierName}</p>
+                      <p className="text-[10px] text-muted-foreground">{tr('detail.supplier')}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-border bg-background p-4 text-center">
+                      <Star size={18} className="mx-auto fill-amber-400 text-amber-400" />
+                      <p className="mt-1 text-sm font-bold text-foreground">{product.rating.toFixed(1)}</p>
+                      <p className="text-[10px] text-muted-foreground">{tr('detail.rating')}</p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-background p-4 text-center">
+                      <RefreshCw size={18} className="mx-auto text-primary" />
+                      <p className="mt-1 text-sm font-bold text-foreground">{product.stock.toLocaleString()}</p>
+                      <p className="text-[10px] text-muted-foreground">{tr('detail.stock')}</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -955,6 +1152,7 @@ export function ProductDetailPage() {
 }
 
 export function CartPage() {
+  const { user, session, refreshUser } = useAuth();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const {
@@ -966,11 +1164,87 @@ export function CartPage() {
   const update = useUpdateCartItem();
   const remove = useRemoveCartItem();
   const [destination, setDestination] = useState('');
-  const [fulfillmentMethod, setFulfillmentMethod] = useState<'seller_delivery' | 'buyer_pickup'>('seller_delivery');
+  const [destinationLatitude, setDestinationLatitude] = useState<number | undefined>();
+  const [destinationLongitude, setDestinationLongitude] = useState<number | undefined>();
   const [deliveryPhoto, setDeliveryPhoto] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutStore, setCheckoutStore] = useState<string | null>(null);
+  const [locationPickerStore, setLocationPickerStore] = useState<string | null>(null);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [locationSaving, setLocationSaving] = useState(false);
   const create = useCreateOrder();
+  const savedCheckoutLocation = useMemo(() => {
+    const profileLocation = user && [
+      user.approximateAddress || [user.zone, user.city, user.province].filter(Boolean).join(', '),
+      user.landmark,
+      user.directions,
+    ].filter(Boolean).join(' · ');
+    if (typeof window !== 'undefined' && user?.id) {
+      try {
+        const saved = JSON.parse(localStorage.getItem(`nzanila_buyer_addresses_${user.id}`) || '[]');
+        const address = Array.isArray(saved) ? saved.find((item: any) => item?.isDefault) || saved[0] : null;
+        if (address) return [address.approximateAddress || [address.zone, address.commune, address.province].filter(Boolean).join(', '), address.landmark, address.detailedDirections].filter(Boolean).join(' · ');
+      } catch { /* Use the server profile location when local storage is unavailable. */ }
+    }
+    return profileLocation || '';
+  }, [user]);
+  useEffect(() => {
+    if (!destination && savedCheckoutLocation) setDestination(savedCheckoutLocation);
+  }, [destination, savedCheckoutLocation]);
+  useEffect(() => {
+    if (destinationLatitude == null && typeof user?.latitude === 'number') setDestinationLatitude(user.latitude);
+    if (destinationLongitude == null && typeof user?.longitude === 'number') setDestinationLongitude(user.longitude);
+  }, [user, destinationLatitude, destinationLongitude]);
+  const storeGroups = useMemo(() => {
+    const groups = new Map<string, NonNullable<typeof cart>['items']>();
+    (cart?.items || []).forEach((item) => {
+      const storeName = item.product.supplierName || 'Store';
+      groups.set(storeName, [...(groups.get(storeName) || []), item]);
+    });
+    return Array.from(groups.entries()).map(([storeName, items]) => ({
+      storeName,
+      items,
+      subtotal: items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0),
+      total: items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0),
+    }));
+  }, [cart?.items]);
+  const selectedStoreGroup = storeGroups.find((group) => group.storeName === checkoutStore);
+  const cartSubtotal = Number(cart?.subtotal || 0);
+  const cartTotal = cartSubtotal;
+  const changeCheckoutLocation = async (data: LocationData) => {
+    const formatted = [data.approximateAddress || [data.zone, data.commune, data.province].filter(Boolean).join(', '), data.landmark, data.directions].filter(Boolean).join(' · ');
+    setDestination(formatted);
+    setDestinationLatitude(data.latitude);
+    setDestinationLongitude(data.longitude);
+    setShowLocationPicker(false);
+    setCheckoutStore(locationPickerStore);
+    if (session?.accessToken) {
+      setLocationSaving(true);
+      try {
+        await fetch(`${import.meta.env.VITE_API_URL || 'https://nzanila-api-server.nzanilaexpress.workers.dev'}/api/profiles/onboarding/buyer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.accessToken}` },
+          body: JSON.stringify({
+            name: user?.name,
+            province: data.province,
+            city: data.commune,
+            zone: data.zone,
+            landmark: data.landmark,
+            deliveryPhone: data.phone || user?.deliveryPhone || user?.phone,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            addressName: data.locationName || 'Delivery address',
+            directions: data.directions,
+            meetAtPublicLandmark: data.meetAtPublicLandmark,
+            approximateAddress: data.approximateAddress,
+          }),
+        });
+        await refreshUser();
+      } finally {
+        setLocationSaving(false);
+      }
+    }
+  };
   const refresh = (next: unknown) => {
     queryClient.setQueryData(getGetCartQueryKey(), next);
   };
@@ -988,11 +1262,9 @@ export function CartPage() {
     e.preventDefault();
     create.mutate(
       { data: {
-        destination: fulfillmentMethod === 'buyer_pickup' ? 'Store pickup' : destination,
-        fulfillmentMethod,
-        deliveryAddress: fulfillmentMethod === 'seller_delivery' ? destination : undefined,
-        deliveryPhoto: fulfillmentMethod === 'seller_delivery' ? deliveryPhoto || undefined : undefined,
+        shippingFee: 0,
         termsAccepted,
+        productIds: selectedStoreGroup?.items.map((item) => item.productId),
       } },
       {
         onSuccess: (order) => {
@@ -1002,7 +1274,7 @@ export function CartPage() {
           queryClient.invalidateQueries({
             queryKey: getListOrdersQueryKey(),
           });
-          setCheckoutOpen(false);
+          setCheckoutStore(null);
           setLocation(`/orders/${order.id}`);
         },
       }
@@ -1069,7 +1341,21 @@ export function CartPage() {
           ) : (
             <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
               <div className="space-y-4">
-                {cart.items.map((item) => (
+                {storeGroups.map((group) => (
+                  <div key={`store-${group.storeName}`}>
+                    <div className="mb-2 mt-2 flex items-center gap-2 text-sm font-bold text-foreground first:mt-0">
+                      <Store size={16} className="text-primary" />
+                      <span>{group.storeName}</span>
+                      <span className="text-xs font-normal text-muted-foreground">· separate checkout</span>
+                      <Link
+                        href={`/messages?store=${encodeURIComponent(String((group.items[0].product as any).storeId || ''))}&seller=${encodeURIComponent(String((group.items[0].product as any).supplierId || ''))}`}
+                        className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-lg border border-primary px-2.5 py-1.5 text-[11px] font-bold text-primary hover:bg-primary/5"
+                        data-testid={`link-message-supplier-${group.storeName}`}
+                      >
+                        <MessageSquare size={13} /> Message supplier
+                      </Link>
+                    </div>
+                    {group.items.map((item) => (
                   <div
                     key={item.productId}
                     className="flex gap-3 rounded-2xl border border-border bg-card p-3 sm:gap-4 sm:p-5 transition-all duration-300 hover:shadow-md hover:border-border/80"
@@ -1141,6 +1427,8 @@ export function CartPage() {
                       </div>
                     </div>
                   </div>
+                    ))}
+                  </div>
                 ))}
               </div>
               <aside className="h-fit rounded-2xl border border-border bg-white p-6 text-foreground lg:sticky lg:top-28">
@@ -1152,34 +1440,39 @@ export function CartPage() {
                     <span className="text-muted-foreground">
                       Subtotal
                     </span>
-                    <span>{money(cart.subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">
-                      Estimated shipping
-                    </span>
-                    <span>{money(cart.shipping)}</span>
+                    <span>{money(cartSubtotal)}</span>
                   </div>
                   <div className="flex justify-between border-t border-border pt-4 font-display text-xl font-bold">
                     <span>Total</span>
-                    <span>{money(cart.total)}</span>
+                    <span>{money(cartTotal)}</span>
                   </div>
                 </div>
-                <button
-                  onClick={() => setCheckoutOpen(true)}
-                  className="mt-7 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground"
-                  data-testid="button-checkout"
-                >
-                  Choose delivery or pickup <ArrowRight size={15} />
-                </button>
-                <p className="mt-3 text-center text-[10px] text-muted-foreground">
-                  Choose delivery or store pickup next
-                </p>
+                <div className="mt-7 space-y-3 border-t border-border pt-5">
+                  <p className="text-xs font-bold">Checkout by store</p>
+                  {storeGroups.map((group) => (
+                    <div key={group.storeName} className="rounded-xl border border-border p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold">{group.storeName}</p>
+                          <p className="text-[11px] text-muted-foreground">{group.items.length} item{group.items.length === 1 ? '' : 's'} · {money(group.total)}</p>
+                        </div>
+                        <button
+                          onClick={() => { setCheckoutStore(group.storeName); setTermsAccepted(false); setDeliveryPhoto(''); }}
+                          className="shrink-0 rounded-lg bg-primary px-3 py-2 text-[11px] font-bold text-primary-foreground"
+                          data-testid={`button-checkout-${group.storeName}`}
+                        >
+                          Checkout <ArrowRight size={13} className="ml-1 inline" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-center text-[10px] text-muted-foreground">Each store has its own delivery or pickup choice.</p>
+                </div>
               </aside>
             </div>
           )}
         </>
-        {checkoutOpen && (
+        {checkoutStore && selectedStoreGroup && (
           <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
             <form
               onSubmit={checkout}
@@ -1191,12 +1484,13 @@ export function CartPage() {
                     Review order
                   </p>
                   <h2 className="mt-1 font-display text-2xl font-bold">
-                    Delivery or pickup
+                    Review order for {selectedStoreGroup.storeName}
                   </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">{selectedStoreGroup.storeName} · this checkout creates one separate store order</p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setCheckoutOpen(false)}
+                  onClick={() => setCheckoutStore(null)}
                   className="rounded-lg p-1.5 text-muted-foreground"
                   aria-label="Close checkout"
                   data-testid="button-close-checkout"
@@ -1204,59 +1498,44 @@ export function CartPage() {
                   <X size={18} />
                 </button>
               </div>
-              <div className="mt-6 space-y-3">
-                <p className="text-xs font-bold">How would you like to receive this order?</p>
-                <label className={`flex cursor-pointer gap-3 rounded-xl border p-4 ${fulfillmentMethod === 'seller_delivery' ? 'border-primary bg-primary/5' : 'border-border'}`}>
-                  <input type="radio" name="fulfillment" checked={fulfillmentMethod === 'seller_delivery'} onChange={() => setFulfillmentMethod('seller_delivery')} className="mt-1" />
-                  <span><strong className="block text-sm">Seller delivery</strong><span className="text-xs text-muted-foreground">The seller delivers to the confirmed address below.</span></span>
-                </label>
-                <label className={`flex cursor-pointer gap-3 rounded-xl border p-4 ${fulfillmentMethod === 'buyer_pickup' ? 'border-primary bg-primary/5' : 'border-border'}`}>
-                  <input type="radio" name="fulfillment" checked={fulfillmentMethod === 'buyer_pickup'} onChange={() => setFulfillmentMethod('buyer_pickup')} className="mt-1" />
-                  <span><strong className="block text-sm">Pick up from the store</strong><span className="text-xs text-muted-foreground">The seller will confirm the store address and pickup time. No delivery charge is added.</span></span>
-                </label>
-              </div>
-              {fulfillmentMethod === 'seller_delivery' && <label className="mt-5 block text-xs font-bold">
-                Delivery address
-                <input
-                  required
-                  minLength={2}
-                  value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm font-normal outline-none focus:border-primary"
-                  placeholder="Street, district, city, country"
-                  data-testid="input-checkout-destination"
-                />
-                <span className="mt-1 block text-[11px] font-normal text-muted-foreground">Confirm the exact location where the seller should deliver.</span>
-              </label>}
-              {fulfillmentMethod === 'seller_delivery' && <label className="mt-4 block text-xs font-bold">
-                Delivery location photo <span className="font-normal text-muted-foreground">(optional)</span>
-                <input type="file" accept="image/jpeg,image/png,image/webp" className="mt-2 block w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-normal" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setDeliveryPhoto(String(reader.result || '')); reader.readAsDataURL(file); }} />
-                <span className="mt-1 block text-[11px] font-normal text-muted-foreground">Add a gate, landmark, or storefront photo so the seller can confirm the location.</span>
-                {deliveryPhoto && <span className="mt-2 block text-[11px] font-semibold text-emerald-700">Location photo attached ✓</span>}
-              </label>}
-              {fulfillmentMethod === 'buyer_pickup' && <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs text-blue-900"><strong>Pickup location</strong><p className="mt-1">Seller store location — the seller will share directions and confirm when your order is ready.</p></div>}
+              <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs text-blue-900"><strong>Choose delivery after placing the order</strong><p className="mt-1">After the seller receives this order, choose delivery or store pickup and provide your location from the order details page.</p></div>
               <div className="mt-5 rounded-xl bg-secondary p-4 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">
                     Order total
                   </span>
-                  <strong>{money(cart?.total ?? 0)}</strong>
+                    <strong>{money(selectedStoreGroup.total)}</strong>
                 </div>
               </div>
-              <label className="mt-4 flex items-start gap-2 text-xs text-muted-foreground"><input type="checkbox" required checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="mt-0.5" /><span>I confirm my fulfillment choice and delivery address.</span></label>
+              <label className="mt-4 flex items-start gap-2 text-xs text-muted-foreground"><input type="checkbox" required checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="mt-0.5" /><span>I confirm these items and agree to continue to fulfillment after placing the order.</span></label>
               {create.isError && <p role="alert" className="mt-4 text-sm text-red-600">Could not place your order. Please try again.</p>}
-              <button
-                disabled={create.isPending || !termsAccepted}
-                className="mt-5 flex w-full justify-center rounded-xl bg-primary py-3.5 text-xs font-bold text-primary-foreground"
-                data-testid="button-place-order"
-              >
-                {create.isPending
-                  ? 'Placing order…'
-                  : 'Place order'}
-              </button>
+              <div className="mt-5 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCheckoutStore(null)}
+                  className="flex-1 rounded-xl border border-border py-3.5 text-xs font-bold text-foreground hover:bg-secondary"
+                  data-testid="button-cancel-checkout"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={create.isPending || !termsAccepted}
+                  className="flex-1 rounded-xl bg-primary py-3.5 text-xs font-bold text-primary-foreground disabled:opacity-50"
+                  data-testid="button-place-order"
+                >
+                  {create.isPending ? 'Placing order…' : 'Place order'}
+                </button>
+              </div>
             </form>
           </div>
         )}
+        {showLocationPicker && <LocationSearchPicker
+          mode="buyer"
+          initialLat={user?.latitude || -3.3731}
+          initialLng={user?.longitude || 29.3644}
+          onCancel={() => { setShowLocationPicker(false); setCheckoutStore(locationPickerStore); }}
+          onConfirm={changeCheckoutLocation}
+        />}
       </div>
     </BuyerWorkspace>
   );
@@ -1388,6 +1667,9 @@ function OrderCard({ order }: { order: Order }) {
           <p className="mt-2 text-sm text-muted-foreground">
             {formatDate(order.date)} · {order.destination}
           </p>
+          <p className="mt-1 text-xs font-semibold text-primary">
+            {Array.from(new Set((order.items || []).map((item) => item.supplierName).filter(Boolean))).join(', ') || 'Store order'}
+          </p>
         </div>
         <p className="font-display text-2xl font-bold text-card-foreground">
           {money(order.total)}
@@ -1433,6 +1715,16 @@ function OrderCard({ order }: { order: Order }) {
           className="mt-5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-60"
         >
           {confirmDelivery.isPending ? 'Confirming…' : 'Confirm delivery received'}
+        </button>
+      )}
+      {['processing', 'confirmed', 'preparing', 'ready'].includes(order.status) && (
+        <button
+          type="button"
+          onClick={() => { if (window.confirm('Cancel this order?')) confirmDelivery.mutate({ id: order.id, data: { status: 'cancelled' } }); }}
+          disabled={confirmDelivery.isPending}
+          className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-bold text-red-700 disabled:opacity-60"
+        >
+          {confirmDelivery.isPending ? 'Cancelling…' : 'Cancel order'}
         </button>
       )}
       <div className="mt-5 flex items-center justify-between border-t border-border pt-4 text-sm text-muted-foreground">
@@ -2210,26 +2502,11 @@ export function SupplierProductsPage() {
 }
 
 export function SupplierOrdersPage() {
-  const [orders, setOrders] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: orders = [], isLoading } = useListSupplierOrders({
+    query: { refetchInterval: 10000 },
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-
-  useEffect(() => {
-    // Hardcoded mock orders
-    const mockOrders = [
-      { id: 1847, status: 'new', buyerName: 'Kigali Fresh Market', destination: 'Nyarugenge, Kigali', itemCount: 12, total: 485.00, date: new Date(Date.now() - 1800000).toISOString(), deliveryMethod: 'seller_delivery' },
-      { id: 1846, status: 'new', buyerName: 'Nyamirambo Wholesalers', destination: 'Nyamirambo, Kigali', itemCount: 8, total: 320.50, date: new Date(Date.now() - 3600000).toISOString(), deliveryMethod: 'buyer_pickup' },
-      { id: 1845, status: 'confirmed', buyerName: 'Huye Distributors', destination: 'Huye Town', itemCount: 5, total: 195.00, date: new Date(Date.now() - 7200000).toISOString(), deliveryMethod: 'seller_delivery' },
-      { id: 1844, status: 'new', buyerName: 'Musanze Traders', destination: 'Musanze Town', itemCount: 3, total: 87.50, date: new Date(Date.now() - 10800000).toISOString(), deliveryMethod: 'buyer_pickup' },
-      { id: 1842, status: 'delivered', buyerName: 'Rubavu Markets Ltd', destination: 'Rubavu Town', itemCount: 15, total: 782.00, date: new Date(Date.now() - 86400000).toISOString(), deliveryMethod: 'seller_delivery' },
-      { id: 1838, status: 'delivered', buyerName: 'Kigali Fresh Market', destination: 'Nyarugenge, Kigali', itemCount: 6, total: 275.00, date: new Date(Date.now() - 172800000).toISOString(), deliveryMethod: 'seller_delivery' },
-      { id: 1835, status: 'out_for_delivery', buyerName: 'Gisenyi Wholesalers', destination: 'Gisenyi Town', itemCount: 10, total: 456.00, date: new Date(Date.now() - 259200000).toISOString(), deliveryMethod: 'seller_delivery' },
-      { id: 1831, status: 'cancelled', buyerName: 'Muhanga Traders', destination: 'Muhanga Town', itemCount: 2, total: 95.00, date: new Date(Date.now() - 345600000).toISOString(), deliveryMethod: 'buyer_pickup' },
-      { id: 1829, status: 'delivered', buyerName: 'Nyamirambo Wholesalers', destination: 'Nyamirambo, Kigali', itemCount: 8, total: 567.25, date: new Date(Date.now() - 432000000).toISOString(), deliveryMethod: 'seller_delivery' },
-    ];
-    setTimeout(() => { setOrders(mockOrders); setIsLoading(false); }, 400);
-  }, []);
 
   const statusFilters = [
     { value: 'all', label: 'All' },

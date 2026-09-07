@@ -1,11 +1,14 @@
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "nzanila-seller-api",
-  "main": "src/seller-worker.ts",
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nzanila-api-server-seller",
+  "main": "src/worker.ts",
   "compatibility_date": "2026-09-04",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
     "SUPPLIER_ID": "1"
+  },
+  "ai": {
+    "binding": "AI"
   },
   "observability": {
     "enabled": true,

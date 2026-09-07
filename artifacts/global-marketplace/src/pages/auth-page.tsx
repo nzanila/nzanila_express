@@ -5,11 +5,10 @@ import { useAuth } from '@/lib/auth-context';
 import { useLocale } from '@/lib/i18n/locale-context';
 import { locales } from '@/lib/i18n/translations';
 
-type CountryCode = 'BI' | 'RW';
+type CountryCode = 'BI';
 
 const COUNTRY_OPTIONS: Record<CountryCode, { label: string; flag: string; dialCode: string }> = {
   BI: { label: 'Burundi', flag: '🇧🇮', dialCode: '+257' },
-  RW: { label: 'Rwanda', flag: '🇷🇼', dialCode: '+250' },
 };
 
 const BG_IMAGES = [

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   cartItemsTable,
@@ -70,7 +70,7 @@ async function cartDto() {
     subtotal: Number(product.price) * item.quantity,
   }));
   const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
-  const shipping = items.length > 0 ? 12 : 0;
+  const shipping = 0;
   return {
     items,
     subtotal: Number(subtotal.toFixed(2)),
@@ -217,6 +217,27 @@ router.get("/cart", async (_req, res): Promise<void> => {
   res.json(GetCartResponse.parse(await cartDto()));
 });
 
+router.post("/cart", async (req, res): Promise<void> => {
+  const parsed = AddCartItemBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const [product] = await db.select().from(productsTable).where(eq(productsTable.id, parsed.data.productId));
+  if (!product) {
+    res.status(404).json({ error: "Product not found" });
+    return;
+  }
+  const [existing] = await db.select().from(cartItemsTable).where(eq(cartItemsTable.productId, parsed.data.productId));
+  const quantity = parsed.data.quantity ?? 1;
+  if (existing) {
+    await db.update(cartItemsTable).set({ quantity: existing.quantity + quantity }).where(eq(cartItemsTable.id, existing.id));
+  } else {
+    await db.insert(cartItemsTable).values({ productId: parsed.data.productId, quantity });
+  }
+  res.json(GetCartResponse.parse(await cartDto()));
+});
+
 router.post("/cart/items", async (req, res): Promise<void> => {
   const parsed = AddCartItemBody.safeParse(req.body);
   if (!parsed.success) {
@@ -282,13 +303,20 @@ router.post("/orders", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Please accept the fulfillment and payment terms" });
     return;
   }
+  const selectedItems = parsed.data.productIds?.length
+    ? cart.items.filter((item) => parsed.data.productIds!.includes(item.productId))
+    : cart.items;
+  if (!selectedItems.length) {
+    res.status(400).json({ error: "No cart items selected" });
+    return;
+  }
   const fulfillmentMethod = parsed.data.fulfillmentMethod ?? "seller_delivery";
   const destination = fulfillmentMethod === "buyer_pickup"
     ? `Buyer pickup — collect from the seller's store (seller will confirm the exact pickup address)`
     : parsed.data.deliveryAddress ?? parsed.data.destination;
   const [order] = await db.insert(ordersTable).values({
-    total: cart.total.toString(),
-    itemCount: cart.itemCount,
+    total: selectedItems.reduce((sum, item) => sum + item.subtotal, 0).toString(),
+    itemCount: selectedItems.reduce((sum, item) => sum + item.quantity, 0),
     destination,
     fulfillmentMethod,
     deliveryPhoto: parsed.data.fulfillmentMethod === "seller_delivery" ? parsed.data.deliveryPhoto ?? null : null,
@@ -297,7 +325,7 @@ router.post("/orders", async (req, res): Promise<void> => {
     buyerName: "Demo buyer",
   }).returning();
   await db.insert(orderItemsTable).values(
-    cart.items.map((item) => ({
+    selectedItems.map((item) => ({
       orderId: order.id,
       productId: item.productId,
       productName: item.product.name,
@@ -306,7 +334,7 @@ router.post("/orders", async (req, res): Promise<void> => {
       supplierName: item.product.supplierName,
     })),
   );
-  await db.delete(cartItemsTable);
+  await db.delete(cartItemsTable).where(inArray(cartItemsTable.productId, selectedItems.map((item) => item.productId)));
   const created = (await ordersDto()).find((item) => item.id === order.id);
   res.status(201).json(ListOrdersResponseItem.parse(created));
 });

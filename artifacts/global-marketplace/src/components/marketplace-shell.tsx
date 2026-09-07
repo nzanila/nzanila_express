@@ -71,19 +71,26 @@ function LanguageSelector() {
 
 function HeroSearch({ activeTab, onCategoriesClick }: { activeTab?: NavTab; onCategoriesClick?: (categoryId?: string) => void }) {
   const [, setLocation] = useLocation();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('search') || '';
+  });
+
+  const onQueryChange = (value: string) => {
+    setQuery(value);
+    window.dispatchEvent(new CustomEvent('nzanila-manual-search', { detail: value }));
+  };
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
     recordSearch(query);
-    window.dispatchEvent(new CustomEvent('nzanila-ai-search', { detail: query.trim() }));
-    setLocation(`/products?search=${encodeURIComponent(query)}&ai=1`);
+    setLocation(`/products?search=${encodeURIComponent(query.trim())}`);
   };
 
   return (
     <div className="border-b border-gray-200 bg-white pb-4">
-      <div className="mx-auto max-w-[1440px] px-4 lg:px-8">
+      <div className="mx-auto max-w-[1231px] px-4 lg:px-8">
         <form onSubmit={onSubmit} className="flex h-[44px] overflow-hidden rounded-full border-2 border-[#ff6a00] bg-white">
           <button type="button" onClick={() => onCategoriesClick?.()} className="hidden lg:flex items-center gap-1.5 border-r border-gray-200 px-4 text-xs font-semibold text-gray-600 hover:bg-gray-50">
             <LayoutGrid size={16} />
@@ -95,13 +102,13 @@ function HeroSearch({ activeTab, onCategoriesClick }: { activeTab?: NavTab; onCa
           </button>
           <input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search products with Nzanila AI…"
+            onChange={(e) => onQueryChange(e.target.value)}
+            placeholder="Search products, materials, or suppliers…"
             className="min-w-0 flex-1 px-4 text-sm outline-none"
             data-testid="input-hero-search"
           />
           <button type="submit" className="flex items-center gap-1.5 bg-[#ff6a00] px-8 text-sm font-bold text-white hover:bg-[#e55f00]" data-testid="button-hero-search">
-            <Sparkles size={14} /> AI Search
+            Search
           </button>
         </form>
         <div className="mt-2.5 flex flex-wrap gap-x-5 text-xs text-gray-600">
@@ -128,7 +135,7 @@ function ModeTabs({ activeTab }: { activeTab?: NavTab }) {
 
   return (
     <div className="border-b border-gray-200 bg-white">
-      <div className="mx-auto flex max-w-[1440px] items-center gap-0 px-2 sm:px-4 lg:px-8">
+      <div className="mx-auto flex max-w-[1231px] items-center gap-0 px-2 sm:px-4 lg:px-8">
         {tabs.map(({ id, href, label, icon: Icon }) => {
           const active = resolved === id;
           return (
@@ -221,10 +228,10 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
   }, []);
 
   return (
-    <div className="min-h-[100dvh] overflow-x-clip bg-[#f5f5f5] text-[#222]">
+    <div className="nzanila-marketplace-shell min-h-[100dvh] overflow-x-clip bg-[#f5f5f5] text-[#222]">
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white shadow-sm">
         <div className="hidden border-b border-gray-200 bg-[#f5f5f5] sm:block">
-          <div className="mx-auto flex max-w-[1440px] items-center justify-between px-4 py-1.5 text-xs text-gray-600 lg:px-8">
+          <div className="mx-auto flex max-w-[1231px] items-center justify-between px-4 py-1.5 text-xs text-gray-600 lg:px-8">
             <span>Nzanila Marketplace</span>
             <div className="flex items-center gap-5">
               <Link href="/" className="hover:text-[#ff6a00]">Help</Link>
@@ -240,7 +247,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
             </div>
           </div>
         )}
-        <div className="mx-auto flex h-[60px] max-w-[1440px] items-center gap-4 px-4 lg:px-8">
+        <div className="mx-auto flex h-[60px] max-w-[1231px] items-center gap-4 px-4 lg:px-8">
           <button className="rounded p-2 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Menu"><Menu size={22} /></button>
           {location !== '/' && <button type="button" onClick={() => { if (window.history.length > 1) window.history.back(); else setLocation('/'); }} className="hidden items-center gap-1 rounded px-2 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 sm:flex" aria-label="Back"><ChevronRight size={16} className="rotate-180" />Back</button>}
           <Logo />
@@ -248,10 +255,10 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
             {isAuthenticated && <Link href={ordersHref} title="Orders" aria-label="Orders" className="hidden rounded-lg p-2.5 text-gray-700 hover:bg-gray-100 sm:flex">
               <ClipboardList size={19} className="text-gray-700" />
             </Link>}
-            <Link href="/messages" title="Messages" aria-label="Messages" className="hidden rounded-lg p-2.5 text-gray-700 hover:bg-gray-100 sm:flex">
+            {isAuthenticated && <Link href="/messages" title="Messages" aria-label="Messages" className="hidden rounded-lg p-2.5 text-gray-700 hover:bg-gray-100 sm:flex">
               <MessageSquare size={19} className="text-gray-700" />
-            </Link>
-            <BuyerNotificationsModal />
+            </Link>}
+            {isAuthenticated && <BuyerNotificationsModal />}
             {isAuthenticated && <Link href="/cart" title="Cart" aria-label="Cart" className="relative rounded-lg p-2.5 text-gray-700 hover:bg-gray-100" data-testid="link-cart">
               <ShoppingCart size={20} className="text-gray-700" />
               {cart?.itemCount ? <span className="absolute -right-0.5 -top-0.5 grid min-w-[16px] place-items-center rounded-full bg-[#ff6a00] px-1 text-[10px] font-bold text-white">{cart.itemCount}</span> : null}
@@ -289,7 +296,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
         </>
       )}
 
-      <main className="mx-auto max-w-[1440px] pb-14 lg:pb-0">
+      <main className="mx-auto max-w-[1368px] pb-14 lg:pb-0">
         <div className={`grid grid-cols-1 ${!hideSearch && !hideSidebar && !isSupplier ? discoveryContent ? 'lg:grid-cols-[210px_minmax(0,1fr)] px-3 sm:px-4 lg:px-8 py-4 gap-3' : 'lg:grid-cols-[150px_1fr]' : ''}`}>
           {/* Categories Sidebar - Desktop */}
 
@@ -320,14 +327,14 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
       </main>
       </div>
 
-      {!isSupplier && !hideFooter && <footer className="mt-8 border-t border-gray-200 bg-white pb-20 lg:pb-6">
-        <div className="mx-auto grid max-w-[1440px] gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4 lg:px-8">
-          <div><Logo /><p className="mt-4 max-w-xs text-sm leading-relaxed text-gray-500">Discover products, explore stores, and connect with sellers on Nzanila.</p></div>
-          <div><h2 className="mb-4 text-sm font-bold">Shop on Nzanila</h2><nav aria-label="Footer shopping" className="flex flex-col items-start gap-3 text-sm text-gray-600"><Link href="/products" className="hover:text-orange-500">Browse products</Link><button onClick={() => { setSelectedCategory(undefined); setCategoriesOpen(true); }} className="hover:text-orange-500">All categories</button>{isAuthenticated && <Link href="/cart" className="hover:text-orange-500">Your cart</Link>}</nav></div>
-          <div><h2 className="mb-4 text-sm font-bold">Your account</h2><nav aria-label="Footer account" className="flex flex-col items-start gap-3 text-sm text-gray-600"><Link href={accountHref} className="hover:text-orange-500">My account</Link>{isAuthenticated && <Link href={ordersHref} className="hover:text-orange-500">My orders</Link>}<Link href="/messages" className="hover:text-orange-500">Messages</Link></nav></div>
-          <div><h2 className="mb-4 text-sm font-bold">For sellers</h2><Link href="/supplier" className="text-sm text-gray-600 hover:text-orange-500">Seller Central</Link><p className="mt-4 text-xs leading-relaxed text-gray-500">Manage your products and stores, and connect with buyers.</p></div>
+      {!isSupplier && !hideFooter && <footer className="mt-5 border-t border-gray-200 bg-white pb-16 lg:mt-8 lg:pb-6">
+        <div className="mx-auto grid max-w-[1231px] grid-cols-2 gap-x-4 gap-y-5 px-4 py-5 sm:gap-8 sm:py-8 lg:grid-cols-4 lg:px-8 lg:py-10">
+          <div className="col-span-2 sm:col-span-1"><Logo /><p className="mt-2 max-w-xs text-xs leading-relaxed text-gray-500 sm:mt-4 sm:text-sm">Discover products, explore stores, and connect with sellers on Nzanila.</p></div>
+          <div><h2 className="mb-2 text-xs font-bold sm:mb-4 sm:text-sm">Shop on Nzanila</h2><nav aria-label="Footer shopping" className="flex flex-col items-start gap-1.5 text-xs text-gray-600 sm:gap-3 sm:text-sm"><Link href="/products" className="hover:text-orange-500">Browse products</Link><button onClick={() => { setSelectedCategory(undefined); setCategoriesOpen(true); }} className="hover:text-orange-500">All categories</button>{isAuthenticated && <Link href="/cart" className="hover:text-orange-500">Your cart</Link>}</nav></div>
+          <div><h2 className="mb-2 text-xs font-bold sm:mb-4 sm:text-sm">Your account</h2><nav aria-label="Footer account" className="flex flex-col items-start gap-1.5 text-xs text-gray-600 sm:gap-3 sm:text-sm"><Link href={accountHref} className="hover:text-orange-500">My account</Link>{isAuthenticated && <Link href={ordersHref} className="hover:text-orange-500">My orders</Link>}<Link href="/messages" className="hover:text-orange-500">Messages</Link></nav></div>
+          <div className="col-span-2 sm:col-span-1"><h2 className="mb-2 text-xs font-bold sm:mb-4 sm:text-sm">For sellers</h2><Link href="/supplier" className="text-xs text-gray-600 hover:text-orange-500 sm:text-sm">Seller Central</Link><p className="mt-2 max-w-xs text-[11px] leading-relaxed text-gray-500 sm:mt-4 sm:text-xs">Manage your products and stores, and connect with buyers.</p></div>
         </div>
-        <div className="mx-auto flex max-w-[1440px] flex-wrap justify-between gap-3 border-t border-gray-100 px-4 pt-5 text-xs text-gray-500 lg:px-8"><span>© {new Date().getFullYear()} Nzanila. All rights reserved.</span><span>Online payments coming soon</span></div>
+        <div className="mx-auto flex max-w-[1231px] flex-wrap justify-between gap-1 border-t border-gray-100 px-4 pt-3 text-[10px] text-gray-500 sm:gap-3 sm:pt-5 sm:text-xs lg:px-8"><span>© {new Date().getFullYear()} Nzanila. All rights reserved.</span><span>Online payments coming soon</span></div>
       </footer>}
 
       {!isSupplier && !keyboardOpen && (
@@ -351,7 +358,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
           <aside className="relative h-full w-[280px] bg-white p-4 shadow-xl">
             <div className="flex justify-between"><Logo /><button onClick={() => setMobileOpen(false)}><X size={20} /></button></div>
             <nav className="mt-6 space-y-1">
-              {[['/', 'Home'], ['/ai-research', 'AI Mode'], ['/products', 'Products'], ['/cart', 'Cart'], ['/orders', 'Orders'], ['/messages', 'Messages']].filter(([href]) => isAuthenticated || !['/cart', '/orders'].includes(href)).map(([href, label]) => (
+              {[['/', 'Home'], ['/ai-research', 'AI Mode'], ['/products', 'Products'], ['/cart', 'Cart'], ['/orders', 'Orders'], ['/messages', 'Messages']].filter(([href]) => isAuthenticated || !['/cart', '/orders', '/messages'].includes(href)).map(([href, label]) => (
                 <Link key={href} href={href} onClick={() => setMobileOpen(false)} className="block rounded px-3 py-2.5 text-sm font-semibold hover:bg-gray-100">{label}</Link>
               ))}
               <Link href="/categories" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded px-3 py-2.5 text-sm font-semibold hover:bg-gray-100">
@@ -365,7 +372,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
       {/* Mobile Bottom Navigation */}
       {!isSupplier && (
         <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-white lg:hidden">
-          <div className={`grid ${isAuthenticated ? 'grid-cols-6' : 'grid-cols-5'}`}>
+          <div className={`grid ${isAuthenticated ? 'grid-cols-6' : 'grid-cols-4'}`}>
             <Link href="/" className="flex flex-col items-center gap-0.5 py-2 text-muted-foreground hover:text-primary">
               <Home size={20} />
               <span className="text-[10px] font-medium">Home</span>
@@ -378,13 +385,12 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
               <Sparkles size={20} />
               <span className="text-[10px] font-medium">AI Research</span>
             </Link>
-            <Link href="/messages" className="flex flex-col items-center gap-0.5 py-2 text-muted-foreground hover:text-primary">
+            {isAuthenticated && <Link href="/messages" className="flex flex-col items-center gap-0.5 py-2 text-muted-foreground hover:text-primary">
               <div className="relative">
                 <MessageSquare size={20} />
-                <span className="absolute -top-1 -right-1.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-primary px-1 text-[7px] font-bold leading-none text-primary-foreground">4</span>
               </div>
               <span className="text-[10px] font-medium">Messages</span>
-            </Link>
+            </Link>}
             {isAuthenticated && <Link href="/cart" className="flex flex-col items-center gap-0.5 py-2 text-muted-foreground hover:text-primary">
               <div className="relative">
                 <ShoppingBag size={20} />

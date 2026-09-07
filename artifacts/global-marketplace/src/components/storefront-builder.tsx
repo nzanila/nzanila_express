@@ -34,6 +34,7 @@ import {
   DEFAULT_STOREFRONT_CONFIG,
 } from '@/lib/storefront-types';
 import { useAuth } from '@/lib/auth-context';
+import { StorefrontRenderer } from '@/components/storefront-renderer';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-api.pages.dev');
 
@@ -1102,26 +1103,7 @@ export function StorefrontBuilder({ sellerId }: { sellerId: number }) {
 }
 
 function StorefrontPreview({ config }: { config: StorefrontConfig }) {
-  return (
-    <div className="max-w-3xl mx-auto">
-      {config.shopSign?.imageUrl && !config.shopSign.hidden && (
-        <img src={config.shopSign.imageUrl} alt={config.shopSign.altText} className="h-40 w-full object-cover rounded-lg mb-4" />
-      )}
-      {config.sections.map((section) => (
-        <div key={section.id} className="mb-6">
-          <h3 className="text-lg font-bold mb-3 border-b border-gray-200 pb-2">{section.name}</h3>
-          {section.modules.length === 0 ? (
-            <p className="text-sm text-gray-400">No modules</p>
-          ) : (
-            <div className="space-y-4">
-              {section.modules.map((mod) => (
-                <StorefrontModulePreview key={mod.id} mod={mod} />
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
+  // Preview must use the production renderer so Canvas and the public store
+  // have identical module support, Alibaba navigation, sizing and styling.
+  return <StorefrontRenderer config={config as any} />;
 }
-
