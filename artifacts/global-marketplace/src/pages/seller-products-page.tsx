@@ -3,6 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { ArrowLeft, Plus, Edit, Trash2, Package, X, Camera, Check, ChevronDown, Image as ImageIcon } from 'lucide-react';
 import { AppShell } from '@/components/marketplace-shell';
 import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/lib/i18n/locale-context';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : '');
 
@@ -48,6 +49,7 @@ const WAREHOUSE_LOCATIONS = [
 ];
 
 export function SellerProductsPage() {
+  const { tr } = useLocale();
   const { user, session } = useAuth();
   const [, setLocation] = useLocation();
   const [products, setProducts] = useState<SellerProduct[]>([]);
@@ -93,7 +95,7 @@ export function SellerProductsPage() {
             <Link href="/supplier" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-1">
               <ArrowLeft size={12} /> Dashboard
             </Link>
-            <h1 className="text-xl font-bold">My Products</h1>
+            <h1 className="text-xl font-bold">{tr('ui.myProducts')}</h1>
           </div>
           <button onClick={() => { setEditingProduct(null); setShowForm(true); }} className="flex items-center gap-1 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90">
             <Plus size={14} /> Add Product
@@ -105,7 +107,7 @@ export function SellerProductsPage() {
         ) : products.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-12 text-center">
             <Package size={40} className="mx-auto text-muted-foreground/40 mb-3" />
-            <p className="text-sm text-muted-foreground">No products yet. Add your first product to start selling.</p>
+            <p className="text-sm text-muted-foreground">{tr('ui.noProductsYetAddYourFirst')}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -168,6 +170,7 @@ export function SellerProductsPage() {
 }
 
 function ProductFormModal({ product, onClose, onSaved }: { product: SellerProduct | null; onClose: () => void; onSaved: () => void }) {
+  const { tr } = useLocale();
   const { session } = useAuth();
   const [name, setName] = useState(product?.name || '');
   const [category, setCategory] = useState(product?.category || '');
@@ -220,50 +223,50 @@ function ProductFormModal({ product, onClose, onSaved }: { product: SellerProduc
           {error && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
           <div>
-            <label className="mb-1.5 block text-xs font-semibold">Product Name *</label>
+            <label className="mb-1.5 block text-xs font-semibold">{tr('ui.productName')}</label>
             <input value={name} onChange={e => setName(e.target.value)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none" />
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs font-semibold">Category *</label>
+            <label className="mb-1.5 block text-xs font-semibold">{tr('ui.category2')}</label>
             <select value={category} onChange={e => setCategory(e.target.value)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none bg-white">
-              <option value="">Select category</option>
+              <option value="">{tr('ui.selectCategory2')}</option>
               {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs font-semibold">Description *</label>
+            <label className="mb-1.5 block text-xs font-semibold">{tr('ui.description')}</label>
             <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className="w-full rounded-xl border border-border px-3 py-2 text-sm outline-none" />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold">Price (BIF) *</label>
+              <label className="mb-1.5 block text-xs font-semibold">{tr('ui.priceBif')}</label>
               <input type="number" value={price} onChange={e => setPrice(e.target.value)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none" />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-semibold">Unit</label>
+              <label className="mb-1.5 block text-xs font-semibold">{tr('ui.unit')}</label>
               <select value={unit} onChange={e => setUnit(e.target.value)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none bg-white">
                 {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-semibold">Condition</label>
+              <label className="mb-1.5 block text-xs font-semibold">{tr('ui.condition')}</label>
               <select value={condition} onChange={e => setCondition(e.target.value)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none bg-white">
-                <option value="new">New</option>
-                <option value="used">Used</option>
+                <option value="new">{tr('ui.new')}</option>
+                <option value="used">{tr('ui.used')}</option>
               </select>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold">Min Order Qty</label>
+              <label className="mb-1.5 block text-xs font-semibold">{tr('ui.minOrderQty')}</label>
               <input type="number" value={moq} onChange={e => setMoq(parseInt(e.target.value) || 1)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none" />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-semibold">Available Stock</label>
+              <label className="mb-1.5 block text-xs font-semibold">{tr('ui.availableStock')}</label>
               <input type="number" value={stock} onChange={e => setStock(parseInt(e.target.value) || 0)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none" />
             </div>
           </div>
@@ -280,12 +283,12 @@ function ProductFormModal({ product, onClose, onSaved }: { product: SellerProduc
           </div>
 
           <div className="border-t border-border pt-4">
-            <h4 className="text-xs font-semibold mb-3">Warehouse & Inventory</h4>
+            <h4 className="text-xs font-semibold mb-3">{tr('ui.warehouseInventory')}</h4>
             <div className="space-y-3">
               <div>
-                <label className="mb-1.5 block text-xs font-semibold">Warehouse Location</label>
+                <label className="mb-1.5 block text-xs font-semibold">{tr('ui.warehouseLocation')}</label>
                 <select value={warehouseLocation} onChange={e => setWarehouseLocation(e.target.value)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none bg-white">
-                  <option value="">Select warehouse</option>
+                  <option value="">{tr('ui.selectWarehouse')}</option>
                   {WAREHOUSE_LOCATIONS.map(loc => (
                     <option key={loc} value={loc}>{loc}</option>
                   ))}
@@ -298,18 +301,18 @@ function ProductFormModal({ product, onClose, onSaved }: { product: SellerProduc
                   <input value={sku} onChange={e => setSku(e.target.value)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none" placeholder="PROD-001" />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold">Stock Status</label>
+                  <label className="mb-1.5 block text-xs font-semibold">{tr('ui.stockStatus')}</label>
                   <select value={stockStatus} onChange={e => setStockStatus(e.target.value)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none bg-white">
-                    <option value="In Stock">In Stock</option>
-                    <option value="Low Stock">Low Stock</option>
-                    <option value="Out of Stock">Out of Stock</option>
-                    <option value="Pre-order">Pre-order</option>
+                    <option value="In Stock">{tr('ui.inStock')}</option>
+                    <option value="Low Stock">{tr('ui.lowStock')}</option>
+                    <option value="Out of Stock">{tr('ui.outOfStock')}</option>
+                    <option value="Pre-order">{tr('ui.preorder')}</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold">Reorder Level</label>
+                <label className="mb-1.5 block text-xs font-semibold">{tr('ui.reorderLevel')}</label>
                 <input type="number" value={reorderLevel} onChange={e => setReorderLevel(parseInt(e.target.value) || 10)} className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none" min="0" />
               </div>
             </div>

@@ -4,8 +4,10 @@ import { ArrowLeft, ShoppingBag, Store, MapPin, Building2, CheckCircle, Clock, A
 import { useLocale } from '@/lib/i18n/locale-context';
 import { locales } from '@/lib/i18n/translations';
 import { useAuth } from '@/lib/auth-context';
+import { COUNTRIES, isValidPhone, phoneHint, type CountryCode } from '@/lib/phone';
 import { LocationSearchPicker, type LocationData } from '@/components/location-search-picker';
-import { OnboardingBackground } from '@/components/onboarding-background';
+import { CommerceBackground } from '@/components/commerce-background';
+import { ConfirmDialog, type ConfirmSpec } from '@/components/confirm-dialog';
 
 type OnboardingStep =
   | 'welcome'
@@ -19,12 +21,12 @@ type OnboardingStep =
   | 'buyer-complete'
   | 'seller-complete';
 
-type Language = 'en' | 'fr' | 'rn' | 'sw';
-type CountryCode = 'BI';
+type Language = 'fr' | 'sw' | 'en';
+// CountryCode comes from '@/lib/phone' — a local 'BI'-only alias used to shadow it,
+// which silently prevented any other country from being selectable.
 
-const COUNTRY_OPTIONS: Record<CountryCode, { label: string; flag: string; dialCode: string }> = {
-  BI: { label: 'Burundi', flag: '🇧🇮', dialCode: '+257' },
-};
+// Countries come from the shared phone lib so validation and the picker cannot drift.
+const COUNTRY_OPTIONS = COUNTRIES;
 
 const STEP_LABELS: Record<OnboardingStep, string> = {
   welcome: 'Welcome',
@@ -74,9 +76,16 @@ export function OnboardingPage() {
   const [step, setStep] = useState<OnboardingStep>(() => {
     if (isAuthenticated && user?.role === 'seller' && !user?.onboardingCompleted) return 'seller-business';
     if (isAuthenticated && user?.role === 'buyer' && !user?.onboardingCompleted) return 'buyer-location';
-    if (isAuthenticated && user?.onboardingCompleted) { setLocation('/'); return 'welcome'; }
     return 'welcome';
   });
+  // Bounce a user who lands here already onboarded. Redirecting is a side effect, so it
+  // belongs in an effect rather than in the state initializer. The success screens are
+  // excluded: finishing onboarding sets onboardingCompleted, and without this guard the
+  // user would be thrown home before ever seeing the confirmation.
+  const doneSteps: OnboardingStep[] = ['buyer-complete', 'seller-verification', 'seller-complete'];
+  useEffect(() => {
+    if (isAuthenticated && user?.onboardingCompleted && !doneSteps.includes(step)) setLocation('/');
+  }, [isAuthenticated, user?.onboardingCompleted, step, setLocation]);
   const [accountType, setAccountType] = useState<'buyer' | 'seller' | null>(() => {
     if (isAuthenticated && user?.role) return user.role;
     return null;
@@ -103,6 +112,7 @@ export function OnboardingPage() {
   const [sellerFullName, setSellerFullName] = useState('');
   const [sellerLocationData, setSellerLocationData] = useState<LocationData | null>(null);
   const [showSellerLocationPicker, setShowSellerLocationPicker] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmSpec | null>(null);
   const [productCategories, setProductCategories] = useState<string[]>([]);
   const [offersDelivery, setOffersDelivery] = useState<boolean | null>(null);
   const [offersPickup, setOffersPickup] = useState<boolean | null>(null);
@@ -121,18 +131,27 @@ export function OnboardingPage() {
     if (!accountType) return;
     setError('');
     if (password !== passwordConfirm) { setError('Passwords do not match.'); return; }
+    // The phone is the sign-in identifier and the API rejects a blank one, so require it
+    // here rather than sending '' and surfacing a confusing server error.
+    if (!phoneNumber.trim()) { setError('Phone number is required — you sign in with it.'); return; }
+    if (!isValidPhone(phoneNumber, countryCode)) { setError(phoneHint(countryCode)); return; }
     setLoading(true);
-    const normalizedPhone = phoneNumber.trim() ? normalizePhone(phoneNumber) : '';
+    const normalizedPhone = normalizePhone(phoneNumber);
     const result = await signUp(normalizedPhone, fullName, accountType, password);
     setLoading(false);
     if (result.error) { setError(result.error); return; }
     setStep(accountType === 'buyer' ? 'buyer-location' : 'seller-business');
   };
 
-  const handleCancelOnboarding = async () => {
-    const confirmed = window.confirm('Cancel onboarding and delete your account? This cannot be undone.');
-    if (!confirmed) return;
+  const askCancelOnboarding = () => setConfirm({
+    title: 'Cancel and delete your account?',
+    description: 'Everything you have entered so far is removed. This cannot be undone.',
+    confirmLabel: 'Delete my account',
+    tone: 'danger',
+    onConfirm: handleCancelOnboarding,
+  });
 
+  const handleCancelOnboarding = async () => {
     setError('');
     setLoading(true);
 
@@ -154,6 +173,9 @@ export function OnboardingPage() {
       setLocation('/auth');
     } catch (cancelError) {
       setError(cancelError instanceof Error ? cancelError.message : 'Unable to cancel your account right now.');
+      // Rethrown so the confirmation dialog reports the failure in place and stays open,
+      // rather than closing as though the account had been deleted.
+      throw cancelError;
     } finally {
       setLoading(false);
     }
@@ -231,8 +253,9 @@ export function OnboardingPage() {
     switch (step) {
       case 'account-type': setStep('welcome'); break;
       case 'create-account': setStep('account-type'); break;
-      case 'buyer-location': setStep(isAuthenticated ? '/' : 'create-account'); break;
-      case 'seller-business': setStep(isAuthenticated ? '/' : 'create-account'); break;
+      // Signed-in users go home; '/' is a route, not a step, so it must not go through setStep.
+      case 'buyer-location': if (isAuthenticated) setLocation('/'); else setStep('create-account'); break;
+      case 'seller-business': if (isAuthenticated) setLocation('/'); else setStep('create-account'); break;
       case 'seller-location': setStep('seller-business'); break;
       case 'seller-details': setStep('seller-location'); break;
       default: setLocation('/');
@@ -249,7 +272,7 @@ export function OnboardingPage() {
 
   return (
     <div className="min-h-[100dvh] bg-[#f0f2f5] flex flex-col relative overflow-hidden">
-      <OnboardingBackground />
+      <CommerceBackground />
 
       {/* Header */}
       <div className="relative z-20 sticky top-0 border-b border-white/20 bg-white/80 backdrop-blur-xl">
@@ -266,7 +289,7 @@ export function OnboardingPage() {
             {step !== 'welcome' && (
               <button
                 type="button"
-                onClick={handleCancelOnboarding}
+                onClick={askCancelOnboarding}
                 disabled={loading}
                 className="rounded-full border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
               >
@@ -373,8 +396,8 @@ export function OnboardingPage() {
 
               {renderInput(tr('onboarding.fullName'), fullName, setFullName, 'e.g. Jean Ndayisaba')}
 
-              {accountType === 'seller' && <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-700">{COUNTRY_OPTIONS[countryCode].label} phone number <span className="font-normal text-gray-400">(optional)</span></label>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-gray-700">{COUNTRY_OPTIONS[countryCode].label} phone number <span className="text-red-500">*</span></label>
                 <div className="flex items-center rounded-xl border border-gray-200 bg-white focus-within:border-[#ff6a00] focus-within:ring-2 focus-within:ring-[#ff6a00]/20">
                   <div className="flex items-center gap-1 border-r border-gray-200 px-2">
                     <select value={countryCode} onChange={(e) => setCountryCode(e.target.value as CountryCode)}
@@ -388,7 +411,8 @@ export function OnboardingPage() {
                     placeholder={countryCode === 'BI' ? '61 23 4567' : '78 123 4567'} type="tel"
                     className="h-13 flex-1 bg-transparent px-3 text-base outline-none" />
                 </div>
-              </div>}
+                <p className="mt-1.5 text-xs text-gray-500">Use a real number you can receive SMS on — it verifies your account and is the only way to recover it if you forget your password.</p>
+              </div>
 
               {renderInput(tr('auth.password'), password, setPassword, tr('auth.enterPassword'), 'password')}
               {renderInput('Verify password', passwordConfirm, setPasswordConfirm, 'Repeat your password', 'password')}
@@ -398,10 +422,9 @@ export function OnboardingPage() {
                 <label className="mb-2 block text-sm font-semibold text-gray-700">{tr('onboarding.preferredLanguage')}</label>
                 <select value={preferredLanguage} onChange={(e) => setPreferredLanguage(e.target.value as Language)}
                   className="h-13 w-full rounded-xl border border-gray-200 bg-white px-4 text-base outline-none focus:border-[#ff6a00] focus:ring-2 focus:ring-[#ff6a00]/20">
-                  <option value="en">English</option>
-                  <option value="fr">Français</option>
-                  <option value="rn">Ikirundi</option>
-                  <option value="sw">Kiswahili</option>
+                  <option value="fr">{tr('ui.franais')}</option>
+                  <option value="sw">{tr('ui.kiswahili')}</option>
+                  <option value="en">{tr('ui.english')}</option>
                 </select>
               </div>
 
@@ -416,11 +439,11 @@ export function OnboardingPage() {
                 <button onClick={handleCreateAccount}
                   disabled={!fullName.trim() || password.length < 6 || password !== passwordConfirm || loading}
                   className="h-13 w-full rounded-xl bg-[#1a5f4a] text-base font-bold text-white hover:bg-[#154a3a] disabled:opacity-40">
-                  {loading ? (locale === 'fr' ? 'Création…' : locale === 'rn' ? 'Kubanga…' : locale === 'sw' ? 'Inaunda…' : 'Creating…') : tr('onboarding.continue')}
+                  {loading ? (locale === 'fr' ? 'Création…' : locale === 'sw' ? 'Inaunda…' : 'Creating…') : tr('onboarding.continue')}
                 </button>
                 <button
                   type="button"
-                  onClick={handleCancelOnboarding}
+                  onClick={askCancelOnboarding}
                   disabled={loading}
                   className="w-full text-center text-xs font-medium text-gray-400 transition hover:text-red-500 disabled:opacity-50"
                 >
@@ -438,11 +461,10 @@ export function OnboardingPage() {
                   <MapPin size={24} className="text-[#1a5f4a]" />
                 </div>
                 <h2 className="text-lg font-bold text-gray-800">
-                  {locale === 'fr' ? 'Ajouter votre lieu de livraison' : locale === 'rn' ? 'Ongerera aho hazaguragwo' : locale === 'sw' ? 'Ongeza eneo la uwasilishaji' : 'Add your delivery location'}
+                  {locale === 'fr' ? 'Ajouter votre lieu de livraison' : locale === 'sw' ? 'Ongeza eneo la uwasilishaji' : 'Add your delivery location'}
                 </h2>
                 <p className="mt-2 text-sm text-gray-500 leading-relaxed">
                   {locale === 'fr' ? 'Allez au lieu où vous souhaitez recevoir votre commande, puis appuyez sur "Utiliser ma position". Vous pouvez aussi rechercher un lieu ou déplacer le point manuellement. Ajoutez un repère pour que le vendeur vous trouve facilement.'
-                    : locale === 'rn' ? 'Jya aho ushaka kwakira ibicuruzwa vyawe, ukande "Koresha aho niriho". Urashobora kandi kondera ahantu cyangwa usoreho inoti. Ongerera ibimenyetso kugira umufasha.'
                     : locale === 'sw' ? 'Nenda mahali unapopokea oda yako, kisha gusa "Tumia eneo langu". Unaweza pia kutafuta mahali au kusogeza nukta kwa mkono. Ongeza kivinjari ili muuzaji akupate kwa urahisi.'
                     : 'Where should we deliver your order? You can go to the place where you want to receive the order, then tap "Use my current location". You can also search or move the pin manually. Add a landmark so the seller can find you easily.'}
                 </p>
@@ -460,7 +482,7 @@ export function OnboardingPage() {
                   </div>
                   <button onClick={() => { setBuyerLocationData(null); setShowBuyerLocationPicker(true); }}
                     className="mt-3 text-sm font-semibold text-[#1a5f4a] hover:underline">
-                    {locale === 'fr' ? 'Modifier l\'adresse' : locale === 'rn' ? 'Hindura ahantu' : locale === 'sw' ? 'Badilisha anwani' : 'Edit address'}
+                    {locale === 'fr' ? 'Modifier l\'adresse' : locale === 'sw' ? 'Badilisha anwani' : 'Edit address'}
                   </button>
                 </div>
               ) : (
@@ -469,7 +491,7 @@ export function OnboardingPage() {
                   className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white py-8 text-base font-semibold text-gray-600 hover:border-[#1a5f4a] hover:bg-[#1a5f4a]/5 hover:text-[#1a5f4a] transition-all"
                 >
                   <MapPin size={20} />
-                  {locale === 'fr' ? 'Choisir l\'adresse de livraison' : locale === 'rn' ? 'Hitamwo ahantu hazaguragwo' : locale === 'sw' ? 'Chagua anwani ya uwasilishaji' : 'Choose delivery location'}
+                  {locale === 'fr' ? 'Choisir l\'adresse de livraison' : locale === 'sw' ? 'Chagua anwani ya uwasilishaji' : 'Choose delivery location'}
                 </button>
               )}
 
@@ -482,10 +504,10 @@ export function OnboardingPage() {
 
               <button onClick={handleBuyerComplete} disabled={loading}
                 className="h-13 w-full rounded-xl bg-[#1a5f4a] text-base font-bold text-white hover:bg-[#154a3a] disabled:opacity-40">
-                {loading ? (locale === 'fr' ? 'Enregistrement…' : locale === 'rn' ? 'Kubika…' : locale === 'sw' ? 'Inahifadhi…' : 'Saving…') : tr('onboarding.continue')}
+                {loading ? (locale === 'fr' ? 'Enregistrement…' : locale === 'sw' ? 'Inahifadhi…' : 'Saving…') : tr('onboarding.continue')}
               </button>
 
-              <button onClick={() => { setBuyerLocationData({ latitude: 0, longitude: 0, approximateAddress: '', locationName: 'skipped', province: '', commune: '', zone: '', landmark: 'skipped', directions: '', phone: '', meetAtPublicLandmark: false }); }}
+              <button onClick={() => { setBuyerLocationData({ latitude: 0, longitude: 0, approximateAddress: '', locationName: 'skipped', province: '', commune: '', zone: '', landmark: 'skipped', landmarkPhoto: '', directions: '', phone: '', meetAtPublicLandmark: false }); }}
                 className="w-full text-center text-xs text-gray-400 hover:text-gray-600">
                 {tr('onboarding.skip')}
               </button>
@@ -520,11 +542,10 @@ export function OnboardingPage() {
                   <MapPin size={24} className="text-[#ff6a00]" />
                 </div>
                 <h2 className="text-lg font-bold text-gray-800">
-                  {locale === 'fr' ? 'Emplacement de la boutique' : locale === 'rn' ? 'Ahantu ka Zusobanuro' : locale === 'sw' ? 'Eneo la duka' : 'Shop Location'}
+                  {locale === 'fr' ? 'Emplacement de la boutique' : locale === 'sw' ? 'Eneo la duka' : 'Shop Location'}
                 </h2>
                 <p className="mt-2 text-sm text-gray-500 leading-relaxed">
                   {locale === 'fr' ? 'Ajoutez l\'emplacement de votre boutique ou lieu de vente habituel. Allez à votre boutique, puis appuyez sur "Utiliser ma position". Cela aide les acheteurs et livreurs à vous trouver plus facilement.'
-                    : locale === 'rn' ? 'Ongerera ahantu ka Zusobanuro cyangwa aho ushcura ibicuruzwa. Jya ku is transmet, ukande "Koresha aho niriho". Ibi birafasha abaguzi n\'abatwara kugira bakubone byoroshye.'
                     : locale === 'sw' ? 'Ongeza eneo la duka lako au mahali unapouza kwa kawaida. Nenda kwenye duka lako, kisha gusa "Tumia eneo langu". Hii inasaidia wanunuzi na wasafirishaji kukupata kwa urahisi.'
                     : 'Please add the location of your shop or normal selling place. Go to your shop or business location before choosing the position. This helps buyers and couriers find you more easily.'}
                 </p>
@@ -542,7 +563,7 @@ export function OnboardingPage() {
                   </div>
                   <button onClick={() => { setSellerLocationData(null); setShowSellerLocationPicker(true); }}
                     className="mt-3 text-sm font-semibold text-[#ff6a00] hover:underline">
-                    {locale === 'fr' ? 'Modifier l\'adresse' : locale === 'rn' ? 'Hindura ahantu' : locale === 'sw' ? 'Badilisha anwani' : 'Edit address'}
+                    {locale === 'fr' ? 'Modifier l\'adresse' : locale === 'sw' ? 'Badilisha anwani' : 'Edit address'}
                   </button>
                 </div>
               ) : (
@@ -551,7 +572,7 @@ export function OnboardingPage() {
                   className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white py-8 text-base font-semibold text-gray-600 hover:border-[#ff6a00] hover:bg-[#ff6a00]/5 hover:text-[#ff6a00] transition-all"
                 >
                   <MapPin size={20} />
-                  {locale === 'fr' ? 'Choisir l\'emplacement de la boutique' : locale === 'rn' ? 'Hitamwo ahantu ka Zusobanuro' : locale === 'sw' ? 'Chagua eneo la duka' : 'Choose shop location'}
+                  {locale === 'fr' ? 'Choisir l\'emplacement de la boutique' : locale === 'sw' ? 'Chagua eneo la duka' : 'Choose shop location'}
                 </button>
               )}
 
@@ -567,9 +588,9 @@ export function OnboardingPage() {
                 {tr('onboarding.continue')}
               </button>
 
-              <button onClick={() => { setSellerLocationData({ latitude: 0, longitude: 0, approximateAddress: '', locationName: 'skipped', province: '', commune: '', zone: '', landmark: '', directions: '', phone: '', meetAtPublicLandmark: false }); setStep('seller-details'); }}
+              <button onClick={() => { setSellerLocationData({ latitude: 0, longitude: 0, approximateAddress: '', locationName: 'skipped', province: '', commune: '', zone: '', landmark: '', landmarkPhoto: '', directions: '', phone: '', meetAtPublicLandmark: false }); setStep('seller-details'); }}
                 className="w-full text-center text-xs text-gray-400 hover:text-gray-600">
-                {locale === 'fr' ? 'Ajouter l\'emplacement plus tard' : locale === 'rn' ? 'Ongerera ahantu nyuma' : locale === 'sw' ? 'Ongeza eneo baadaye' : 'Add location later'}
+                {locale === 'fr' ? 'Ajouter l\'emplacement plus tard' : locale === 'sw' ? 'Ongeza eneo baadaye' : 'Add location later'}
               </button>
             </div>
           )}
@@ -582,14 +603,14 @@ export function OnboardingPage() {
                   <Building2 size={24} className="text-[#ff6a00]" />
                 </div>
                 <p className="text-sm text-gray-500">
-                  {locale === 'fr' ? 'Plus de détails sur votre commerce' : locale === 'rn' ? 'Amategeko y\'ubucuruzi bwawe' : locale === 'sw' ? 'Maelezo zaidi ya biashara yako' : 'More details about your business'}
+                  {locale === 'fr' ? 'Plus de détails sur votre commerce' : locale === 'sw' ? 'Maelezo zaidi ya biashara yako' : 'More details about your business'}
                 </p>
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-700">{locale === 'fr' ? 'Description du commerce' : locale === 'rn' ? 'Sobanuro ry\'ubucuruzi' : locale === 'sw' ? 'Maelezo ya biashara' : 'Business Description'}</label>
+                <label className="mb-2 block text-sm font-semibold text-gray-700">{locale === 'fr' ? 'Description du commerce' : locale === 'sw' ? 'Maelezo ya biashara' : 'Business Description'}</label>
                 <textarea value={businessDescription} onChange={(e) => setBusinessDescription(e.target.value)}
-                  placeholder={locale === 'fr' ? 'Décrivez votre commerce...' : locale === 'rn' ? 'Sobanura ubucuruzi bwawe...' : locale === 'sw' ? 'Eleza biashara yako...' : 'Describe your business, products, and services...'}
+                  placeholder={locale === 'fr' ? 'Décrivez votre commerce...' : locale === 'sw' ? 'Eleza biashara yako...' : 'Describe your business, products, and services...'}
                   rows={3} className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base outline-none focus:border-[#ff6a00] focus:ring-2 focus:ring-[#ff6a00]/20" />
               </div>
 
@@ -598,11 +619,11 @@ export function OnboardingPage() {
                 <div className="flex gap-3">
                   <button onClick={() => setOffersDelivery(true)}
                     className={`flex-1 h-12 rounded-xl border-2 text-base font-semibold transition-all ${offersDelivery === true ? 'border-[#1a5f4a] bg-[#1a5f4a]/5 text-[#1a5f4a]' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}`}>
-                    {locale === 'fr' ? 'Oui' : locale === 'rn' ? 'Ego' : locale === 'sw' ? 'Ndiyo' : 'Yes'}
+                    {locale === 'fr' ? 'Oui' : locale === 'sw' ? 'Ndiyo' : 'Yes'}
                   </button>
                   <button onClick={() => setOffersDelivery(false)}
                     className={`flex-1 h-12 rounded-xl border-2 text-base font-semibold transition-all ${offersDelivery === false ? 'border-[#1a5f4a] bg-[#1a5f4a]/5 text-[#1a5f4a]' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}`}>
-                    {locale === 'fr' ? 'Non' : locale === 'rn' ? 'Oya' : locale === 'sw' ? 'Hapana' : 'No'}
+                    {locale === 'fr' ? 'Non' : locale === 'sw' ? 'Hapana' : 'No'}
                   </button>
                 </div>
               </div>
@@ -612,11 +633,11 @@ export function OnboardingPage() {
                 <div className="flex gap-3">
                   <button onClick={() => setOffersPickup(true)}
                     className={`flex-1 h-12 rounded-xl border-2 text-base font-semibold transition-all ${offersPickup === true ? 'border-[#1a5f4a] bg-[#1a5f4a]/5 text-[#1a5f4a]' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}`}>
-                    {locale === 'fr' ? 'Oui' : locale === 'rn' ? 'Ego' : locale === 'sw' ? 'Ndiyo' : 'Yes'}
+                    {locale === 'fr' ? 'Oui' : locale === 'sw' ? 'Ndiyo' : 'Yes'}
                   </button>
                   <button onClick={() => setOffersPickup(false)}
                     className={`flex-1 h-12 rounded-xl border-2 text-base font-semibold transition-all ${offersPickup === false ? 'border-[#1a5f4a] bg-[#1a5f4a]/5 text-[#1a5f4a]' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}`}>
-                    {locale === 'fr' ? 'Non' : locale === 'rn' ? 'Oya' : locale === 'sw' ? 'Hapana' : 'No'}
+                    {locale === 'fr' ? 'Non' : locale === 'sw' ? 'Hapana' : 'No'}
                   </button>
                 </div>
               </div>
@@ -625,7 +646,7 @@ export function OnboardingPage() {
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-gray-700">{tr('onboarding.deliveryAreas')}</label>
                   <textarea value={deliveryAreas} onChange={(e) => setDeliveryAreas(e.target.value)}
-                    placeholder="e.g. Bujumbura Centre, Bujumbura Nord" rows={2}
+                    placeholder={tr('ui.egBujumburaCentreBujumburaNord')} rows={2}
                     className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base outline-none focus:border-[#ff6a00] focus:ring-2 focus:ring-[#ff6a00]/20" />
                 </div>
               )}
@@ -639,7 +660,7 @@ export function OnboardingPage() {
 
               <button onClick={handleSellerSubmit} disabled={loading}
                 className="h-13 w-full rounded-xl bg-[#ff6a00] text-base font-bold text-white hover:bg-[#e55f00] disabled:opacity-40">
-                {loading ? (locale === 'fr' ? 'Envoi…' : locale === 'rn' ? 'Kohereza…' : locale === 'sw' ? 'Inatuma…' : 'Submitting…') : tr('onboarding.submitForReview')}
+                {loading ? (locale === 'fr' ? 'Envoi…' : locale === 'sw' ? 'Inatuma…' : 'Submitting…') : tr('onboarding.submitForReview')}
               </button>
             </div>
           )}
@@ -730,6 +751,8 @@ export function OnboardingPage() {
           onCancel={() => setShowSellerLocationPicker(false)}
         />
       )}
+
+      <ConfirmDialog spec={confirm} onClose={() => setConfirm(null)} />
     </div>
   );
 }

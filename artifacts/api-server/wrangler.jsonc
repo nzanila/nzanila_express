@@ -5,7 +5,8 @@
   "compatibility_date": "2026-09-04",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
-    "SUPPLIER_ID": "1"
+    "SUPPLIER_ID": "1",
+    "FIREBASE_PROJECT_ID": "nzanila-express"
   },
   "ai": {
     "binding": "AI"

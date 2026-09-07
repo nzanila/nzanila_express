@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LocationMapPickerModal } from './location-map-picker';
 import { MapPin, Upload, Building2, Phone, Clock, CheckCircle, X } from 'lucide-react';
+import { useLocale, tg } from '@/lib/i18n/locale-context';
 
 interface BurundiProvince {
   id: number;
@@ -163,11 +164,11 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Profile Picture Upload */}
       <div>
-        <label className="mb-2 block text-sm font-semibold">Profile Picture / Logo</label>
+        <label className="mb-2 block text-sm font-semibold">{tg('ui.profilePictureLogo')}</label>
         <div className="flex items-center gap-4">
           <div className="h-20 w-20 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
             {profilePicture ? (
-              <img src={URL.createObjectURL(profilePicture)} alt="Profile" className="h-full w-full object-cover" />
+              <img src={URL.createObjectURL(profilePicture)} alt={tg('ui.profile')} className="h-full w-full object-cover" />
             ) : (
               <Building2 size={32} className="text-gray-400" />
             )}
@@ -187,41 +188,41 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
               <Upload size={16} />
               Upload Logo
             </label>
-            <p className="mt-1 text-xs text-muted-foreground">Recommended: Square image, max 2MB</p>
+            <p className="mt-1 text-xs text-muted-foreground">{tg('ui.recommendedSquareImageMax2mb')}</p>
           </div>
         </div>
       </div>
 
       {/* Basic Information */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Business Information</h3>
+        <h3 className="text-lg font-semibold">{tg('ui.businessInformation')}</h3>
         
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Full Name *</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.fullName')}</label>
           <input
             type="text"
             value={formData.fullName}
             onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-            placeholder="e.g. Jean Ndayisaba"
+            placeholder={tg('ui.egJeanNdayisaba')}
             className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             required
           />
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Business/Shop Name *</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.businessshopName')}</label>
           <input
             type="text"
             value={formData.businessName}
             onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
-            placeholder="e.g. Nzanila Electronics Shop"
+            placeholder={tg('ui.egNzanilaElectronicsShop')}
             className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             required
           />
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Phone Number *</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.phoneNumber')}</label>
           <div className="flex items-center rounded-xl border border-border bg-card focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
             <span className="border-r border-border px-3 text-sm font-semibold text-muted-foreground">+257</span>
             <input
@@ -236,11 +237,11 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Business Description</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.businessDescription')}</label>
           <textarea
             value={formData.businessDescription}
             onChange={(e) => setFormData({ ...formData, businessDescription: e.target.value })}
-            placeholder="Describe your business, products, and services..."
+            placeholder={tg('ui.describeYourBusinessProductsAndServices')}
             rows={3}
             className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
@@ -249,17 +250,17 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
 
       {/* Location Information */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Business Location</h3>
+        <h3 className="text-lg font-semibold">{tg('ui.businessLocation')}</h3>
         
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Province *</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.province')}</label>
           <select
             value={formData.provinceId}
             onChange={(e) => setFormData({ ...formData, provinceId: e.target.value })}
             className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             required
           >
-            <option value="">Select Province</option>
+            <option value="">{tg('ui.selectProvince')}</option>
             {provinces.map((province) => (
               <option key={province.id} value={province.id}>
                 {province.name}
@@ -269,7 +270,7 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Commune/City *</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.communecity')}</label>
           <select
             value={formData.communeId}
             onChange={(e) => setFormData({ ...formData, communeId: e.target.value })}
@@ -277,7 +278,7 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
             required
             disabled={!formData.provinceId}
           >
-            <option value="">Select Commune</option>
+            <option value="">{tg('ui.selectCommune')}</option>
             {communes.map((commune) => (
               <option key={commune.id} value={commune.id}>
                 {commune.name}
@@ -287,7 +288,7 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Zone/Quartier *</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.zonequartier')}</label>
           <select
             value={formData.zoneId}
             onChange={(e) => setFormData({ ...formData, zoneId: e.target.value })}
@@ -295,7 +296,7 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
             required
             disabled={!formData.communeId}
           >
-            <option value="">Select Zone</option>
+            <option value="">{tg('ui.selectZone')}</option>
             {zones.map((zone) => (
               <option key={zone.id} value={zone.id}>
                 {zone.name}
@@ -305,12 +306,12 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Nearest Landmark *</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.nearestLandmark')}</label>
           <input
             type="text"
             value={formData.landmark}
             onChange={(e) => setFormData({ ...formData, landmark: e.target.value })}
-            placeholder="e.g. Near Hotel Club du Lac, Next to Total Station"
+            placeholder={tg('ui.egNearHotelClubDuLac')}
             className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             required
           />
@@ -318,7 +319,7 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
 
         {/* Map Location Picker */}
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Shop Location on Map (Optional)</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.shopLocationOnMapOptional')}</label>
           <button
             type="button"
             onClick={() => setShowMapPicker(true)}
@@ -328,7 +329,7 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
             {formData.shopLatitude && formData.shopLongitude ? (
               <span>Update Location ({formData.shopLatitude.toFixed(4)}, {formData.shopLongitude.toFixed(4)})</span>
             ) : (
-              <span>Select Location on Map</span>
+              <span>{tg('ui.selectLocationOnMap')}</span>
             )}
           </button>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -339,7 +340,7 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
 
       {/* Shop Pictures Upload */}
       <div>
-        <label className="mb-2 block text-sm font-semibold">Shop/Business Pictures</label>
+        <label className="mb-2 block text-sm font-semibold">{tg('ui.shopbusinessPictures')}</label>
         <div className="grid grid-cols-3 gap-3">
           {[0, 1, 2].map((index) => (
             <div
@@ -351,7 +352,7 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
               ) : (
                 <div className="text-center">
                   <Upload size={24} className="mx-auto text-muted-foreground" />
-                  <p className="mt-1 text-xs text-muted-foreground">Upload</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{tg('ui.upload')}</p>
                 </div>
               )}
             </div>
@@ -364,7 +365,7 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
 
       {/* Delivery Options */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Delivery Options</h3>
+        <h3 className="text-lg font-semibold">{tg('ui.deliveryOptions')}</h3>
         
         <div className="space-y-3">
           <label className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 cursor-pointer hover:border-primary/50">
@@ -375,8 +376,8 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
               className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
             />
             <div>
-              <p className="font-semibold">Offer Delivery</p>
-              <p className="text-sm text-muted-foreground">Deliver products to customers</p>
+              <p className="font-semibold">{tg('ui.offerDelivery')}</p>
+              <p className="text-sm text-muted-foreground">{tg('ui.deliverProductsToCustomers')}</p>
             </div>
           </label>
 
@@ -388,8 +389,8 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
               className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
             />
             <div>
-              <p className="font-semibold">Offer Pickup</p>
-              <p className="text-sm text-muted-foreground">Allow customers to pick up orders</p>
+              <p className="font-semibold">{tg('ui.offerPickup')}</p>
+              <p className="text-sm text-muted-foreground">{tg('ui.allowCustomersToPickUpOrders')}</p>
             </div>
           </label>
         </div>
@@ -397,7 +398,7 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
 
       {/* Opening Hours */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Opening Hours</h3>
+        <h3 className="text-lg font-semibold">{tg('ui.openingHours')}</h3>
         <div className="space-y-2">
           {Object.entries(formData.openingHours).map(([day, hours]: [string, any]) => (
             <div key={day} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
@@ -449,7 +450,7 @@ export function SellerProfileForm({ onSubmit, initialData }: SellerProfileFormPr
                   />
                 </>
               )}
-              {hours.closed && <span className="text-sm text-muted-foreground">Closed</span>}
+              {hours.closed && <span className="text-sm text-muted-foreground">{tg('ui.closed')}</span>}
             </div>
           ))}
         </div>

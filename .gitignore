@@ -51,3 +51,10 @@ Thumbs.db
 .wrangler
 dev.db
 *.db
+
+# Secrets - never commit
+.dev.vars
+*.dev.vars
+.env
+.env.*
+!.env.example

@@ -68,7 +68,9 @@ import {
   SectionHeading,
   SkeletonBlock,
 } from '@/components/marketplace-shell';
-import { useLocale } from '@/lib/i18n/locale-context';
+import { useLocale, tg } from '@/lib/i18n/locale-context';
+import { TranslatableText } from '@/components/translatable-text';
+import { ProductReviews } from '@/components/product-reviews';
 import { readSearchHistory, recordSearch, clearSearchHistory } from '@/lib/search-history';
 import { LocationSearchPicker, type LocationData } from '@/components/location-search-picker';
 
@@ -166,6 +168,7 @@ function soldCount(product: Product): number | null {
 
 import { ProductCard as SellerProductCard, ProductCardGrid } from '@/components/product-card';
 import { SellerWorkspace } from '@/components/seller-workspace';
+import { ConfirmDialog, type ConfirmSpec } from '@/components/confirm-dialog';
 
 function ProductImage({
   product,
@@ -200,10 +203,18 @@ function ProductImage({
 function ProductCard({ product }: { product: Product }) {
   const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [added, setAdded] = useState(false);
   const add = useAddCartItem();
   const { tr } = useLocale();
-  const addToCart = () =>
+  const addToCart = () => {
+    // The button stays visible signed out — hiding it made the card look like the product
+    // could not be bought at all. Clicking sends the visitor to sign in and brings them
+    // back to this product afterwards, so the intent to buy is not lost.
+    if (!isAuthenticated) {
+      setLocation(`/auth?next=${encodeURIComponent(`/products/${product.id}`)}`);
+      return;
+    }
     add.mutate(
       {
         data: { productId: product.id, quantity: Math.max(product.moq, 1) },
@@ -217,6 +228,8 @@ function ProductCard({ product }: { product: Product }) {
         },
       }
     );
+  };
+
   const sold = soldCount(product);
   const priceHigh = product.compareAtPrice && product.compareAtPrice > product.price ? product.compareAtPrice : null;
   const discount = priceHigh ? Math.round(((priceHigh - product.price) / priceHigh) * 100) : 0;
@@ -240,7 +253,7 @@ function ProductCard({ product }: { product: Product }) {
           className="line-clamp-2 min-h-10 text-sm font-normal leading-5 text-card-foreground hover:text-primary transition-colors"
           data-testid={`link-product-name-${product.id}`}
         >
-          {product.name}
+          <TranslatableText text={product.name} controls={false} />
         </Link>
         {discount > 0 && (
           <div className="mt-1 text-xs text-orange-600">
@@ -269,7 +282,7 @@ function ProductCard({ product }: { product: Product }) {
             </span>
           )}
         </div>
-        {isAuthenticated && <button
+        <button
           onClick={addToCart}
           disabled={add.isPending || added || product.stock < Math.max(product.moq, 1)}
           aria-label={added ? 'Added to cart' : `Add ${product.name} to cart`}
@@ -294,7 +307,7 @@ function ProductCard({ product }: { product: Product }) {
               <ShoppingBag size={16} />
             </>
           )}
-        </button>}
+        </button>
         {add.isError && <p role="alert" className="mt-2 text-xs text-red-600">{(add.error as any)?.message || "Couldn’t add this product. Check available stock."}</p>}
       </div>
     </article>
@@ -328,6 +341,7 @@ function ProductGrid({
   products?: Product[];
   loading?: boolean;
 }) {
+  const { tr } = useLocale();
   if (loading)
     return (
       <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -350,7 +364,7 @@ function ProductGrid({
     return (
       <div className="col-span-full rounded-xl border border-dashed border-border bg-card p-12 text-center">
         <Layers3 className="mx-auto text-muted-foreground" size={28} />
-        <p className="mt-3 text-lg font-bold">Nothing in this lane yet</p>
+        <p className="mt-3 text-lg font-bold">{tr('ui.nothingInThisLaneYet')}</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Try a different search or category.
         </p>
@@ -380,14 +394,14 @@ export function HomePage() {
         <section className="rounded-lg bg-[#f3f3f3] p-3 sm:p-4">
           <div className="mb-4 flex items-end justify-between">
             <h2 className="text-lg font-bold text-card-foreground">
-              Products from Nzanila stores
+              {tr('ui.productsFromNzanilaStores')}
             </h2>
             <Link
               href="/products"
               className="text-xs font-bold text-primary hover:underline"
               data-testid="link-shop-all"
             >
-              {tr('home.viewAll')} <ArrowUpRight size={14} />
+              {tg('home.viewAll')} <ArrowUpRight size={14} />
             </Link>
           </div>
           {isError ? (
@@ -402,18 +416,20 @@ export function HomePage() {
 }
 
 function SearchHistoryCard({ term }: { term: string }) {
+  const { tr } = useLocale();
   const { data: matches, isLoading, isError } = useListProducts({ search: term });
   const product = matches?.[0];
   return <Link href={'/products?search=' + encodeURIComponent(term)} className="flex h-[190px] min-w-0 flex-col rounded-lg border border-border bg-card p-2 hover:border-primary">
-    <p className="text-xs font-bold">Keep looking for</p><p className="mb-2 truncate text-sm">{term}</p>
+    <p className="text-xs font-bold">{tr('ui.keepLookingFor')}</p><p className="mb-2 truncate text-sm">{term}</p>
     <div className="relative grid min-h-0 flex-1 place-items-center overflow-hidden rounded bg-muted">
-      {isLoading ? <span className="text-xs">Loading…</span> : product?.image ? <img src={product.image} alt={product.name} className="h-full w-full object-contain" /> : <span className="px-2 text-center text-xs">{isError ? 'Search again' : product ? product.name : 'See search results'}</span>}
+      {isLoading ? <span className="text-xs">{tr('ui.loading2')}</span> : product?.image ? <img src={product.image} alt={product.name} className="h-full w-full object-contain" /> : <span className="px-2 text-center text-xs">{isError ? 'Search again' : product ? product.name : 'See search results'}</span>}
       {product && <span className="absolute bottom-2 rounded-full bg-white px-2 py-1 text-xs font-bold">{money(product.price)}</span>}
     </div>
   </Link>;
 }
 
 function DiscoveryStrip({ products, loading }: { products?: Product[]; loading?: boolean }) {
+  const { tr } = useLocale();
   const [history, setHistory] = useState(readSearchHistory);
   useEffect(() => {
     const refresh = () => setHistory(readSearchHistory());
@@ -424,9 +440,9 @@ function DiscoveryStrip({ products, loading }: { products?: Product[]; loading?:
       window.removeEventListener('storage', refresh);
     };
   }, []);
-  return <section aria-label="Recent product searches">
-    <div className="mb-2 flex items-center justify-between gap-2"><h2 className="text-sm font-bold">Your recent searches</h2>{history.length > 0 && <button onClick={clearSearchHistory} className="text-xs underline">Clear history</button>}</div>
-    {history.length ? <div className="grid grid-cols-3 gap-2 sm:gap-3">{history.slice(0, 3).map((entry) => <SearchHistoryCard key={entry.term} term={entry.term} />)}</div> : <div className="flex h-[190px] flex-col items-center justify-center rounded-lg border border-dashed border-border bg-white p-4 text-center"><Search size={24} className="mb-3 text-muted-foreground" /><p className="text-sm font-semibold">Pick up where you left off</p><p className="mt-1 text-xs text-muted-foreground">Search for a product to see it here. History is saved in this browser.</p></div>}
+  return <section aria-label={tr('ui.recentProductSearches')}>
+    <div className="mb-2 flex items-center justify-between gap-2"><h2 className="text-sm font-bold">{tr('ui.yourRecentSearches')}</h2>{history.length > 0 && <button onClick={clearSearchHistory} className="text-xs underline">{tr('ui.clearHistory')}</button>}</div>
+    {history.length ? <div className="grid grid-cols-3 gap-2 sm:gap-3">{history.slice(0, 3).map((entry) => <SearchHistoryCard key={entry.term} term={entry.term} />)}</div> : <div className="flex h-[190px] flex-col items-center justify-center rounded-lg border border-dashed border-border bg-white p-4 text-center"><Search size={24} className="mb-3 text-muted-foreground" /><p className="text-sm font-semibold">{tr('ui.pickUpWhereYouLeftOff')}</p><p className="mt-1 text-xs text-muted-foreground">{tr('ui.searchForAProductToSee')}</p></div>}
   </section>;
 }
 
@@ -455,6 +471,7 @@ function SupplierMini({ supplier }: { supplier: Supplier }) {
 }
 
 export function ProductsPage() {
+  const { tr } = useLocale();
   const params = new URLSearchParams(
     typeof window !== 'undefined' ? window.location.search : ''
   );
@@ -516,7 +533,7 @@ export function ProductsPage() {
       <div className="bg-[#f3f3f3] px-4 py-6 lg:px-8">
         <PageIntro
           eyebrow="Marketplace catalog"
-          title="Products for every scale"
+          title={tr('ui.productsForEveryScale')}
           description="Compare price, minimums, and supplier reliability in one clear view."
           action={
             <button
@@ -535,20 +552,20 @@ export function ProductsPage() {
             className="h-11 rounded-lg border border-border bg-card px-3 text-sm font-semibold outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all"
             data-testid="select-sort-products"
           >
-            <option value="rating">Top rated</option>
-            <option value="price-low">Price: low to high</option>
-            <option value="price-high">Price: high to low</option>
+            <option value="rating">{tr('ui.topRated')}</option>
+            <option value="price-low">{tr('ui.priceLowToHigh')}</option>
+            <option value="price-high">{tr('ui.priceHighToLow')}</option>
           </select>
         </div>
         <div className="grid items-start gap-5 lg:grid-cols-[210px_minmax(0,1fr)]">
           <aside className={`${filtersOpen ? 'block' : 'hidden'} rounded-xl border border-border bg-card p-4 lg:sticky lg:top-4 lg:block`}>
-            <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold">Filters</h2><button className="text-xs text-muted-foreground lg:hidden" onClick={() => setFiltersOpen(false)}>Close</button></div>
-            <div className="border-b border-border pb-4"><p className="mb-2 text-sm font-bold">Categories</p><div className="max-h-72 space-y-1 overflow-y-auto pr-1">
-              <button onClick={() => setCategory('')} className={`block w-full rounded px-2 py-1.5 text-left text-sm ${!category ? 'bg-primary/10 font-bold text-primary' : 'hover:bg-muted'}`}>All products</button>
+            <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold">{tr('ui.filters')}</h2><button className="text-xs text-muted-foreground lg:hidden" onClick={() => setFiltersOpen(false)}>{tr('ui.close')}</button></div>
+            <div className="border-b border-border pb-4"><p className="mb-2 text-sm font-bold">{tr('ui.categories')}</p><div className="max-h-72 space-y-1 overflow-y-auto pr-1">
+              <button onClick={() => setCategory('')} className={`block w-full rounded px-2 py-1.5 text-left text-sm ${!category ? 'bg-primary/10 font-bold text-primary' : 'hover:bg-muted'}`}>{tr('ui.allProducts')}</button>
               {(categories ?? []).map((item) => <button key={item.id} onClick={() => { setCategory(category === item.name ? '' : item.name); setFiltersOpen(false); }} className={`block w-full rounded px-2 py-1.5 text-left text-sm ${category === item.name ? 'bg-primary/10 font-bold text-primary' : 'hover:bg-muted'}`} data-testid={`filter-category-${item.id}`}>{item.name}</button>)}
             </div></div>
-            <div className="border-b border-border py-4"><p className="mb-2 text-sm font-bold">Supplier types</p><label className="flex items-center gap-2 py-1 text-sm"><input type="checkbox" checked={tradeAssurance} onChange={(e) => setTradeAssurance(e.target.checked)} /> Trade Assurance</label><label className="flex items-center gap-2 py-1 text-sm"><input type="checkbox" checked={verifiedOnly} onChange={(e) => setVerifiedOnly(e.target.checked)} /> Verified supplier</label></div>
-            <div className="pt-4"><p className="mb-2 text-sm font-bold">Min. order</p><div className="flex gap-2"><input value={minOrder} onChange={(e) => setMinOrder(e.target.value.replace(/[^0-9]/g, ''))} placeholder="Max" className="w-full rounded border border-border bg-background px-2 py-1.5 text-sm" /><button onClick={() => setMinOrder(minOrder)} className="rounded border border-border px-2 text-xs font-bold">OK</button></div></div>
+            <div className="border-b border-border py-4"><p className="mb-2 text-sm font-bold">{tr('ui.supplierTypes')}</p><label className="flex items-center gap-2 py-1 text-sm"><input type="checkbox" checked={tradeAssurance} onChange={(e) => setTradeAssurance(e.target.checked)} /> {tr('ui.tradeAssurance')}</label><label className="flex items-center gap-2 py-1 text-sm"><input type="checkbox" checked={verifiedOnly} onChange={(e) => setVerifiedOnly(e.target.checked)} /> {tr('ui.verifiedSupplier')}</label></div>
+            <div className="pt-4"><p className="mb-2 text-sm font-bold">{tr('ui.minOrder')}</p><div className="flex gap-2"><input value={minOrder} onChange={(e) => setMinOrder(e.target.value.replace(/[^0-9]/g, ''))} placeholder={tr('ui.max')} className="w-full rounded border border-border bg-background px-2 py-1.5 text-sm" /><button onClick={() => setMinOrder(minOrder)} className="rounded border border-border px-2 text-xs font-bold">OK</button></div></div>
           </aside>
           <section className="min-w-0">
             {isError ? <ErrorState onRetry={() => refetch()} /> : <>
@@ -605,6 +622,12 @@ export function ProductDetailPage() {
 
   const addToCart = useCallback(() => {
     if (!product) return;
+    // Signed out: keep the intent by sending them to sign in and back to this product,
+    // rather than hiding the button and leaving the page looking unbuyable.
+    if (!isAuthenticated) {
+      setLocation(`/auth?next=${encodeURIComponent(`/products/${productId}`)}`);
+      return;
+    }
 
     add.mutate(
       {
@@ -625,7 +648,7 @@ export function ProductDetailPage() {
         },
       }
     );
-  }, [add, product, quantity, queryClient]);
+  }, [add, product, quantity, queryClient, isAuthenticated, setLocation, productId]);
 
   useEffect(() => {
     if (!add.isSuccess) return;
@@ -737,8 +760,8 @@ export function ProductDetailPage() {
               </div>
             </div>
 
-            {galleryOpen && selectedImage && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-4" role="dialog" aria-modal="true" aria-label="Product image viewer" onClick={() => setGalleryOpen(false)}>
-              <button type="button" className="absolute right-4 top-4 rounded-full bg-white/15 p-2 text-white hover:bg-white/25" aria-label="Close image viewer" onClick={() => setGalleryOpen(false)}><X size={22} /></button>
+            {galleryOpen && selectedImage && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-4" role="dialog" aria-modal="true" aria-label={tr('ui.productImageViewer')} onClick={() => setGalleryOpen(false)}>
+              <button type="button" className="absolute right-4 top-4 rounded-full bg-white/15 p-2 text-white hover:bg-white/25" aria-label={tr('ui.closeImageViewer')} onClick={() => setGalleryOpen(false)}><X size={22} /></button>
               <img src={selectedImage} alt={product.name} className="max-h-[90vh] max-w-full object-contain" onClick={(event) => event.stopPropagation()} onError={() => { markBrokenImage(selectedImage); setGalleryOpen(false); }} />
             </div>}
 
@@ -777,7 +800,7 @@ export function ProductDetailPage() {
                 </div>
                 <div className="min-w-0 rounded-lg bg-background p-2 text-center">
                   <p className="text-[11px] font-bold text-foreground">{(product as any).storeProductCount || 0}</p>
-                  <p className="text-[10px] text-muted-foreground">Products</p>
+                  <p className="text-[10px] text-muted-foreground">{tr('ui.products')}</p>
                 </div>
                 <div className="min-w-0 rounded-lg bg-background p-2 text-center">
                   <p className="text-[11px] font-bold text-foreground">{product.stock.toLocaleString()}</p>
@@ -797,7 +820,7 @@ export function ProductDetailPage() {
 
             {/* Title */}
             <h1 className="max-w-2xl text-xl font-bold leading-tight text-foreground sm:text-2xl lg:text-3xl">
-              {product.name}
+              <TranslatableText text={product.name} controls={false} />
             </h1>
 
             {/* Rating + stats */}
@@ -837,8 +860,9 @@ export function ProductDetailPage() {
                 <strong className="text-foreground">{product.moq} {product.unit}</strong>
               </div>
 
-              {/* Quantity + buttons */}
-              {isAuthenticated && <>
+              {/* Quantity + buttons — shown signed out too; the handlers send the
+                  visitor to sign in and return them here afterwards. */}
+              <>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <div className="flex h-11 items-center rounded-lg border border-border bg-background sm:h-12">
                   <button
@@ -897,6 +921,10 @@ export function ProductDetailPage() {
                       setLocation('/cart');
                       return;
                     }
+                    if (!isAuthenticated) {
+                      setLocation(`/auth?next=${encodeURIComponent(`/products/${productId}`)}`);
+                      return;
+                    }
                     if (add.isPending) return;
                     addToCart();
                     setTimeout(() => setLocation('/cart'), 400);
@@ -928,7 +956,7 @@ export function ProductDetailPage() {
                   {tr('cart.view')} <ArrowRight size={14} />
                 </button>
               )}
-              </>}
+              </>
             </div>
 
             {/* Key attributes — inline, not in tabs */}
@@ -963,26 +991,26 @@ export function ProductDetailPage() {
           <div className="space-y-4">
             {/* Fulfillment panel — values come from the seller's listing */}
             <div className="rounded-xl border border-border bg-card p-4">
-              <p className="text-sm font-bold text-foreground">Fulfillment information</p>
+              <p className="text-sm font-bold text-foreground">{tr('ui.fulfillmentInformation')}</p>
               <div className="mt-3 space-y-3">
                 <div className="flex gap-3">
                   <Truck size={18} className="mt-0.5 flex-shrink-0 text-emerald-600" />
                   <div>
-                    <p className="text-xs font-bold text-foreground">Delivery</p>
+                    <p className="text-xs font-bold text-foreground">{tr('ui.delivery')}</p>
                     <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{(product as any).deliveryAvailable ? (product.shipping || 'Seller delivery available') : 'Not offered by this seller'}</p>
                   </div>
                 </div>
                 <div className="flex gap-3">
                   <Store size={18} className="mt-0.5 flex-shrink-0 text-emerald-600" />
                   <div>
-                    <p className="text-xs font-bold text-foreground">Pickup</p>
+                    <p className="text-xs font-bold text-foreground">{tr('ui.pickup')}</p>
                     <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{(product as any).pickupAvailable ? 'Buyer pickup available at the store' : 'Not offered by this seller'}</p>
                   </div>
                 </div>
                 <div className="flex gap-3">
                   <PackageCheck size={18} className="mt-0.5 flex-shrink-0 text-emerald-600" />
                   <div>
-                    <p className="text-xs font-bold text-foreground">Availability</p>
+                    <p className="text-xs font-bold text-foreground">{tr('ui.availability')}</p>
                     <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{product.stock.toLocaleString()} units currently listed</p>
                   </div>
                 </div>
@@ -1030,9 +1058,9 @@ export function ProductDetailPage() {
           <div className="mt-6">
             {activeTab === 'description' && (
               <div className="max-w-none text-muted-foreground">
-                <p className="text-sm leading-7">
-                  {product.description || 'The seller has not provided a product description yet.'}
-                </p>
+                {product.description
+                  ? <TranslatableText as="p" className="text-sm leading-7" text={product.description} />
+                  : <p className="text-sm leading-7">{tr('ui.theSellerHasNotProvidedAProduct')}</p>}
               </div>
             )}
 
@@ -1117,6 +1145,8 @@ export function ProductDetailPage() {
                 </div>
               </div>
             )}
+
+            <ProductReviews productId={product.id} />
           </div>
         </div>
 
@@ -1152,6 +1182,7 @@ export function ProductDetailPage() {
 }
 
 export function CartPage() {
+  const { tr } = useLocale();
   const { user, session, refreshUser } = useAuth();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
@@ -1286,7 +1317,7 @@ export function CartPage() {
         <div className="px-5 py-10 lg:px-10">
           <PageIntro
             eyebrow="Your cart"
-            title="Loading your order"
+            title={tr('ui.loadingYourOrder')}
           />
           <SkeletonBlock className="h-48" />
         </div>
@@ -1443,12 +1474,12 @@ export function CartPage() {
                     <span>{money(cartSubtotal)}</span>
                   </div>
                   <div className="flex justify-between border-t border-border pt-4 font-display text-xl font-bold">
-                    <span>Total</span>
+                    <span>{tr('ui.total')}</span>
                     <span>{money(cartTotal)}</span>
                   </div>
                 </div>
                 <div className="mt-7 space-y-3 border-t border-border pt-5">
-                  <p className="text-xs font-bold">Checkout by store</p>
+                  <p className="text-xs font-bold">{tr('ui.checkoutByStore')}</p>
                   {storeGroups.map((group) => (
                     <div key={group.storeName} className="rounded-xl border border-border p-3">
                       <div className="flex items-center justify-between gap-3">
@@ -1466,7 +1497,7 @@ export function CartPage() {
                       </div>
                     </div>
                   ))}
-                  <p className="text-center text-[10px] text-muted-foreground">Each store has its own delivery or pickup choice.</p>
+                  <p className="text-center text-[10px] text-muted-foreground">{tr('ui.eachStoreHasItsOwnDelivery')}</p>
                 </div>
               </aside>
             </div>
@@ -1492,13 +1523,13 @@ export function CartPage() {
                   type="button"
                   onClick={() => setCheckoutStore(null)}
                   className="rounded-lg p-1.5 text-muted-foreground"
-                  aria-label="Close checkout"
+                  aria-label={tr('ui.closeCheckout')}
                   data-testid="button-close-checkout"
                 >
                   <X size={18} />
                 </button>
               </div>
-              <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs text-blue-900"><strong>Choose delivery after placing the order</strong><p className="mt-1">After the seller receives this order, choose delivery or store pickup and provide your location from the order details page.</p></div>
+              <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs text-blue-900"><strong>{tr('ui.chooseDeliveryAfterPlacingTheOrder')}</strong><p className="mt-1">After the seller receives this order, choose delivery or store pickup and provide your location from the order details page.</p></div>
               <div className="mt-5 rounded-xl bg-secondary p-4 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">
@@ -1508,7 +1539,7 @@ export function CartPage() {
                 </div>
               </div>
               <label className="mt-4 flex items-start gap-2 text-xs text-muted-foreground"><input type="checkbox" required checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="mt-0.5" /><span>I confirm these items and agree to continue to fulfillment after placing the order.</span></label>
-              {create.isError && <p role="alert" className="mt-4 text-sm text-red-600">Could not place your order. Please try again.</p>}
+              {create.isError && <p role="alert" className="mt-4 text-sm text-red-600">{tr('ui.couldNotPlaceYourOrderPlease')}</p>}
               <div className="mt-5 flex gap-3">
                 <button
                   type="button"
@@ -1542,13 +1573,14 @@ export function CartPage() {
 }
 
 export function OrdersPage() {
+  const { tr } = useLocale();
   const [filter, setFilter] = useState<'all' | 'processing' | 'shipped' | 'delivered' | 'cancelled'>('all');
   const {
     data: orders,
     isLoading,
     isError,
     refetch,
-  } = useListOrders();
+  } = useListOrders({ query: { refetchInterval: 10000 } });
   const visibleOrders = useMemo(() => {
     if (!orders) return [];
     if (filter === 'all') return orders;
@@ -1556,12 +1588,20 @@ export function OrdersPage() {
     if (filter === 'shipped') return orders.filter((order) => order.status === 'shipped' || order.status === 'out_for_delivery');
     return orders.filter((order) => order.status === filter);
   }, [orders, filter]);
+  // Per-tab counts, so buyers can see where their orders are without clicking each tab.
+  const countFor = (value: typeof filter) => {
+    if (!orders) return 0;
+    if (value === 'all') return orders.length;
+    if (value === 'processing') return orders.filter((order) => ['confirmed', 'processing', 'ready', 'preparing', 'pending'].includes(order.status)).length;
+    if (value === 'shipped') return orders.filter((order) => ['shipped', 'out_for_delivery'].includes(order.status)).length;
+    return orders.filter((order) => order.status === value).length;
+  };
   return (
     <BuyerWorkspace active="orders">
       <div className="space-y-5">
         <PageIntro
           eyebrow="Buyer workspace"
-          title="Your orders"
+          title={tr('ui.yourOrders')}
           description="Review processing, shipping, and delivery in one place."
           action={
             <Link
@@ -1573,18 +1613,23 @@ export function OrdersPage() {
             </Link>
           }
         />
-        <div className="mb-5 flex overflow-x-auto gap-2 rounded-2xl border border-border bg-card p-2 shadow-sm" role="tablist" aria-label="Order status filters">
+        <div className="mb-5 flex gap-2 overflow-x-auto rounded-2xl border border-border bg-card p-2 shadow-sm" role="tablist" aria-label={tr('ui.orderStatusFilters')}>
           {([
             ['all', 'All orders'],
             ['processing', 'Processing'],
             ['shipped', 'Shipped'],
             ['delivered', 'Delivered'],
             ['cancelled', 'Cancelled'],
-          ] as const).map(([value, label]) => (
-            <button key={value} type="button" role="tab" aria-selected={filter === value} onClick={() => setFilter(value)} className={`min-h-11 shrink-0 rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${filter === value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
-              {label}
-            </button>
-          ))}
+          ] as const).map(([value, label]) => {
+            const count = countFor(value);
+            const selected = filter === value;
+            return (
+              <button key={value} type="button" role="tab" aria-selected={selected} onClick={() => setFilter(value)} className={`flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${selected ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+                {label}
+                {count > 0 && <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${selected ? 'bg-primary-foreground/20' : 'bg-secondary'}`}>{count}</span>}
+              </button>
+            );
+          })}
         </div>
         {isError ? (
           <ErrorState onRetry={() => refetch()} />
@@ -1603,7 +1648,7 @@ export function OrdersPage() {
           <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center shadow-sm">
             <Truck className="mx-auto text-muted-foreground" size={30} />
             <p className="mt-4 font-display text-xl font-bold text-card-foreground">No {filter.replace('_', ' ')} orders</p>
-            <p className="mt-2 text-sm text-muted-foreground">Orders will appear here when they move into this stage.</p>
+            <p className="mt-2 text-sm text-muted-foreground">{tr('ui.ordersWillAppearHereWhenThey')}</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -1638,109 +1683,161 @@ function EmptyOrders() {
   );
 }
 
+// Buyer-facing order card. Four visible stages, human-readable status, and the
+// actual items on the order — the things a buyer scans for.
+const ORDER_STEPS = ['Placed', 'Processing', 'Shipped', 'Delivered'] as const;
+
+function orderStage(status: string) {
+  if (['delivered'].includes(status)) return 3;
+  if (['shipped', 'out_for_delivery'].includes(status)) return 2;
+  if (['processing', 'preparing', 'ready', 'confirmed'].includes(status)) return 1;
+  return 0;
+}
+
+function orderStatusMeta(status: string) {
+  const map: Record<string, { label: string; className: string }> = {
+    pending: { label: 'Awaiting confirmation', className: 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-400' },
+    confirmed: { label: 'Confirmed', className: 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-400' },
+    processing: { label: 'Being prepared', className: 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-400' },
+    preparing: { label: 'Being prepared', className: 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-400' },
+    ready: { label: 'Ready for pickup', className: 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-400' },
+    shipped: { label: 'On the way', className: 'bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-400' },
+    out_for_delivery: { label: 'Out for delivery', className: 'bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-400' },
+    delivered: { label: 'Delivered', className: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400' },
+    cancelled: { label: 'Cancelled', className: 'bg-destructive/10 text-destructive' },
+  };
+  return map[status] || { label: status.replace(/_/g, ' '), className: 'bg-secondary text-muted-foreground' };
+}
+
 function OrderCard({ order }: { order: Order }) {
-  const confirmDelivery = useUpdateOrderStatus();
-  const statusColor =
-    order.status === 'delivered'
-      ? 'text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950'
-      : order.status === 'cancelled'
-        ? 'text-destructive bg-destructive/10'
-        : 'text-primary bg-primary/10';
+  const { tr } = useLocale();
+  const updateStatus = useUpdateOrderStatus();
+  const meta = orderStatusMeta(order.status);
+  const stage = orderStage(order.status);
+  const cancelled = order.status === 'cancelled';
+  const items = order.items || [];
+  const preview = items.slice(0, 2);
+  const suppliers = Array.from(new Set(items.map((item) => item.supplierName).filter(Boolean)));
+  const canCancel = ['pending', 'processing', 'confirmed', 'preparing', 'ready'].includes(order.status);
+  const [confirm, setConfirm] = useState<ConfirmSpec | null>(null);
+
   return (
-    <article
-      className="rounded-2xl border border-border bg-card p-6 transition-all duration-300 hover:shadow-md hover:border-border/80"
-      data-testid={`card-order-${order.id}`}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="font-mono text-xs font-bold text-muted-foreground">
-              ORDER #{String(order.id).padStart(5, '0')}
-            </p>
-            <span
-              className={`rounded-full px-3 py-1.5 font-mono text-[10px] font-bold uppercase ${statusColor}`}
-              data-testid={`status-order-${order.id}`}
-            >
-              {order.status}
+    <article className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md" data-testid={`card-order-${order.id}`}>
+      {/* Header strip: identity + status, the two things scanned first */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border bg-secondary/40 px-4 py-3 sm:px-5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="font-mono text-xs font-bold text-foreground">#{String(order.id).padStart(5, '0')}</span>
+          <span className="text-xs text-muted-foreground">{formatDate(order.date)}</span>
+          {suppliers.length > 0 && (
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+              <Store size={12} className="shrink-0" />
+              <span className="max-w-[180px] truncate">{suppliers.join(', ')}</span>
             </span>
-          </div>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {formatDate(order.date)} · {order.destination}
-          </p>
-          <p className="mt-1 text-xs font-semibold text-primary">
-            {Array.from(new Set((order.items || []).map((item) => item.supplierName).filter(Boolean))).join(', ') || 'Store order'}
-          </p>
+          )}
         </div>
-        <p className="font-display text-2xl font-bold text-card-foreground">
-          {money(order.total)}
-        </p>
+        <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${meta.className}`} data-testid={`status-order-${order.id}`}>
+          {meta.label}
+        </span>
       </div>
-      <div className="mt-6 flex items-center gap-2">
-        {['pending', 'processing', 'shipped', 'delivered'].map(
-          (step, i) => (
-            <div key={step} className="flex flex-1 items-center gap-2">
-              <div
-                className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                  [
-                    'pending',
-                    'processing',
-                    'shipped',
-                    'delivered',
-                  ].indexOf(order.status) >= i
-                    ? 'bg-primary'
-                    : 'bg-border'
-                }`}
-              />
-              <div
-                className={`h-1.5 flex-1 rounded-full ${
-                  [
-                    'pending',
-                    'processing',
-                    'shipped',
-                    'delivered',
-                  ].indexOf(order.status) > i
-                    ? 'bg-primary'
-                    : 'bg-secondary'
-                }`}
-              />
-            </div>
-          )
+
+      <div className="p-4 sm:p-5">
+        {/* What was actually ordered */}
+        <ul className="space-y-3">
+          {preview.map((item) => (
+            <li key={item.id} className="flex items-center gap-3">
+              {item.productImage ? (
+                <img src={item.productImage} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-xl border border-border object-cover" />
+              ) : (
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-secondary text-muted-foreground">
+                  <ShoppingBag size={18} />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-card-foreground">{item.productName}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Qty {item.quantity} · {money(item.unitPrice)} each</p>
+              </div>
+              <p className="shrink-0 text-sm font-semibold text-card-foreground">{money(item.unitPrice * item.quantity)}</p>
+            </li>
+          ))}
+          {items.length > preview.length && (
+            <li className="pl-15 text-xs font-medium text-muted-foreground">+ {items.length - preview.length} more item{items.length - preview.length === 1 ? '' : 's'}</li>
+          )}
+          {!items.length && <li className="text-sm text-muted-foreground">{order.itemCount} item{order.itemCount === 1 ? '' : 's'}</li>}
+        </ul>
+
+        {/* Progress: labelled stages, not anonymous dots. Hidden once cancelled. */}
+        {cancelled ? (
+          <div className="mt-5 flex items-center gap-2 rounded-xl bg-destructive/5 px-3.5 py-2.5 text-xs font-semibold text-destructive">
+            <X size={14} className="shrink-0" /> This order was cancelled
+          </div>
+        ) : (
+          <div className="mt-5 flex items-start" role="list" aria-label={tr('ui.orderProgress')}>
+            {ORDER_STEPS.map((step, i) => {
+              const reached = stage >= i;
+              return (
+                <div key={step} className="flex flex-1 flex-col items-center" role="listitem" aria-current={stage === i ? 'step' : undefined}>
+                  <div className="flex w-full items-center">
+                    <span className={`h-0.5 flex-1 rounded ${i === 0 ? 'bg-transparent' : stage >= i ? 'bg-primary' : 'bg-border'}`} />
+                    <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${reached ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card'}`}>
+                      {reached && <Check size={11} strokeWidth={3} />}
+                    </span>
+                    <span className={`h-0.5 flex-1 rounded ${i === ORDER_STEPS.length - 1 ? 'bg-transparent' : stage > i ? 'bg-primary' : 'bg-border'}`} />
+                  </div>
+                  <span className={`mt-1.5 text-center text-[10px] font-semibold sm:text-[11px] ${reached ? 'text-foreground' : 'text-muted-foreground'}`}>{step}</span>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
-      {order.status === 'shipped' && (
-        <button
-          type="button"
-          onClick={() => confirmDelivery.mutate({ id: order.id, data: { status: 'delivered' } })}
-          disabled={confirmDelivery.isPending}
-          className="mt-5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-60"
-        >
-          {confirmDelivery.isPending ? 'Confirming…' : 'Confirm delivery received'}
-        </button>
-      )}
-      {['processing', 'confirmed', 'preparing', 'ready'].includes(order.status) && (
-        <button
-          type="button"
-          onClick={() => { if (window.confirm('Cancel this order?')) confirmDelivery.mutate({ id: order.id, data: { status: 'cancelled' } }); }}
-          disabled={confirmDelivery.isPending}
-          className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-bold text-red-700 disabled:opacity-60"
-        >
-          {confirmDelivery.isPending ? 'Cancelling…' : 'Cancel order'}
-        </button>
-      )}
-      <div className="mt-5 flex items-center justify-between border-t border-border pt-4 text-sm text-muted-foreground">
-        <span>
-          {order.itemCount} item{order.itemCount === 1 ? '' : 's'} ·{' '}
-          {order.buyerName}
-        </span>
-        <Link href={`/orders/${order.id}`} className="flex items-center gap-1.5 font-bold text-primary hover:underline">
-          <Clock3 size={14} /> View details
-        </Link>
+
+      {/* Footer: total + the actions available at this stage */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3.5 sm:px-5">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <MapPin size={13} className="shrink-0" />
+          <span className="max-w-[200px] truncate">{order.destination}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-lg font-bold text-card-foreground">{money(order.total)}</span>
+          {canCancel && (
+            <button
+              type="button"
+              onClick={() => setConfirm({
+                title: 'Cancel this order?',
+                description: 'The seller is told straight away. This cannot be undone.',
+                confirmLabel: 'Cancel order',
+                tone: 'danger',
+                onConfirm: () => updateStatus.mutateAsync({ id: order.id, data: { status: 'cancelled' } }).then(() => undefined),
+              })}
+              disabled={updateStatus.isPending}
+              className="min-h-9 rounded-xl border border-border px-3 py-2 text-xs font-bold text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive disabled:opacity-60"
+            >
+              {updateStatus.isPending ? 'Cancelling…' : 'Cancel'}
+            </button>
+          )}
+          {['shipped', 'out_for_delivery'].includes(order.status) && (
+            <button
+              type="button"
+              onClick={() => updateStatus.mutate({ id: order.id, data: { status: 'delivered' } })}
+              disabled={updateStatus.isPending}
+              className="min-h-9 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {updateStatus.isPending ? 'Confirming…' : 'Confirm received'}
+            </button>
+          )}
+          <Link href={`/orders/${order.id}`} className="flex min-h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground transition-opacity hover:opacity-90">
+            Details <ArrowRight size={13} />
+          </Link>
+        </div>
       </div>
+
+      <ConfirmDialog spec={confirm} onClose={() => setConfirm(null)} />
     </article>
   );
 }
 
 export function SuppliersPage() {
+  const { tr } = useLocale();
   const {
     data: suppliers,
     isLoading,
@@ -1763,7 +1860,7 @@ export function SuppliersPage() {
       <div className="bg-background px-3 py-4 sm:px-5 sm:py-8 lg:px-10">
         <PageIntro
           eyebrow="Sourcing network"
-          title="Meet your supply side"
+          title={tr('ui.meetYourSupplySide')}
           description="Explore vetted businesses with the capacity, responsiveness, and category depth to help you buy with confidence."
           action={
             <div className="hidden items-center gap-2 rounded-lg border border-border bg-card px-3 py-2.5 text-xs font-bold sm:flex">
@@ -1781,7 +1878,7 @@ export function SuppliersPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="flex-1 bg-transparent px-3 text-xs sm:text-sm outline-none"
-            placeholder="Search suppliers, locations, specialties"
+            placeholder={tr('ui.searchSuppliersLocationsSpecialties')}
             data-testid="input-supplier-search"
           />
         </div>
@@ -1903,6 +2000,7 @@ export function SupplierFrame({
   title: string;
   action?: ReactNode;
 }) {
+  const { tr } = useLocale();
   const { user } = useAuth();
   const verificationStatus = (user as any)?.verificationStatus || 'not_verified';
   const isUnverified = verificationStatus === 'not_verified' || verificationStatus === 'not_submitted';
@@ -1914,9 +2012,9 @@ export function SupplierFrame({
           <Link href="/seller/verify" className="mb-6 flex items-center gap-3 rounded-2xl border border-yellow-200 bg-yellow-50 p-3 transition-colors hover:bg-yellow-100">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-base text-yellow-600">✓</span>
             <div className="flex-1">
-              <p className="text-xs font-bold text-yellow-800">Verify your ID to get a Verified badge</p>
+              <p className="text-xs font-bold text-yellow-800">{tr('ui.verifyYourIdToGetA')}</p>
             </div>
-            <span className="text-xs font-semibold text-yellow-700">Optional →</span>
+            <span className="text-xs font-semibold text-yellow-700">{tr('ui.optional')}</span>
           </Link>
         )}
 
@@ -1991,6 +2089,7 @@ function Kpi({
 }
 
 export function SupplierDashboardPage() {
+  const { tr } = useLocale();
   const { user } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -2003,7 +2102,7 @@ export function SupplierDashboardPage() {
 
   if (loading || !stats)
     return (
-      <SupplierFrame title="Dashboard">
+      <SupplierFrame title={tr('ui.dashboard')}>
         <div className="space-y-4">
           <div className="flex gap-3 overflow-hidden">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -2038,10 +2137,10 @@ export function SupplierDashboardPage() {
   }
 
   return (
-    <SupplierFrame title="Dashboard">
+    <SupplierFrame title={tr('ui.dashboard')}>
       {/* Account Health Bar */}
       <div className="mb-4 flex items-center gap-3">
-        <span className="text-xs font-bold text-gray-700">Account Health:</span>
+        <span className="text-xs font-bold text-gray-700">{tr('ui.accountHealth')}</span>
         <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${
           isVerified ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'
         }`}>
@@ -2130,23 +2229,23 @@ export function SupplierDashboardPage() {
         {/* Orders Widget */}
         <div className="rounded-xl border border-gray-200 bg-white">
           <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
-            <h3 className="text-sm font-bold text-gray-900">Orders</h3>
-            <Link href="/supplier/orders" className="text-xs font-semibold text-[#ff6a00] hover:underline">View all</Link>
+            <h3 className="text-sm font-bold text-gray-900">{tr('ui.orders')}</h3>
+            <Link href="/supplier/orders" className="text-xs font-semibold text-[#ff6a00] hover:underline">{tr('ui.viewAll')}</Link>
           </div>
           <div className="p-5">
             {/* Status breakdown */}
             <div className="grid grid-cols-3 gap-3 mb-4">
               <div className="text-center rounded-lg bg-gray-50 p-3">
                 <p className="text-lg font-bold text-orange-600">{sc.new || 0}</p>
-                <p className="text-[10px] font-semibold text-gray-500 mt-0.5">New</p>
+                <p className="text-[10px] font-semibold text-gray-500 mt-0.5">{tr('ui.new')}</p>
               </div>
               <div className="text-center rounded-lg bg-gray-50 p-3">
                 <p className="text-lg font-bold text-blue-600">{sc.confirmed || 0}</p>
-                <p className="text-[10px] font-semibold text-gray-500 mt-0.5">Confirmed</p>
+                <p className="text-[10px] font-semibold text-gray-500 mt-0.5">{tr('ui.confirmed')}</p>
               </div>
               <div className="text-center rounded-lg bg-gray-50 p-3">
                 <p className="text-lg font-bold text-purple-600">{sc.out_for_delivery || 0}</p>
-                <p className="text-[10px] font-semibold text-gray-500 mt-0.5">In Transit</p>
+                <p className="text-[10px] font-semibold text-gray-500 mt-0.5">{tr('ui.inTransit')}</p>
               </div>
             </div>
             {/* Recent orders list */}
@@ -2174,7 +2273,7 @@ export function SupplierDashboardPage() {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-gray-400 text-center py-4">No pending orders</p>
+              <p className="text-xs text-gray-400 text-center py-4">{tr('ui.noPendingOrders')}</p>
             )}
           </div>
         </div>
@@ -2182,8 +2281,8 @@ export function SupplierDashboardPage() {
         {/* Inventory Widget */}
         <div className="rounded-xl border border-gray-200 bg-white">
           <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
-            <h3 className="text-sm font-bold text-gray-900">Inventory</h3>
-            <Link href="/supplier/products" className="text-xs font-semibold text-[#ff6a00] hover:underline">Manage</Link>
+            <h3 className="text-sm font-bold text-gray-900">{tr('ui.inventory')}</h3>
+            <Link href="/supplier/products" className="text-xs font-semibold text-[#ff6a00] hover:underline">{tr('ui.manage')}</Link>
           </div>
           <div className="p-5">
             {topProducts.length > 0 ? (
@@ -2198,7 +2297,7 @@ export function SupplierDashboardPage() {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-gray-400 text-center py-4">No products yet</p>
+              <p className="text-xs text-gray-400 text-center py-4">{tr('ui.noProductsYet')}</p>
             )}
             {(stats.lowStockProducts || 0) > 0 && (
               <div className="mt-3 rounded-lg bg-orange-50 border border-orange-200 p-2.5">
@@ -2211,8 +2310,8 @@ export function SupplierDashboardPage() {
         {/* Top Products Widget */}
         <div className="rounded-xl border border-gray-200 bg-white">
           <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
-            <h3 className="text-sm font-bold text-gray-900">Top Products</h3>
-            <Link href="/supplier/products" className="text-xs font-semibold text-[#ff6a00] hover:underline">View all</Link>
+            <h3 className="text-sm font-bold text-gray-900">{tr('ui.topProducts')}</h3>
+            <Link href="/supplier/products" className="text-xs font-semibold text-[#ff6a00] hover:underline">{tr('ui.viewAll')}</Link>
           </div>
           <div className="p-5">
             {topProducts.length > 0 ? (
@@ -2234,7 +2333,7 @@ export function SupplierDashboardPage() {
               </div>
             ) : (
               <div className="text-center py-4">
-                <p className="text-xs text-gray-400 mb-2">No products yet</p>
+                <p className="text-xs text-gray-400 mb-2">{tr('ui.noProductsYet')}</p>
                 <Link href="/supplier/products/new" className="inline-flex items-center gap-1 text-xs font-bold text-[#ff6a00] hover:underline">
                   <Plus size={12} /> Add your first product
                 </Link>
@@ -2246,25 +2345,25 @@ export function SupplierDashboardPage() {
         {/* Quick Actions Widget */}
         <div className="rounded-xl border border-gray-200 bg-white">
           <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
-            <h3 className="text-sm font-bold text-gray-900">Quick Actions</h3>
+            <h3 className="text-sm font-bold text-gray-900">{tr('ui.quickActions')}</h3>
           </div>
           <div className="p-5">
             <div className="grid grid-cols-2 gap-3">
               <Link href="/supplier/products/new" className="flex flex-col items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-center hover:border-[#ff6a00] hover:bg-orange-50 transition-colors">
                 <Plus size={18} className="text-[#ff6a00]" />
-                <span className="text-[11px] font-semibold text-gray-900">Add product</span>
+                <span className="text-[11px] font-semibold text-gray-900">{tr('ui.addProduct')}</span>
               </Link>
               <Link href="/supplier/orders" className="flex flex-col items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-center hover:border-[#ff6a00] hover:bg-orange-50 transition-colors">
                 <Truck size={18} className="text-[#ff6a00]" />
-                <span className="text-[11px] font-semibold text-gray-900">Orders</span>
+                <span className="text-[11px] font-semibold text-gray-900">{tr('ui.orders')}</span>
               </Link>
               <Link href="/seller/profile" className="flex flex-col items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-center hover:border-[#ff6a00] hover:bg-orange-50 transition-colors">
                 <Store size={18} className="text-[#ff6a00]" />
-                <span className="text-[11px] font-semibold text-gray-900">Store profile</span>
+                <span className="text-[11px] font-semibold text-gray-900">{tr('ui.storeProfile')}</span>
               </Link>
               <Link href="/seller/verify" className="flex flex-col items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-center hover:border-[#ff6a00] hover:bg-orange-50 transition-colors">
                 <ShieldCheck size={18} className="text-[#ff6a00]" />
-                <span className="text-[11px] font-semibold text-gray-900">Verification</span>
+                <span className="text-[11px] font-semibold text-gray-900">{tr('ui.verification')}</span>
               </Link>
             </div>
           </div>
@@ -2275,18 +2374,18 @@ export function SupplierDashboardPage() {
       {recentOrders.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white">
           <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
-            <h3 className="text-sm font-bold text-gray-900">Recent Orders</h3>
-            <Link href="/supplier/orders" className="text-xs font-semibold text-[#ff6a00] hover:underline">View all</Link>
+            <h3 className="text-sm font-bold text-gray-900">{tr('ui.recentOrders')}</h3>
+            <Link href="/supplier/orders" className="text-xs font-semibold text-[#ff6a00] hover:underline">{tr('ui.viewAll')}</Link>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">Order</th>
-                  <th className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">Buyer</th>
-                  <th className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">Status</th>
-                  <th className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right">Total</th>
-                  <th className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right">Date</th>
+                  <th className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">{tr('ui.order')}</th>
+                  <th className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">{tr('ui.buyer')}</th>
+                  <th className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">{tr('ui.status')}</th>
+                  <th className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right">{tr('ui.total')}</th>
+                  <th className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right">{tr('ui.date')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -2322,6 +2421,7 @@ export function SupplierDashboardPage() {
 }
 
 export function SupplierProductsPage() {
+  const { tr } = useLocale();
   const [products, setProducts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -2403,7 +2503,7 @@ export function SupplierProductsPage() {
   };
 
   return (
-    <SupplierFrame title="Products" action={
+    <SupplierFrame title={tr('ui.products')} action={
       <Link
         href="/supplier/products/new"
         className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground"
@@ -2424,7 +2524,7 @@ export function SupplierProductsPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1 bg-transparent px-3 text-sm outline-none"
-              placeholder="Search products"
+              placeholder={tr('ui.searchProducts')}
             />
           </div>
           
@@ -2502,6 +2602,7 @@ export function SupplierProductsPage() {
 }
 
 export function SupplierOrdersPage() {
+  const { tr } = useLocale();
   const { data: orders = [], isLoading } = useListSupplierOrders({
     query: { refetchInterval: 10000 },
   });
@@ -2531,7 +2632,7 @@ export function SupplierOrdersPage() {
   });
 
   return (
-    <SupplierFrame title="Orders">
+    <SupplierFrame title={tr('ui.orders')}>
       <div className="mb-5">
         <p className="text-sm text-muted-foreground mb-4">
           Manage buyer requests, preparation, pickup, and delivery.
@@ -2544,7 +2645,7 @@ export function SupplierOrdersPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-1 bg-transparent px-3 text-sm outline-none"
-            placeholder="Search orders by buyer, location, or order number"
+            placeholder={tr('ui.searchOrdersByBuyerLocationOr')}
           />
         </div>
 

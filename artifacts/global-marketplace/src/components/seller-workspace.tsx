@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatPhone } from '@/lib/phone';
 import { Link, useLocation } from 'wouter';
 import {
   Menu, X, Home, Package, ShoppingCart, DollarSign, BarChart3,
@@ -7,6 +8,7 @@ import {
   Shield, CreditCard, Globe, Layers, Star, AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/lib/i18n/locale-context';
 
 interface SellerWorkspaceProps {
   children: React.ReactNode;
@@ -68,7 +70,9 @@ const MENU_ITEMS: MenuItem[] = [
     children: [
       { label: 'My Stores', href: '/supplier/stores' },
       { label: 'Create Store', href: '/supplier/stores/new' },
-      { label: 'Storefront Builder', href: '/seller/1/storefront' },
+      // A seller can own several stores and each has its own storefront, so this goes to
+      // the store list to pick one. It used to be hardcoded to seller 1.
+      { label: 'Storefront Builder', href: '/supplier/stores' },
       { label: 'Store Settings', href: '/supplier/stores/settings' },
     ]
   },
@@ -119,6 +123,7 @@ const MENU_ITEMS: MenuItem[] = [
 ];
 
 export function SellerWorkspace({ children, title }: SellerWorkspaceProps) {
+  const { tr } = useLocale();
   const { user } = useAuth();
   const [location] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -150,7 +155,7 @@ export function SellerWorkspace({ children, title }: SellerWorkspaceProps) {
               <div className="h-8 w-8 rounded-full bg-[#ff6a00] flex items-center justify-center">
                 <Store size={18} className="text-white" />
               </div>
-              <div className="leading-tight"><span className="block font-bold text-[#ff6a00]">Nzanila.com</span><span className="text-[10px] text-gray-500">Seller Center</span></div>
+              <div className="leading-tight"><span className="block font-bold text-[#ff6a00]">{tr('ui.nzanilacom')}</span><span className="text-[10px] text-gray-500">{tr('ui.sellerCenter')}</span></div>
             </div>
           )}
           <button 
@@ -168,7 +173,7 @@ export function SellerWorkspace({ children, title }: SellerWorkspaceProps) {
               <Search size={14} className="text-gray-400" />
               <input
                 type="text"
-                placeholder="Search seller tools"
+                placeholder={tr('ui.searchSellerTools')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="bg-transparent text-xs text-gray-700 outline-none w-full placeholder-gray-400"
@@ -250,7 +255,7 @@ export function SellerWorkspace({ children, title }: SellerWorkspaceProps) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{user?.name || 'Seller'}</p>
-                <p className="text-xs text-gray-400 truncate">{user?.phone || 'Seller account'}</p>
+                <p className="text-xs text-gray-400 truncate">{formatPhone(user?.phone) || 'Seller account'}</p>
               </div>
             </div>
           </div>
@@ -262,7 +267,7 @@ export function SellerWorkspace({ children, title }: SellerWorkspaceProps) {
         {/* Top Bar */}
         <header className="h-[68px] bg-white border-b border-gray-200 px-6 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div><p className="text-[10px] uppercase tracking-wider text-gray-400">My Nzanila</p><h1 className="text-lg font-bold text-gray-900">{title || 'Seller Center'}</h1></div>
+            <div><p className="text-[10px] uppercase tracking-wider text-gray-400">{tr('ui.myNzanila')}</p><h1 className="text-lg font-bold text-gray-900">{title || 'Seller Center'}</h1></div>
           </div>
           <div className="flex items-center gap-4">
             <button className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
@@ -272,7 +277,7 @@ export function SellerWorkspace({ children, title }: SellerWorkspaceProps) {
             <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
               <HelpCircle size={20} />
             </button>
-            <Link href="/supplier/stores" className="hidden sm:flex items-center gap-2 border-l border-gray-200 pl-4 text-xs font-semibold text-gray-700 hover:text-[#ff6a00]"><Store size={16} /> My Stores</Link>
+            <Link href="/supplier/stores" className="hidden sm:flex items-center gap-2 border-l border-gray-200 pl-4 text-xs font-semibold text-gray-700 hover:text-[#ff6a00]"><Store size={16} /> {tr('ui.myStores')}</Link>
             <div className="h-8 w-8 rounded-full bg-[#ff6a00] flex items-center justify-center text-white font-bold text-sm">
               {user?.name?.charAt(0) || 'S'}
             </div>

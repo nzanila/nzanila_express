@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Upload, X, Plus, Minus } from 'lucide-react';
+import { useLocale, tg } from '@/lib/i18n/locale-context';
 
 interface ProductListingFormProps {
   onSubmit: (data: any) => void;
@@ -67,7 +68,7 @@ export function ProductListingForm({ onSubmit, onCancel, categories }: ProductLi
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Product Pictures */}
       <div>
-        <label className="mb-2 block text-sm font-semibold">Product Pictures (Max 8)</label>
+        <label className="mb-2 block text-sm font-semibold">{tg('ui.productPicturesMax8')}</label>
         <div className="grid grid-cols-4 gap-3">
           {productPictures.map((picture, index) => (
             <div key={index} className="relative aspect-square">
@@ -101,7 +102,7 @@ export function ProductListingForm({ onSubmit, onCancel, categories }: ProductLi
               />
               <div className="text-center">
                 <Upload size={24} className="mx-auto text-muted-foreground" />
-                <p className="mt-1 text-xs text-muted-foreground">Add Pictures</p>
+                <p className="mt-1 text-xs text-muted-foreground">{tg('ui.addPictures')}</p>
               </div>
             </label>
           )}
@@ -113,29 +114,29 @@ export function ProductListingForm({ onSubmit, onCancel, categories }: ProductLi
 
       {/* Basic Information */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Product Information</h3>
+        <h3 className="text-lg font-semibold">{tg('ui.productInformation')}</h3>
         
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Product Name *</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.productName')}</label>
           <input
             type="text"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="e.g. Premium Burundi Coffee Beans (1kg)"
+            placeholder={tg('ui.egPremiumBurundiCoffeeBeans1kg')}
             className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             required
           />
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Category *</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.category2')}</label>
           <select
             value={formData.category}
             onChange={(e) => setFormData({ ...formData, category: e.target.value })}
             className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             required
           >
-            <option value="">Select Category</option>
+            <option value="">{tg('ui.selectCategory')}</option>
             {categories.map((category) => (
               <option key={category} value={category}>
                 {category}
@@ -145,7 +146,7 @@ export function ProductListingForm({ onSubmit, onCancel, categories }: ProductLi
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Description *</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.description')}</label>
           <textarea
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -159,11 +160,11 @@ export function ProductListingForm({ onSubmit, onCancel, categories }: ProductLi
 
       {/* Pricing and Inventory */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Pricing & Inventory</h3>
+        <h3 className="text-lg font-semibold">{tg('ui.pricingInventory')}</h3>
         
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="mb-1.5 block text-sm font-semibold">Price (BIF) *</label>
+            <label className="mb-1.5 block text-sm font-semibold">{tg('ui.priceBif')}</label>
             <input
               type="number"
               value={formData.price}
@@ -177,7 +178,7 @@ export function ProductListingForm({ onSubmit, onCancel, categories }: ProductLi
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-semibold">Unit *</label>
+            <label className="mb-1.5 block text-sm font-semibold">{tg('ui.unit2')}</label>
             <select
               value={formData.unit}
               onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
@@ -195,7 +196,7 @@ export function ProductListingForm({ onSubmit, onCancel, categories }: ProductLi
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="mb-1.5 block text-sm font-semibold">Min. Order Qty *</label>
+            <label className="mb-1.5 block text-sm font-semibold">{tg('ui.minOrderQty2')}</label>
             <div className="flex items-center rounded-xl border border-border bg-card">
               <button
                 type="button"
@@ -223,7 +224,7 @@ export function ProductListingForm({ onSubmit, onCancel, categories }: ProductLi
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-semibold">Available Stock *</label>
+            <label className="mb-1.5 block text-sm font-semibold">{tg('ui.availableStock2')}</label>
             <input
               type="number"
               value={formData.availableStock}
@@ -237,7 +238,7 @@ export function ProductListingForm({ onSubmit, onCancel, categories }: ProductLi
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Condition *</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.condition2')}</label>
           <div className="grid grid-cols-2 gap-3">
             <label className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 ${
               formData.condition === 'new' ? 'border-primary bg-primary/5' : 'border-border bg-card'
@@ -250,8 +251,8 @@ export function ProductListingForm({ onSubmit, onCancel, categories }: ProductLi
                 className="sr-only"
               />
               <div className="flex-1">
-                <p className="font-semibold">New</p>
-                <p className="text-xs text-muted-foreground">Brand new, never used</p>
+                <p className="font-semibold">{tg('ui.new')}</p>
+                <p className="text-xs text-muted-foreground">{tg('ui.brandNewNeverUsed')}</p>
               </div>
               {formData.condition === 'new' && <div className="h-5 w-5 rounded-full bg-primary" />}
             </label>
@@ -267,8 +268,8 @@ export function ProductListingForm({ onSubmit, onCancel, categories }: ProductLi
                 className="sr-only"
               />
               <div className="flex-1">
-                <p className="font-semibold">Used</p>
-                <p className="text-xs text-muted-foreground">Pre-owned, good condition</p>
+                <p className="font-semibold">{tg('ui.used')}</p>
+                <p className="text-xs text-muted-foreground">{tg('ui.preownedGoodCondition')}</p>
               </div>
               {formData.condition === 'used' && <div className="h-5 w-5 rounded-full bg-primary" />}
             </label>
@@ -278,7 +279,7 @@ export function ProductListingForm({ onSubmit, onCancel, categories }: ProductLi
 
       {/* Delivery Options */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Delivery Options</h3>
+        <h3 className="text-lg font-semibold">{tg('ui.deliveryOptions')}</h3>
         
         <div className="space-y-3">
           <label className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 cursor-pointer hover:border-primary/50">
@@ -289,8 +290,8 @@ export function ProductListingForm({ onSubmit, onCancel, categories }: ProductLi
               className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
             />
             <div>
-              <p className="font-semibold">Available for Delivery</p>
-              <p className="text-sm text-muted-foreground">Customers can choose delivery for this product</p>
+              <p className="font-semibold">{tg('ui.availableForDelivery')}</p>
+              <p className="text-sm text-muted-foreground">{tg('ui.customersCanChooseDeliveryForThis')}</p>
             </div>
           </label>
 
@@ -302,8 +303,8 @@ export function ProductListingForm({ onSubmit, onCancel, categories }: ProductLi
               className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
             />
             <div>
-              <p className="font-semibold">Available for Pickup</p>
-              <p className="text-sm text-muted-foreground">Customers can pick up this product from your location</p>
+              <p className="font-semibold">{tg('ui.availableForPickup')}</p>
+              <p className="text-sm text-muted-foreground">{tg('ui.customersCanPickUpThisProduct')}</p>
             </div>
           </label>
         </div>

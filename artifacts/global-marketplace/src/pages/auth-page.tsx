@@ -1,32 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { Lock, ChevronDown, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useLocale } from '@/lib/i18n/locale-context';
+import { CommerceBackground } from '@/components/commerce-background';
+import { COUNTRIES, isValidPhone, phoneHint, type CountryCode } from '@/lib/phone';
 import { locales } from '@/lib/i18n/translations';
 
-type CountryCode = 'BI';
+const SELLER_CENTRAL_URL = 'https://seller-central.pages.dev';
 
-const COUNTRY_OPTIONS: Record<CountryCode, { label: string; flag: string; dialCode: string }> = {
-  BI: { label: 'Burundi', flag: '🇧🇮', dialCode: '+257' },
-};
+// CountryCode comes from '@/lib/phone'; a local 'BI'-only alias used to shadow it.
 
-const BG_IMAGES = [
-  'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&q=80',
-  'https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=600&q=80',
-  'https://images.unsplash.com/photo-1547949003-9792a18a2601?w=600&q=80',
-  'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&q=80',
-  'https://images.unsplash.com/photo-1585386959984-a4155224a1ad?w=600&q=80',
-  'https://images.unsplash.com/photo-1560343090-f0409e92791a?w=600&q=80',
-  'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=600&q=80',
-  'https://images.unsplash.com/photo-1622434641406-a158123450f9?w=600&q=80',
-  'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&q=80',
-  'https://images.unsplash.com/photo-1546868871-af0de0ae72be?w=600&q=80',
-];
+// Shared with signup and the reset flow so the three cannot drift apart.
+const COUNTRY_OPTIONS = COUNTRIES;
 
 export function AuthPage() {
   const { tr, locale, setLocale } = useLocale();
-  const { signIn, isAuthenticated, user } = useAuth();
+  const { signIn, logout, isAuthenticated, user } = useAuth();
   const [, setLocation] = useLocation();
 
   const [languageSelectorOpen, setLanguageSelectorOpen] = useState(false);
@@ -43,57 +33,52 @@ export function AuthPage() {
     return `${COUNTRY_OPTIONS[code].dialCode}${digits}`;
   };
 
-  if (isAuthenticated && user) {
-    // Sellers should use seller-central app
-    if (user.role === 'seller') {
-      window.location.href = 'https://seller-central.pages.dev';
-      return null;
-    }
-    setLocation('/');
-    return null;
-  }
+  /**
+   * Where to go after signing in.
+   *
+   * A visitor sent here by "Add to cart" carries ?next=/product/123 so they land back on
+   * the product they were trying to buy rather than the home page. Only same-site paths
+   * are honoured — anything starting with // or containing a scheme is discarded, so the
+   * parameter cannot be used to bounce someone to another domain after they authenticate.
+   */
+  const nextPath = (() => {
+    try {
+      const raw = new URLSearchParams(window.location.search).get('next') || '';
+      return /^\/(?!\/)/.test(raw) ? raw : '/';
+    } catch { return '/'; }
+  })();
+
+  // Navigating is a side effect, so it runs in an effect rather than during render.
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    // A seller who is already signed in belongs in Seller Central.
+    if (user.role === 'seller') window.location.href = SELLER_CENTRAL_URL;
+    else setLocation(nextPath);
+  }, [isAuthenticated, user, setLocation, nextPath]);
+
+  if (isAuthenticated && user) return null;
 
   const handleLogin = async () => {
     setError('');
+    if (!isValidPhone(phone, countryCode)) { setError(phoneHint(countryCode)); return; }
     setLoading(true);
     const result = await signIn(normalizePhone(countryCode, phone), password);
     setLoading(false);
     if (result.error) { setError(result.error); return; }
-    setLocation('/');
+    // A seller account belongs in Seller Central. Sign them back out rather than
+    // leaving a seller session live inside the buyer app.
+    if (result.user?.role === 'seller') {
+      await logout();
+      setError('This is a seller account. Please sign in at Seller Central instead.');
+      return;
+    }
+    setLocation(nextPath);
   };
 
   return (
     <div className="min-h-[100dvh] bg-[#f0f2f5] flex flex-col relative overflow-hidden">
-      {/* 3D Animated Background */}
-      <div className="absolute inset-0 z-0" style={{ perspective: '1000px', perspectiveOrigin: '50% 50%' }}>
-        {BG_IMAGES.map((img, i) => (
-          <div
-            key={i}
-            className="absolute rounded-2xl overflow-hidden"
-            style={{
-              width: `${160 + (i % 3) * 50}px`,
-              height: `${160 + (i % 3) * 50}px`,
-              left: `${(i * 11) % 85}%`,
-              top: `${(i * 13 + 5) % 80}%`,
-              animation: `float3d${i % 4} ${12 + i * 1.5}s ease-in-out infinite`,
-              animationDelay: `${i * -1.2}s`,
-              opacity: 0.2,
-              transformStyle: 'preserve-3d',
-              boxShadow: '0 25px 50px rgba(0,0,0,0.15)',
-            }}
-          >
-            <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
-          </div>
-        ))}
-      </div>
+      <CommerceBackground />
 
-      {/* CSS Animations */}
-      <style>{`
-        @keyframes float3d0 { 0%,100%{transform:translateZ(0) rotateX(5deg) rotateY(-5deg) translateY(0)} 25%{transform:translateZ(40px) rotateX(-3deg) rotateY(8deg) translateY(-20px)} 50%{transform:translateZ(20px) rotateX(8deg) rotateY(-3deg) translateY(-10px)} 75%{transform:translateZ(50px) rotateX(-5deg) rotateY(5deg) translateY(-30px)} }
-        @keyframes float3d1 { 0%,100%{transform:translateZ(0) rotateX(-4deg) rotateY(6deg) translateY(0)} 25%{transform:translateZ(30px) rotateX(5deg) rotateY(-8deg) translateY(-25px)} 50%{transform:translateZ(60px) rotateX(-8deg) rotateY(3deg) translateY(-5px)} 75%{transform:translateZ(10px) rotateX(3deg) rotateY(-6deg) translateY(-35px)} }
-        @keyframes float3d2 { 0%,100%{transform:translateZ(0) rotateX(6deg) rotateY(-4deg) translateY(0)} 25%{transform:translateZ(50px) rotateX(-6deg) rotateY(4deg) translateY(-15px)} 50%{transform:translateZ(25px) rotateX(3deg) rotateY(-7deg) translateY(-25px)} 75%{transform:translateZ(40px) rotateX(-3deg) rotateY(6deg) translateY(-10px)} }
-        @keyframes float3d3 { 0%,100%{transform:translateZ(0) rotateX(-5deg) rotateY(7deg) translateY(0)} 25%{transform:translateZ(35px) rotateX(7deg) rotateY(-5deg) translateY(-30px)} 50%{transform:translateZ(55px) rotateX(-4deg) rotateY(3deg) translateY(-20px)} 75%{transform:translateZ(15px) rotateX(5deg) rotateY(-8deg) translateY(-5px)} }
-      `}</style>
 
       {/* Language selector */}
       <div className="absolute top-4 right-4 z-20">
@@ -132,7 +117,7 @@ export function AuthPage() {
           {/* Left: Branding */}
           <div className="flex-1 text-center lg:text-left lg:pr-8">
             <div className="mb-6 inline-flex items-center gap-4">
-              <img src="/logo.png" alt="Nzanila" className="h-16 w-16 object-contain" />
+              <img src="/logo.png" alt={tr('ui.nzanila')} className="h-16 w-16 object-contain" />
               <h1 className="text-5xl font-bold text-[#1a5f4a] lg:text-6xl" style={{ fontFamily: 'Syne, sans-serif' }}>
                 Nzanila
               </h1>
@@ -141,9 +126,7 @@ export function AuthPage() {
               {tr('onboarding.subtitle')}
             </p>
             <p className="mt-2 text-base text-gray-500">
-              {locale === 'fr' ? 'Marketplace B2B wholesale.' :
-               locale === 'rn' ? 'Ishamba rya B2B.' :
-               locale === 'sw' ? 'Soko la B2B la jumla.' :
+              {locale === 'fr' ? 'Marketplace B2B wholesale.' : locale === 'sw' ? 'Soko la B2B la jumla.' :
                'Wholesale B2B marketplace.'}
             </p>
           </div>
@@ -203,16 +186,16 @@ export function AuthPage() {
                   disabled={!phone.trim() || !password.trim() || loading}
                   className="h-13 w-full rounded-xl bg-[#ff6a00] text-base font-bold text-white hover:bg-[#e55f00] disabled:opacity-40 transition-all active:scale-[0.98]"
                 >
-                  {loading ? (locale === 'fr' ? 'Connexion…' : locale === 'rn' ? 'Kwinjira…' : locale === 'sw' ? 'Inaingia…' : 'Signing in…') : tr('auth.signIn')}
+                  {loading ? (locale === 'fr' ? 'Connexion…' : locale === 'sw' ? 'Inaingia…' : 'Signing in…') : tr('auth.signIn')}
                 </button>
-                <p className="mt-3 text-center text-xs text-gray-500">Forgot your password? <a className="font-semibold text-[#ff6a00] hover:underline" href="https://wa.me/250799494538" target="_blank" rel="noreferrer">Message us on WhatsApp: +250 79 949 4538</a></p>
+                <p className="mt-3 text-center text-xs text-gray-500">{tr('ui.forgotYourPassword')} <a className="font-semibold text-[#ff6a00] hover:underline" href="/auth/forgot">{tr('ui.resetItWithYourPhoneNumber')}</a></p>
               </div>
             </div>
 
             <div className="mt-4 rounded-3xl bg-white p-4 shadow-2xl border border-gray-100 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
               <p className="text-sm text-gray-500">
                 {tr('auth.noAccount')}{' '}
-                <button onClick={() => setLocation('/auth/signup')} className="font-semibold text-[#1a5f4a] hover:underline">
+                <button onClick={() => setLocation('/onboarding')} className="font-semibold text-[#1a5f4a] hover:underline">
                   {tr('auth.signUp')}
                 </button>
               </p>

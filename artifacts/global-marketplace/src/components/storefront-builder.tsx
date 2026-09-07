@@ -35,8 +35,10 @@ import {
 } from '@/lib/storefront-types';
 import { useAuth } from '@/lib/auth-context';
 import { StorefrontRenderer } from '@/components/storefront-renderer';
+import { setNotice } from '@/components/confirm-dialog';
+import { useLocale } from '@/lib/i18n/locale-context';
 
-const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-api.pages.dev');
+const API = import.meta.env.VITE_API_URL || 'https://nzanila-api-server.nzanilaexpress.workers.dev';
 
 interface DraggedModule {
   type: ModuleType;
@@ -79,6 +81,7 @@ function ModuleLibrary({
   selectedCategory: string;
   onDragStart: (def: ModuleDefinition) => void;
 }) {
+  const { tr } = useLocale();
   const filtered = MODULE_DEFINITIONS.filter((mod) => {
     const matchesSearch =
       mod.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -110,7 +113,7 @@ function ModuleLibrary({
           </div>
         ))}
         {filtered.length === 0 && (
-          <p className="py-8 text-center text-sm text-gray-400">No modules found</p>
+          <p className="py-8 text-center text-sm text-gray-400">{tr('ui.noModulesFound')}</p>
         )}
       </div>
     </div>
@@ -126,16 +129,17 @@ function PropertiesPanel({
   onUpdate: (updates: Record<string, unknown>) => void;
   onClose: () => void;
 }) {
+  const { tr } = useLocale();
   if (!module) {
     return (
       <div className="flex flex-col gap-4 overflow-y-auto p-4">
         <div className="border-b border-gray-200 pb-3">
-          <h3 className="text-sm font-semibold text-gray-900">Properties</h3>
-          <p className="text-xs text-gray-400 mt-1">Select a module to edit</p>
+          <h3 className="text-sm font-semibold text-gray-900">{tr('ui.properties')}</h3>
+          <p className="text-xs text-gray-400 mt-1">{tr('ui.selectAModuleToEdit')}</p>
         </div>
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <Settings size={48} className="text-gray-200 mb-3" />
-          <p className="text-sm text-gray-500">No module selected</p>
+          <p className="text-sm text-gray-500">{tr('ui.noModuleSelected')}</p>
         </div>
       </div>
     );
@@ -194,7 +198,7 @@ function PropertiesPanel({
                 <button
                   onClick={() => updateProp(key, 'https://images.unsplash.com/photo-1503376780353-7e489f6b63a7?auto=format&fit=crop&w=1200&q=80')}
                   className="rounded-lg border border-gray-200 px-2 py-2 text-gray-600 hover:bg-gray-50"
-                  title="Use sample image"
+                  title={tr('ui.useSampleImage')}
                 >
                   <ImageIcon size={16} />
                 </button>
@@ -332,6 +336,7 @@ function CanvasArea({
   loading: boolean;
   onPreview: () => void;
 }) {
+  const { tr } = useLocale();
   const section = config.sections.find((s) => s.id === selectedSection);
 
   const handleDrop = (e: React.DragEvent) => {
@@ -376,7 +381,7 @@ function CanvasArea({
          </div>
 
         <div className="mb-3 flex items-center gap-3">
-          <label className="text-sm font-medium text-gray-700">Shop Sign:</label>
+          <label className="text-sm font-medium text-gray-700">{tr('ui.shopSign')}</label>
           <input
             type="file"
             accept="image/*"
@@ -447,7 +452,7 @@ function CanvasArea({
           {section && section.modules.length === 0 ? (
             <div className="text-center py-8">
               <LayoutGrid size={32} className="mx-auto text-gray-200 mb-2" />
-              <p className="text-sm text-gray-400">No modules yet. Drag from the library.</p>
+              <p className="text-sm text-gray-400">{tr('ui.noModulesYetDragFromThe')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -477,7 +482,7 @@ function CanvasArea({
                           <button
                             onClick={(e) => { e.stopPropagation(); onMoveModule(mod.id, 'up'); }}
                             className="rounded p-1 text-gray-500 hover:bg-gray-100"
-                            title="Move up"
+                            title={tr('ui.moveUp')}
                           >
                             <MoveUp size={14} />
                           </button>
@@ -486,7 +491,7 @@ function CanvasArea({
                           <button
                             onClick={(e) => { e.stopPropagation(); onMoveModule(mod.id, 'down'); }}
                             className="rounded p-1 text-gray-500 hover:bg-gray-100"
-                            title="Move down"
+                            title={tr('ui.moveDown')}
                           >
                             <MoveDown size={14} />
                           </button>
@@ -494,7 +499,7 @@ function CanvasArea({
                         <button
                           onClick={(e) => { e.stopPropagation(); onRemoveModule(mod.id); }}
                           className="rounded p-1 text-red-500 hover:bg-red-50"
-                          title="Remove"
+                          title={tr('ui.remove')}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -516,6 +521,7 @@ function CanvasArea({
 }
 
 function StorefrontModulePreview({ mod }: { mod: StorefrontModule }) {
+  const { tr } = useLocale();
   const props = mod.props as Record<string, string | number | boolean | null | undefined>;
   const p = (key: string) => props[key];
 
@@ -580,7 +586,7 @@ function StorefrontModulePreview({ mod }: { mod: StorefrontModule }) {
           ) : (
             <div className="text-center text-gray-500">
               <Video size={32} className="mx-auto mb-2" />
-              <p className="text-sm">Video placeholder</p>
+              <p className="text-sm">{tr('ui.videoPlaceholder')}</p>
             </div>
           )}
         </div>
@@ -594,7 +600,7 @@ function StorefrontModulePreview({ mod }: { mod: StorefrontModule }) {
             <p className="text-sm text-gray-600 mt-1">{String(p('description'))}</p>
           )}
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-            {p('showCertification') && <div className="text-center"><ShieldCheck size={24} className="mx-auto text-gray-400" /><p className="text-xs text-gray-500">Certified</p></div>}
+            {p('showCertification') && <div className="text-center"><ShieldCheck size={24} className="mx-auto text-gray-400" /><p className="text-xs text-gray-500">{tr('ui.certified')}</p></div>}
             {p('showYearsActive') && <div className="text-center"><Clock size={24} className="mx-auto text-gray-400" /><p className="text-xs text-gray-500">5+ Years</p></div>}
             {p('showEmployees') && <div className="text-center"><Users size={24} className="mx-auto text-gray-400" /><p className="text-xs text-gray-500">100+ Employees</p></div>}
           </div>
@@ -674,9 +680,9 @@ function StorefrontModulePreview({ mod }: { mod: StorefrontModule }) {
         <div className="rounded-lg border border-gray-200 p-3">
           <h3 className="text-sm font-bold text-gray-900 mb-2">{String(p('title') || 'Company Capacity')}</h3>
           <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="bg-gray-50 p-2 rounded"><p className="text-[10px] text-gray-500">Years</p><p className="text-sm font-bold">15+</p></div>
-            <div className="bg-gray-50 p-2 rounded"><p className="text-[10px] text-gray-500">Export</p><p className="text-sm font-bold">80%</p></div>
-            <div className="bg-gray-50 p-2 rounded"><p className="text-[10px] text-gray-500">Size</p><p className="text-sm font-bold">50K m²</p></div>
+            <div className="bg-gray-50 p-2 rounded"><p className="text-[10px] text-gray-500">{tr('ui.years')}</p><p className="text-sm font-bold">15+</p></div>
+            <div className="bg-gray-50 p-2 rounded"><p className="text-[10px] text-gray-500">{tr('ui.export')}</p><p className="text-sm font-bold">80%</p></div>
+            <div className="bg-gray-50 p-2 rounded"><p className="text-[10px] text-gray-500">{tr('ui.size')}</p><p className="text-sm font-bold">50K m²</p></div>
           </div>
         </div>
       );
@@ -701,9 +707,9 @@ function StorefrontModulePreview({ mod }: { mod: StorefrontModule }) {
         <div className="rounded-lg border border-gray-200 p-3">
           <h3 className="text-sm font-bold text-gray-900 mb-2">{String(p('title') || 'Performance')}</h3>
           <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="bg-green-50 p-2 rounded"><p className="text-[10px] text-gray-500">Response</p><p className="text-sm font-bold text-green-600">&lt;24h</p></div>
-            <div className="bg-blue-50 p-2 rounded"><p className="text-[10px] text-gray-500">On-time</p><p className="text-sm font-bold text-blue-600">98.5%</p></div>
-            <div className="bg-orange-50 p-2 rounded"><p className="text-[10px] text-gray-500">Level</p><p className="text-sm font-bold text-orange-600">AAA</p></div>
+            <div className="bg-green-50 p-2 rounded"><p className="text-[10px] text-gray-500">{tr('ui.response')}</p><p className="text-sm font-bold text-green-600">&lt;24h</p></div>
+            <div className="bg-blue-50 p-2 rounded"><p className="text-[10px] text-gray-500">{tr('ui.ontime')}</p><p className="text-sm font-bold text-blue-600">98.5%</p></div>
+            <div className="bg-orange-50 p-2 rounded"><p className="text-[10px] text-gray-500">{tr('ui.level')}</p><p className="text-sm font-bold text-orange-600">AAA</p></div>
           </div>
         </div>
       );
@@ -777,7 +783,8 @@ function StorefrontModulePreview({ mod }: { mod: StorefrontModule }) {
   }
 }
 
-export function StorefrontBuilder({ sellerId }: { sellerId: number }) {
+export function StorefrontBuilder({ storeId }: { storeId: number }) {
+  const { tr } = useLocale();
   const { user } = useAuth();
   const [config, setConfig] = useState<StorefrontConfig>(DEFAULT_STOREFRONT_CONFIG);
   const [selectedSection, setSelectedSection] = useState('home');
@@ -793,14 +800,17 @@ export function StorefrontBuilder({ sellerId }: { sellerId: number }) {
   useEffect(() => {
     const loadConfig = async () => {
       try {
-        const res = await fetch(`${API}/api/stores/${sellerId}/storefront`);
+        // Store-scoped, like the public store page. The old seller-scoped route resolved
+        // with `seller_id=eq.X ... limit=1`, so every store a seller owned loaded — and
+        // saved over — the first store's design.
+        const res = await fetch(`${API}/api/storefront/${storeId}`);
         if (res.ok) {
           const data = await res.json();
           if (data && data.sections) {
             setConfig({
               ...DEFAULT_STOREFRONT_CONFIG,
               ...data,
-              storeId: sellerId,
+              storeId,
             });
           }
         }
@@ -812,7 +822,7 @@ export function StorefrontBuilder({ sellerId }: { sellerId: number }) {
     };
 
     loadConfig();
-  }, [sellerId]);
+  }, [storeId]);
 
   const handleDragStart = useCallback((def: ModuleDefinition) => {
     dragItem.current = { type: def.type };
@@ -905,19 +915,19 @@ export function StorefrontBuilder({ sellerId }: { sellerId: number }) {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const res = await fetch(`${API}/api/stores/${sellerId}/storefront`, {
+      const res = await fetch(`${API}/api/storefront/${storeId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           ...(user?.session?.accessToken ? { Authorization: `Bearer ${user.session.accessToken}` } : {}),
         },
-        body: JSON.stringify({ ...config, storeId: sellerId }),
+        body: JSON.stringify({ ...config, storeId }),
       });
       if (!res.ok) throw new Error('Failed to save');
-      alert('Storefront saved successfully');
+      setNotice({ title: 'Storefront saved', description: 'Your changes are live.', confirmLabel: 'OK', variant: 'alert', tone: 'primary' });
     } catch (err) {
       console.error('Save error:', err);
-      alert('Failed to save storefront');
+      setNotice({ title: 'Could not save the storefront', description: 'Please check your connection and try again.', confirmLabel: 'OK', variant: 'alert' });
     } finally {
       setIsSaving(false);
     }
@@ -951,7 +961,7 @@ export function StorefrontBuilder({ sellerId }: { sellerId: number }) {
       <aside className="w-72 border-r border-gray-200 bg-white overflow-hidden flex flex-col">
         <div className="border-b border-gray-200 p-4">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-bold text-gray-900">Storefront Builder</h2>
+            <h2 className="text-lg font-bold text-gray-900">{tr('ui.storefrontBuilder')}</h2>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowTemplateSelector(true)}
@@ -967,7 +977,7 @@ export function StorefrontBuilder({ sellerId }: { sellerId: number }) {
 
           <input
             type="text"
-            placeholder="Search modules..."
+            placeholder={tr('ui.searchModules')}
             value={librarySearch}
             onChange={(e) => setLibrarySearch(e.target.value)}
             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-orange-500"
@@ -1039,7 +1049,7 @@ export function StorefrontBuilder({ sellerId }: { sellerId: number }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="h-[80vh] w-[90vw] max-w-6xl overflow-y-auto rounded-xl bg-white shadow-xl">
             <div className="border-b border-gray-200 p-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold">Storefront Preview</h3>
+              <h3 className="text-lg font-bold">{tr('ui.storefrontPreview')}</h3>
               <button
                 onClick={() => setShowPreview(false)}
                 className="rounded-lg p-1 text-gray-500 hover:bg-gray-100"
@@ -1058,7 +1068,7 @@ export function StorefrontBuilder({ sellerId }: { sellerId: number }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="h-[80vh] w-[90vw] max-w-5xl overflow-y-auto rounded-xl bg-white shadow-xl">
             <div className="border-b border-gray-200 p-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold">Choose a Template</h3>
+              <h3 className="text-lg font-bold">{tr('ui.chooseATemplate')}</h3>
               <button
                 onClick={() => setShowTemplateSelector(false)}
                 className="rounded-lg p-1 text-gray-500 hover:bg-gray-100"

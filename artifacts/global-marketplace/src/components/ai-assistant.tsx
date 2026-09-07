@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useListProducts } from '@workspace/api-client-react';
 import { useAiMode } from '@/components/ai-mode-context';
+import { useLocale } from '@/lib/i18n/locale-context';
 
 type Message = { role: 'user' | 'assistant'; text: string; links?: { href: string; label: string }[] };
 
@@ -37,7 +38,7 @@ function buildAiResponse(query: string, products: { name: string; id: number; pr
     return {
       role: 'assistant',
       text: 'Here are low-MOQ options under $50/unit — ideal for first-time buyers testing demand:',
-      links: budget.map((p) => ({ href: `/products/${p.id}`, label: `${p.name} · MOQ ${p.moq} · $${p.price.toFixed(2)}` })),
+      links: budget.map((p) => ({ href: `/products/${p.id}`, label: `${p.name} · MOQ ${p.moq} · $${(Number(p.price) || 0).toFixed(2)}` })),
     };
   }
 
@@ -64,11 +65,12 @@ function buildAiResponse(query: string, products: { name: string; id: number; pr
   return {
     role: 'assistant',
     text: `Based on your query, here are AI-ranked matches from ${products.length} live listings:`,
-    links: top.map((p) => ({ href: `/products/${p.id}`, label: `${p.name} · ★ ${p.rating.toFixed(1)}` })),
+    links: top.map((p) => ({ href: `/products/${p.id}`, label: `${p.name} · ★ ${(Number(p.rating) || 0).toFixed(1)}` })),
   };
 }
 
 export function AiAssistantPanel() {
+  const { tr } = useLocale();
   const { aiMode, assistantOpen, setAssistantOpen } = useAiMode();
   const { data: products } = useListProducts({ sort: 'featured' });
   const [input, setInput] = useState('');
@@ -121,11 +123,11 @@ export function AiAssistantPanel() {
                 <Bot size={18} />
               </span>
               <div>
-                <p className="text-sm font-bold">AI Sourcing Assistant</p>
-                <p className="text-[10px] text-white/75">Powered by Nzanila Intelligence</p>
+                <p className="text-sm font-bold">{tr('ui.aiSourcingAssistant')}</p>
+                <p className="text-[10px] text-white/75">{tr('ui.poweredByNzanilaIntelligence')}</p>
               </div>
             </div>
-            <button onClick={() => setAssistantOpen(false)} className="rounded-lg p-1.5 hover:bg-white/15" aria-label="Close AI assistant" data-testid="button-close-ai-assistant">
+            <button onClick={() => setAssistantOpen(false)} className="rounded-lg p-1.5 hover:bg-white/15" aria-label={tr('ui.closeAiAssistant')} data-testid="button-close-ai-assistant">
               <X size={18} />
             </button>
           </div>
@@ -179,7 +181,7 @@ export function AiAssistantPanel() {
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about products, MOQ, suppliers…"
+                placeholder={tr('ui.askAboutProductsMoqSuppliers')}
                 className="min-w-0 flex-1 rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-[#008744]"
                 data-testid="input-ai-assistant"
               />

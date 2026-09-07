@@ -8,8 +8,7 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "deploy:buyer": "wrangler deploy --config wrangler.jsonc",
-    "deploy:seller": "wrangler deploy --config wrangler.seller.jsonc"
+    "deploy:buyer": "wrangler deploy --config wrangler.jsonc"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",

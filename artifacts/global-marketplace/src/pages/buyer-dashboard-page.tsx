@@ -3,6 +3,7 @@ import { Link } from 'wouter';
 import { ShoppingBag, Package, MapPin, ArrowRight, Clock, CheckCircle2, Truck, RotateCcw, PackageCheck } from 'lucide-react';
 import { AppShell } from '@/components/marketplace-shell';
 import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/lib/i18n/locale-context';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-api-server.nzanilaexpress.workers.dev');
 
@@ -30,6 +31,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof
 };
 
 export function BuyerDashboardPage() {
+  const { tr } = useLocale();
   const { user, session } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -79,7 +81,7 @@ export function BuyerDashboardPage() {
       <div className="px-4 py-6 sm:px-6 lg:px-10 max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <p className="text-sm text-gray-600">Welcome back,</p>
+          <p className="text-sm text-gray-600">{tr('ui.welcomeBack')}</p>
           <h1 className="text-2xl font-bold text-gray-900">{user?.name || 'Buyer'}</h1>
         </div>
 
@@ -87,15 +89,15 @@ export function BuyerDashboardPage() {
         <div className="mb-6 grid grid-cols-3 gap-3">
           <div className="rounded-xl border border-gray-200 bg-white p-4 text-center">
             <p className="text-2xl font-bold text-gray-900">{data?.orderCount || 0}</p>
-            <p className="text-xs text-gray-500 mt-1">Total orders</p>
+            <p className="text-xs text-gray-500 mt-1">{tr('ui.totalOrders')}</p>
           </div>
           <div className="rounded-xl border border-gray-200 bg-white p-4 text-center">
             <p className="text-2xl font-bold text-gray-900">{data?.activeOrderCount || 0}</p>
-            <p className="text-xs text-gray-500 mt-1">Active</p>
+            <p className="text-xs text-gray-500 mt-1">{tr('ui.active')}</p>
           </div>
           <div className="rounded-xl border border-gray-200 bg-white p-4 text-center">
             <p className="text-2xl font-bold text-gray-900">{money(data?.totalSpent || 0)}</p>
-            <p className="text-xs text-gray-500 mt-1">Total spent</p>
+            <p className="text-xs text-gray-500 mt-1">{tr('ui.totalSpent')}</p>
           </div>
         </div>
 
@@ -104,7 +106,7 @@ export function BuyerDashboardPage() {
           <section className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-bold text-gray-900">ACTIVE ORDERS</h2>
-              <Link href="/orders" className="text-xs font-bold text-[#ff6a00] hover:underline">View all</Link>
+              <Link href="/orders" className="text-xs font-bold text-[#ff6a00] hover:underline">{tr('ui.viewAll')}</Link>
             </div>
             <div className="space-y-2">
               {activeOrders.map((order: any) => {
@@ -145,7 +147,7 @@ export function BuyerDashboardPage() {
           <section className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-bold text-gray-900">REORDER</h2>
-              <Link href="/products" className="text-xs font-bold text-[#ff6a00] hover:underline">Browse products</Link>
+              <Link href="/products" className="text-xs font-bold text-[#ff6a00] hover:underline">{tr('ui.browseProducts')}</Link>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {reorderable.map((item: any, i: number) => (
@@ -179,7 +181,7 @@ export function BuyerDashboardPage() {
           <section className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-bold text-gray-900">RECENT ORDERS</h2>
-              <Link href="/orders" className="text-xs font-bold text-[#ff6a00] hover:underline">View all</Link>
+              <Link href="/orders" className="text-xs font-bold text-[#ff6a00] hover:underline">{tr('ui.viewAll')}</Link>
             </div>
             <div className="space-y-2">
               {recentOrders.map((order: any) => (
@@ -187,7 +189,7 @@ export function BuyerDashboardPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-bold text-gray-900">#{order.id}</p>
-                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">Delivered</span>
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">{tr('ui.delivered')}</span>
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">
                       {order.itemCount} items · {money(order.total)} · {timeAgo(order.date)}
@@ -203,7 +205,7 @@ export function BuyerDashboardPage() {
         <section className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold text-gray-900">DEFAULT ADDRESS</h2>
-            <Link href="/buyer/profile" className="text-xs font-bold text-[#ff6a00] hover:underline">Manage</Link>
+            <Link href="/buyer/profile" className="text-xs font-bold text-[#ff6a00] hover:underline">{tr('ui.manage')}</Link>
           </div>
           {defaultAddress ? (
             <div className="flex items-start gap-3">
@@ -231,8 +233,8 @@ export function BuyerDashboardPage() {
         {activeOrders.length === 0 && recentOrders.length === 0 && (
           <section className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center">
             <ShoppingBag size={40} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-sm font-semibold text-gray-900 mb-1">No orders yet</p>
-            <p className="text-xs text-gray-500 mb-4">Start shopping to see your orders here</p>
+            <p className="text-sm font-semibold text-gray-900 mb-1">{tr('ui.noOrdersYet')}</p>
+            <p className="text-xs text-gray-500 mb-4">{tr('ui.startShoppingToSeeYourOrders')}</p>
             <Link href="/products" className="inline-flex items-center gap-2 rounded-xl bg-[#ff6a00] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#e55f00]">
               Browse products <ArrowRight size={14} />
             </Link>

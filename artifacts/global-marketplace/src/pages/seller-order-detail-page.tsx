@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { SellerWorkspace } from '@/components/seller-workspace';
 import { useAuth } from '@/lib/auth-context';
+import { formatPhone } from '@/lib/phone';
+import { useLocale } from '@/lib/i18n/locale-context';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-api-server.nzanilaexpress.workers.dev');
 
@@ -50,6 +52,7 @@ interface OrderItem {
 }
 
 export function SellerOrderDetailPage() {
+  const { tr } = useLocale();
   const { id } = useParams<{ id: string }>();
   const { session } = useAuth();
   const [order, setOrder] = useState<OrderDetail | null>(null);
@@ -96,7 +99,7 @@ export function SellerOrderDetailPage() {
 
   if (loading) {
     return (
-      <SellerWorkspace title="Order Details">
+      <SellerWorkspace title={tr('ui.orderDetails')}>
         <div className="flex items-center justify-center py-20">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
         </div>
@@ -106,7 +109,7 @@ export function SellerOrderDetailPage() {
 
   if (error || !order) {
     return (
-      <SellerWorkspace title="Order Details">
+      <SellerWorkspace title={tr('ui.orderDetails')}>
         <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
           <AlertTriangle className="mx-auto text-red-600 mb-2" size={24} />
           <p className="text-red-800">{error || 'Order not found'}</p>
@@ -159,7 +162,7 @@ export function SellerOrderDetailPage() {
               <p className="text-lg font-bold text-gray-900">{order.buyerName}</p>
               {order.buyerPhone && (
                 <a href={`tel:${order.buyerPhone}`} className="mt-2 inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900">
-                  <Phone size={14} /> {order.buyerPhone}
+                  <Phone size={14} /> {formatPhone(order.buyerPhone)}
                 </a>
               )}
             </div>
@@ -198,15 +201,15 @@ export function SellerOrderDetailPage() {
           
           <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Subtotal</span>
+              <span className="text-gray-600">{tr('ui.subtotal')}</span>
               <span className="font-medium">{subtotal.toLocaleString()} BIF</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Shipping fee</span>
+              <span className="text-gray-600">{tr('ui.shippingFee')}</span>
               <span className="font-medium">{shippingFee.toLocaleString()} BIF</span>
             </div>
             <div className="flex justify-between text-lg font-bold">
-              <span>Total</span>
+              <span>{tr('ui.total')}</span>
               <span>{order.total.toLocaleString()} BIF</span>
             </div>
           </div>
@@ -217,20 +220,20 @@ export function SellerOrderDetailPage() {
           <h2 className="text-sm font-bold text-gray-900 mb-4">DELIVERY</h2>
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-sm">
-              <span className="font-medium text-gray-700">Method:</span>
+              <span className="font-medium text-gray-700">{tr('ui.method')}</span>
               <span className="text-gray-900">
                 {order.deliveryMethod === 'seller_delivery' ? 'Seller delivery' : order.deliveryMethod === 'buyer_pickup' ? 'Buyer pickup' : 'Waiting for buyer choice'}
               </span>
             </div>
             
-            {order.deliveryMethod === 'pending' ? <p className="rounded-lg bg-blue-50 p-3 text-xs text-blue-800">The buyer will choose delivery or pickup after placing the order.</p> : order.deliveryMethod === 'seller_delivery' ? (
+            {order.deliveryMethod === 'pending' ? <p className="rounded-lg bg-blue-50 p-3 text-xs text-blue-800">{tr('ui.theBuyerWillChooseDeliveryOr')}</p> : order.deliveryMethod === 'seller_delivery' ? (
               <>
                 <div className="flex items-start gap-2 text-sm">
                   <MapPin size={16} className="text-gray-500 mt-0.5" />
                   <div>
                     <p className="font-medium text-gray-900">{order.deliveryLocation}</p>
                     {order.landmark && <p className="text-gray-600">Near {order.landmark}</p>}
-                    {googleMapsUrl && <a href={googleMapsUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#ff6a00] px-3 py-2 text-xs font-bold text-white hover:bg-orange-600"><MapPin size={14} /> Open in Google Maps <ExternalLink size={13} /></a>}
+                    {googleMapsUrl && <a href={googleMapsUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#ff6a00] px-3 py-2 text-xs font-bold text-white hover:bg-orange-600"><MapPin size={14} /> {tr('ui.openInGoogleMaps')} <ExternalLink size={13} /></a>}
                   </div>
                 </div>
                 
@@ -256,7 +259,7 @@ export function SellerOrderDetailPage() {
               <div className="flex items-start gap-2 text-sm">
                 <ShoppingBag size={16} className="text-gray-500 mt-0.5" />
                 <div>
-                  <p className="font-medium text-gray-900">Pickup point selected</p>
+                  <p className="font-medium text-gray-900">{tr('ui.pickupPointSelected')}</p>
                   <p className="text-gray-600">{order.pickupPoint}</p>
                 </div>
               </div>
@@ -264,15 +267,15 @@ export function SellerOrderDetailPage() {
             
                 {order.buyerDirections && (
               <div className="mt-3 rounded-lg bg-blue-50 p-3 text-sm">
-                <p className="font-medium text-blue-900 mb-1">Buyer directions:</p>
+                <p className="font-medium text-blue-900 mb-1">{tr('ui.buyerDirections')}</p>
                 <p className="text-blue-800">{order.buyerDirections}</p>
               </div>
                 )}
                 {order.deliveryPhoto && (
                   <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
-                    <p className="mb-2 text-xs font-bold text-gray-700">Buyer location photo</p>
-                    <img src={order.deliveryPhoto} alt="Buyer delivery location" className="max-h-56 w-full rounded-lg object-cover" />
-                    <p className="mt-2 text-[11px] text-gray-500">Use this photo to confirm the delivery point with the buyer before dispatch.</p>
+                    <p className="mb-2 text-xs font-bold text-gray-700">{tr('ui.buyerLocationPhoto')}</p>
+                    <img src={order.deliveryPhoto} alt={tr('ui.buyerDeliveryLocation')} className="max-h-56 w-full rounded-lg object-cover" />
+                    <p className="mt-2 text-[11px] text-gray-500">{tr('ui.useThisPhotoToConfirmThe')}</p>
                   </div>
                 )}
           </div>

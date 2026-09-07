@@ -564,6 +564,9 @@ components:
           type: number
         productName:
           type: string
+        productImage:
+          type: string
+          description: Product thumbnail resolved from the product record at read time.
         quantity:
           type: integer
         unitPrice:

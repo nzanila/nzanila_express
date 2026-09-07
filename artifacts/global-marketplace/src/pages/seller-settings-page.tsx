@@ -18,8 +18,10 @@ import {
 } from 'lucide-react';
 import { SellerWorkspace } from '@/components/seller-workspace';
 import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/lib/i18n/locale-context';
 
 export function SellerSettingsPage() {
+  const { tr } = useLocale();
   const { user, logout } = useAuth();
   const [notifications, setNotifications] = useState({
     newOrderAlerts: true,
@@ -53,7 +55,7 @@ export function SellerSettingsPage() {
   const healthScore = Math.round((healthItems.filter((i) => i.done).length / healthItems.length) * 100);
 
   return (
-    <SellerWorkspace title="Settings">
+    <SellerWorkspace title={tr('ui.settings')}>
       <div className="max-w-3xl mx-auto space-y-6">
         {/* ACCOUNT HEALTH */}
         <section className="rounded-xl border border-gray-200 bg-white p-6">
@@ -92,7 +94,7 @@ export function SellerSettingsPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between py-3 border-b border-gray-100">
               <div>
-                <p className="font-medium text-gray-900">Name</p>
+                <p className="font-medium text-gray-900">{tr('ui.name')}</p>
                 <p className="text-sm text-gray-600">{user?.name || 'Not set'}</p>
               </div>
               <Link href="/settings/profile" className="text-[#ff6a00] text-sm font-medium hover:underline">
@@ -102,7 +104,7 @@ export function SellerSettingsPage() {
 
             <div className="flex items-center justify-between py-3 border-b border-gray-100">
               <div>
-                <p className="font-medium text-gray-900">Phone number</p>
+                <p className="font-medium text-gray-900">{tr('ui.phoneNumber2')}</p>
                 <p className="text-sm text-gray-600">{(user as any)?.phone || 'Not set'}</p>
               </div>
               <Link href="/settings/phone" className="text-[#ff6a00] text-sm font-medium hover:underline">
@@ -112,8 +114,8 @@ export function SellerSettingsPage() {
 
             <div className="flex items-center justify-between py-3 border-b border-gray-100">
               <div>
-                <p className="font-medium text-gray-900">Password or login method</p>
-                <p className="text-sm text-gray-600">Last changed 30 days ago</p>
+                <p className="font-medium text-gray-900">{tr('ui.passwordOrLoginMethod')}</p>
+                <p className="text-sm text-gray-600">{tr('ui.lastChanged30DaysAgo')}</p>
               </div>
               <Link href="/settings/password" className="text-[#ff6a00] text-sm font-medium hover:underline">
                 Change
@@ -122,8 +124,8 @@ export function SellerSettingsPage() {
 
             <div className="flex items-center justify-between py-3">
               <div>
-                <p className="font-medium text-gray-900">Preferred language</p>
-                <p className="text-sm text-gray-600">English</p>
+                <p className="font-medium text-gray-900">{tr('ui.preferredLanguage')}</p>
+                <p className="text-sm text-gray-600">{tr('ui.english')}</p>
               </div>
               <Link href="/settings/language" className="text-[#ff6a00] text-sm font-medium hover:underline">
                 Change
@@ -142,8 +144,8 @@ export function SellerSettingsPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between py-3 border-b border-gray-100">
               <div>
-                <p className="font-medium text-gray-900">New order alerts</p>
-                <p className="text-sm text-gray-600">Get notified when you receive new orders</p>
+                <p className="font-medium text-gray-900">{tr('ui.newOrderAlerts')}</p>
+                <p className="text-sm text-gray-600">{tr('ui.getNotifiedWhenYouReceiveNew')}</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -158,8 +160,8 @@ export function SellerSettingsPage() {
 
             <div className="flex items-center justify-between py-3 border-b border-gray-100">
               <div>
-                <p className="font-medium text-gray-900">Message alerts</p>
-                <p className="text-sm text-gray-600">Get notified when buyers send messages</p>
+                <p className="font-medium text-gray-900">{tr('ui.messageAlerts')}</p>
+                <p className="text-sm text-gray-600">{tr('ui.getNotifiedWhenBuyersSendMessages')}</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -174,8 +176,8 @@ export function SellerSettingsPage() {
 
             <div className="flex items-center justify-between py-3">
               <div>
-                <p className="font-medium text-gray-900">Low-stock alerts</p>
-                <p className="text-sm text-gray-600">Get notified when products are running low</p>
+                <p className="font-medium text-gray-900">{tr('ui.lowstockAlerts')}</p>
+                <p className="text-sm text-gray-600">{tr('ui.getNotifiedWhenProductsAreRunning')}</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -203,8 +205,8 @@ export function SellerSettingsPage() {
               className="flex items-center justify-between py-3 border-b border-gray-100 hover:bg-gray-50 rounded-lg px-2 -mx-2"
             >
               <div>
-                <p className="font-medium text-gray-900">Delivery areas</p>
-                <p className="text-sm text-gray-600">Manage where you deliver</p>
+                <p className="font-medium text-gray-900">{tr('ui.deliveryAreas')}</p>
+                <p className="text-sm text-gray-600">{tr('ui.manageWhereYouDeliver')}</p>
               </div>
               <ChevronRight size={18} className="text-gray-400" />
             </Link>
@@ -214,8 +216,8 @@ export function SellerSettingsPage() {
               className="flex items-center justify-between py-3 border-b border-gray-100 hover:bg-gray-50 rounded-lg px-2 -mx-2"
             >
               <div>
-                <p className="font-medium text-gray-900">Delivery fee rules</p>
-                <p className="text-sm text-gray-600">Set pricing for different areas</p>
+                <p className="font-medium text-gray-900">{tr('ui.deliveryFeeRules')}</p>
+                <p className="text-sm text-gray-600">{tr('ui.setPricingForDifferentAreas')}</p>
               </div>
               <ChevronRight size={18} className="text-gray-400" />
             </Link>
@@ -225,8 +227,8 @@ export function SellerSettingsPage() {
               className="flex items-center justify-between py-3 hover:bg-gray-50 rounded-lg px-2 -mx-2"
             >
               <div>
-                <p className="font-medium text-gray-900">Delivery hours</p>
-                <p className="text-sm text-gray-600">Set your available delivery times</p>
+                <p className="font-medium text-gray-900">{tr('ui.deliveryHours')}</p>
+                <p className="text-sm text-gray-600">{tr('ui.setYourAvailableDeliveryTimes')}</p>
               </div>
               <ChevronRight size={18} className="text-gray-400" />
             </Link>
@@ -243,17 +245,17 @@ export function SellerSettingsPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between py-3 border-b border-gray-100">
               <div>
-                <p className="font-medium text-gray-900">Phone verification</p>
+                <p className="font-medium text-gray-900">{tr('ui.phoneVerification')}</p>
                 <p className="text-sm text-emerald-600 flex items-center gap-1">
                   <Phone size={14} /> Verified
                 </p>
               </div>
-              <span className="text-xs text-gray-500">Completed</span>
+              <span className="text-xs text-gray-500">{tr('ui.completed')}</span>
             </div>
 
             <div className="flex items-center justify-between py-3 border-b border-gray-100">
               <div>
-                <p className="font-medium text-gray-900">Seller verification</p>
+                <p className="font-medium text-gray-900">{tr('ui.sellerVerification2')}</p>
                 <p className="text-sm text-gray-600">
                   {(user as any)?.verificationStatus === 'verified' 
                     ? 'Your seller profile is approved' 
@@ -270,8 +272,8 @@ export function SellerSettingsPage() {
 
             <div className="flex items-center justify-between py-3">
               <div>
-                <p className="font-medium text-gray-900">Verification documents</p>
-                <p className="text-sm text-gray-600">Manage your uploaded documents</p>
+                <p className="font-medium text-gray-900">{tr('ui.verificationDocuments')}</p>
+                <p className="text-sm text-gray-600">{tr('ui.manageYourUploadedDocuments')}</p>
               </div>
               <Link 
                 to="/seller/verify"
@@ -296,8 +298,8 @@ export function SellerSettingsPage() {
               className="flex items-center justify-between py-3 border-b border-gray-100 hover:bg-gray-50 rounded-lg px-2 -mx-2"
             >
               <div>
-                <p className="font-medium text-gray-900">Private location settings</p>
-                <p className="text-sm text-gray-600">Control who sees your exact location</p>
+                <p className="font-medium text-gray-900">{tr('ui.privateLocationSettings')}</p>
+                <p className="text-sm text-gray-600">{tr('ui.controlWhoSeesYourExactLocation')}</p>
               </div>
               <ChevronRight size={18} className="text-gray-400" />
             </Link>
@@ -307,8 +309,8 @@ export function SellerSettingsPage() {
               className="flex items-center justify-between py-3 border-b border-gray-100 hover:bg-gray-50 rounded-lg px-2 -mx-2"
             >
               <div>
-                <p className="font-medium text-gray-900">Blocked users</p>
-                <p className="text-sm text-gray-600">Manage users you've blocked</p>
+                <p className="font-medium text-gray-900">{tr('ui.blockedUsers')}</p>
+                <p className="text-sm text-gray-600">{tr('ui.manageUsersYouveBlocked')}</p>
               </div>
               <ChevronRight size={18} className="text-gray-400" />
             </Link>
@@ -318,8 +320,8 @@ export function SellerSettingsPage() {
               className="flex items-center justify-between py-3 hover:bg-gray-50 rounded-lg px-2 -mx-2"
             >
               <div>
-                <p className="font-medium text-gray-900">Report history</p>
-                <p className="text-sm text-gray-600">View reports you've submitted</p>
+                <p className="font-medium text-gray-900">{tr('ui.reportHistory')}</p>
+                <p className="text-sm text-gray-600">{tr('ui.viewReportsYouveSubmitted')}</p>
               </div>
               <ChevronRight size={18} className="text-gray-400" />
             </Link>
@@ -367,8 +369,8 @@ export function SellerSettingsPage() {
             >
               <LogOut size={18} className="text-gray-600" />
               <div>
-                <p className="font-medium text-gray-900">Log out</p>
-                <p className="text-sm text-gray-600">Sign out of your account</p>
+                <p className="font-medium text-gray-900">{tr('ui.logOut')}</p>
+                <p className="text-sm text-gray-600">{tr('ui.signOutOfYourAccount')}</p>
               </div>
             </button>
 
@@ -378,8 +380,8 @@ export function SellerSettingsPage() {
             >
               <Trash2 size={18} />
               <div>
-                <p className="font-medium text-red-600">Delete account</p>
-                <p className="text-sm text-red-500">Permanently delete your account and data</p>
+                <p className="font-medium text-red-600">{tr('ui.deleteAccount2')}</p>
+                <p className="text-sm text-red-500">{tr('ui.permanentlyDeleteYourAccountAndData')}</p>
               </div>
             </button>
           </div>

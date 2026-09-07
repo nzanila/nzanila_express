@@ -92,7 +92,7 @@ export function PwaInstallPrompt() {
 
           {/* Logo */}
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-[#ff6a00]/10 shadow-sm">
-            <img src="/logo.png" alt="Nzanila" className="h-12 w-12 object-contain" />
+            <img src="/logo.png" alt={tr('ui.nzanila')} className="h-12 w-12 object-contain" />
           </div>
 
           {/* Text */}

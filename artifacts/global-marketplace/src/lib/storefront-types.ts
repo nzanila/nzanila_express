@@ -22,7 +22,13 @@ export type ModuleType =
   | 'trust-badges'
   | 'promo-banner'
   | 'hot-products'
-  | 'new-arrivals';
+  | 'new-arrivals'
+  | 'hero-slideshow'
+  | 'slideshow'
+  | 'image-grid'
+  | 'video-grid'
+  | 'hot-zone'
+  | 'inquiry-form';
 
 export interface StorefrontModule {
   id: string;

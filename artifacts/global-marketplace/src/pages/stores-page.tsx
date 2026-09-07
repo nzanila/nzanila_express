@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { SellerWorkspace } from '@/components/seller-workspace';
 import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/lib/i18n/locale-context';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-seller-api.nzanilaexpress.workers.dev');
 
@@ -33,6 +34,7 @@ interface Store {
 }
 
 export function StoresPage() {
+  const { tr } = useLocale();
   const { user } = useAuth();
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,9 +95,9 @@ export function StoresPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'active': return <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700"><CheckCircle size={10} /> Active</span>;
-      case 'inactive': return <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-700"><XCircle size={10} /> Inactive</span>;
-      case 'pending': return <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-bold text-yellow-700"><Clock size={10} /> Pending</span>;
+      case 'active': return <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700"><CheckCircle size={10} /> {tr('ui.active')}</span>;
+      case 'inactive': return <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-700"><XCircle size={10} /> {tr('ui.inactive')}</span>;
+      case 'pending': return <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-bold text-yellow-700"><Clock size={10} /> {tr('ui.pending')}</span>;
       default: return null;
     }
   };
@@ -108,23 +110,23 @@ export function StoresPage() {
   };
 
   return (
-    <SellerWorkspace title="My Stores">
+    <SellerWorkspace title={tr('ui.myStores')}>
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-xs font-semibold text-gray-500 mb-1">Total Stores</p>
+          <p className="text-xs font-semibold text-gray-500 mb-1">{tr('ui.totalStores')}</p>
           <p className="text-2xl font-bold text-gray-900">{stats.totalStores}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-xs font-semibold text-gray-500 mb-1">Active Stores</p>
+          <p className="text-xs font-semibold text-gray-500 mb-1">{tr('ui.activeStores')}</p>
           <p className="text-2xl font-bold text-emerald-600">{stats.activeStores}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-xs font-semibold text-gray-500 mb-1">Total Products</p>
+          <p className="text-xs font-semibold text-gray-500 mb-1">{tr('ui.totalProducts')}</p>
           <p className="text-2xl font-bold text-gray-900">{stats.totalProducts}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-xs font-semibold text-gray-500 mb-1">Total Revenue</p>
+          <p className="text-xs font-semibold text-gray-500 mb-1">{tr('ui.totalRevenue')}</p>
           <p className="text-2xl font-bold text-gray-900">${stats.totalRevenue.toLocaleString()}</p>
         </div>
       </div>
@@ -137,7 +139,7 @@ export function StoresPage() {
               <Search size={16} className="text-gray-500" />
               <input
                 type="text"
-                placeholder="Search stores by name or location..."
+                placeholder={tr('ui.searchStoresByNameOrLocation')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="bg-transparent text-sm outline-none w-full"
@@ -148,10 +150,10 @@ export function StoresPage() {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
             >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="pending">Pending</option>
+              <option value="all">{tr('ui.allStatus')}</option>
+              <option value="active">{tr('ui.active')}</option>
+              <option value="inactive">{tr('ui.inactive')}</option>
+              <option value="pending">{tr('ui.pending')}</option>
             </select>
           </div>
           <Link href="/supplier/stores/new" className="flex items-center gap-2 px-4 py-2 bg-[#ff9900] text-white rounded-lg text-sm font-bold hover:bg-[#e68a00]">
@@ -174,8 +176,8 @@ export function StoresPage() {
       ) : filteredStores.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <Store size={48} className="mx-auto text-gray-300 mb-4" />
-          <p className="text-lg font-bold text-gray-900 mb-2">No stores found</p>
-          <p className="text-sm text-gray-500 mb-4">Create your first store to start selling</p>
+          <p className="text-lg font-bold text-gray-900 mb-2">{tr('ui.noStoresFound')}</p>
+          <p className="text-sm text-gray-500 mb-4">{tr('ui.createYourFirstStoreToStart')}</p>
           <Link href="/supplier/stores/new" className="inline-flex items-center gap-2 px-4 py-2 bg-[#ff9900] text-white rounded-lg text-sm font-bold hover:bg-[#e68a00]">
             <Plus size={14} /> Create Store
           </Link>
@@ -209,15 +211,15 @@ export function StoresPage() {
                 <div className="grid grid-cols-3 gap-3 mb-4">
                   <div className="text-center p-2 bg-gray-50 rounded-lg">
                     <p className="text-lg font-bold text-gray-900">{store.products}</p>
-                    <p className="text-[10px] text-gray-500">Products</p>
+                    <p className="text-[10px] text-gray-500">{tr('ui.products')}</p>
                   </div>
                   <div className="text-center p-2 bg-gray-50 rounded-lg">
                     <p className="text-lg font-bold text-gray-900">{store.orders}</p>
-                    <p className="text-[10px] text-gray-500">Orders</p>
+                    <p className="text-[10px] text-gray-500">{tr('ui.orders')}</p>
                   </div>
                   <div className="text-center p-2 bg-gray-50 rounded-lg">
                     <p className="text-lg font-bold text-gray-900">${store.revenue.toLocaleString()}</p>
-                    <p className="text-[10px] text-gray-500">Revenue</p>
+                    <p className="text-[10px] text-gray-500">{tr('ui.revenue')}</p>
                   </div>
                 </div>
 
@@ -225,7 +227,7 @@ export function StoresPage() {
                   <Link href={`/store/${store.slug}`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-xs font-semibold hover:bg-gray-50">
                     <Eye size={12} /> View
                   </Link>
-                  <Link href={`/seller/${store.id}/storefront`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-[#ff9900] text-white rounded-lg text-xs font-semibold hover:bg-[#e68a00]">
+                  <Link href={`/supplier/stores/${store.id}/storefront`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-[#ff9900] text-white rounded-lg text-xs font-semibold hover:bg-[#e68a00]">
                     <Globe size={12} /> Storefront
                   </Link>
                   <Link href={`/supplier/stores/${store.id}/edit`} className="flex items-center justify-center px-3 py-2 border border-gray-200 rounded-lg text-xs font-semibold hover:bg-gray-50">

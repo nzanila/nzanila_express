@@ -3,6 +3,7 @@ import { useParams, Link } from 'wouter';
 import { ArrowLeft, Save, X, Camera, Plus } from 'lucide-react';
 import { SellerWorkspace } from '@/components/seller-workspace';
 import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/lib/i18n/locale-context';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : '');
 
@@ -52,6 +53,7 @@ interface ProductFormData {
 }
 
 export function SellerProductFormPage() {
+  const { tr } = useLocale();
   const { id } = useParams<{ id: string }>();
   const { session } = useAuth();
   const isEditing = !!id;
@@ -203,7 +205,7 @@ export function SellerProductFormPage() {
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
                   className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]"
-                  placeholder="Enter product name"
+                  placeholder={tr('ui.enterProductName')}
                   required
                 />
               </div>
@@ -217,7 +219,7 @@ export function SellerProductFormPage() {
                   onChange={(e) => handleInputChange('description', e.target.value)}
                   rows={4}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]"
-                  placeholder="Describe your product..."
+                  placeholder={tr('ui.describeYourProduct')}
                 />
               </div>
 
@@ -230,7 +232,7 @@ export function SellerProductFormPage() {
                   onChange={(e) => handleInputChange('category', e.target.value)}
                   className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]"
                 >
-                  <option value="">Select category (optional)</option>
+                  <option value="">{tr('ui.selectCategoryOptional')}</option>
                   {CATEGORIES.map(cat => (
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
@@ -387,7 +389,7 @@ export function SellerProductFormPage() {
                   value={formData.deliveryAreas}
                   onChange={(e) => handleInputChange('deliveryAreas', e.target.value)}
                   className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]"
-                  placeholder="e.g., Bujumbura, Gitega, Bubanza"
+                  placeholder={tr('ui.egBujumburaGitegaBubanza2')}
                 />
               </div>
 
@@ -422,7 +424,7 @@ export function SellerProductFormPage() {
                   onChange={(e) => handleInputChange('warehouseLocation', e.target.value)}
                   className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]"
                 >
-                  <option value="">Select warehouse (optional)</option>
+                  <option value="">{tr('ui.selectWarehouseOptional')}</option>
                   {WAREHOUSE_LOCATIONS.map(loc => (
                     <option key={loc} value={loc}>{loc}</option>
                   ))}
@@ -439,7 +441,7 @@ export function SellerProductFormPage() {
                     value={formData.sku}
                     onChange={(e) => handleInputChange('sku', e.target.value)}
                     className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]"
-                    placeholder="e.g., PROD-001"
+                    placeholder={tr('ui.egProd001')}
                   />
                 </div>
 
@@ -452,7 +454,7 @@ export function SellerProductFormPage() {
                     value={formData.barcode}
                     onChange={(e) => handleInputChange('barcode', e.target.value)}
                     className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]"
-                    placeholder="e.g., 1234567890123"
+                    placeholder={tr('ui.eg1234567890123')}
                   />
                 </div>
               </div>
@@ -483,7 +485,7 @@ export function SellerProductFormPage() {
                     onChange={(e) => handleInputChange('reorderLevel', e.target.value)}
                     className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]"
                     min="0"
-                    placeholder="Alert when stock falls below this level"
+                    placeholder={tr('ui.alertWhenStockFallsBelowThis')}
                   />
                 </div>
               </div>

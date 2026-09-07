@@ -1,9 +1,28 @@
+// Storefront product names are DELIBERATELY not machine-translated.
+//
+// The buyer-facing content-translation preference (see components/translatable-text.tsx)
+// covers the marketplace grid, product pages and AI research results. It stops at the
+// storefront on purpose. A storefront is the seller's own shop window, and short product
+// names are exactly where the model fails hardest — measured on this catalogue, en->sw:
+//
+//   "Maize Grain (100kg)"    -> "Maji ya nguruwe"   ("pig water")
+//   "Vegetable Oil (20L)"    -> "Mafuta ya maziwa"  ("milk oil")
+//   "Fresh Cassava (per kg)" -> "Chakula cha mchanga" ("sand food")
+//
+// Wrapping the names below in <TranslatableText> would look like tidying up an
+// inconsistency and would in fact print those strings on sellers' own storefronts. If
+// storefront translation is ever wanted, translate the DESCRIPTIONS, where there is enough
+// context for the model to behave, and leave the names in the seller's own words.
+
 import { useState, useEffect, type FormEvent } from 'react';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
+import { useAuth } from '@/lib/auth-context';
+import { formatPhone } from '@/lib/phone';
 import {
   Package, Video, ShieldCheck, Clock, Users, Building, Globe,
   ChevronDown, LayoutGrid, Search,
 } from 'lucide-react';
+import { useLocale } from '@/lib/i18n/locale-context';
 
 const API = import.meta.env.VITE_API_URL || 'https://nzanila-seller-api.nzanilaexpress.workers.dev';
 
@@ -68,9 +87,161 @@ function sortProducts(products: any[], sort: string) {
   return rows.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 }
 
-function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'newest', productSearch = '', onStoreSearch, onTemplateAction }: { mod: StorefrontModule; storeId?: number; categoryFilter?: string; productSort?: string; productSearch?: string; onStoreSearch?: (query: string) => void; onTemplateAction?: (target?: string, label?: string) => void }) {
-  const props = mod.props as Record<string, string | number | boolean | null | undefined>;
-  const p = (key: string) => props[key];
+
+type HotRegion = { label?: string; href?: string; x: number; y: number; w: number; h: number };
+
+// A designed image with clickable regions. Regions are percentages of the image, and are
+// rendered as positioned anchors rather than an <area> map, so they scale with the image.
+function HotZone({ imageUrl, alt, title, regions }: { imageUrl: string; alt: string; title: string; regions: HotRegion[] }) {
+  const { tr } = useLocale();
+  if (!imageUrl) return <div className="grid h-40 place-items-center rounded-lg border-2 border-dashed border-gray-200 text-xs text-gray-400">{tr('ui.addYourDesignedBannerImage')}</div>;
+  return (
+    <div className="bg-white">
+      {title && <h3 className="px-4 pt-4 text-lg font-bold text-gray-900">{title}</h3>}
+      <div className="relative w-full">
+        <img src={imageUrl} alt={alt} className="block h-auto w-full" />
+        {regions.map((region, index) => {
+          const style = { left: `${region.x}%`, top: `${region.y}%`, width: `${region.w}%`, height: `${region.h}%` };
+          const cls = "absolute rounded-md outline-none transition hover:ring-2 hover:ring-[#ff6a00]/70 focus-visible:ring-2 focus-visible:ring-[#ff6a00]";
+          const external = /^https?:\/\//.test(String(region.href || ''));
+          if (!region.href) return <span key={index} style={style} className={cls} aria-hidden="true" />;
+          return external
+            ? <a key={index} href={region.href} target="_blank" rel="noopener noreferrer" style={style} className={cls} aria-label={region.label || 'Open'} />
+            : <Link key={index} href={region.href} style={style} className={cls} aria-label={region.label || 'Open'} />;
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Inline inquiry: opens (or reuses) a conversation with this store and sends the message.
+function InquiryForm({ storeId, sellerId, title, description, buttonText, backgroundColor, textColor }: { storeId?: number; sellerId?: number; title: string; description: string; buttonText: string; backgroundColor: string; textColor: string }) {
+  const { tr } = useLocale();
+  const { session, isAuthenticated, user } = useAuth();
+  const [, setLocation] = useLocation();
+  const [name, setName] = useState(user?.name || '');
+  const [phone, setPhone] = useState('');
+  const [message, setMessage] = useState('');
+  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [error, setError] = useState('');
+  const api = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-api-server.nzanilaexpress.workers.dev');
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!message.trim()) { setError('Please write your inquiry.'); return; }
+    if (!isAuthenticated) { setLocation('/auth'); return; }
+    if (!sellerId) { setError('This store cannot receive inquiries yet.'); return; }
+    setState('sending'); setError('');
+    try {
+      // Contact details first, a blank line, then the message — so the seller sees who is asking.
+      const contact = [name.trim() && `Name: ${name.trim()}`, phone.trim() && `Phone: ${phone.trim()}`].filter((v): v is string => Boolean(v));
+      const body = [...contact, ...(contact.length ? [''] : []), message.trim()].join('\n');
+      const response = await fetch(`${api}/api/conversations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.accessToken || ''}` },
+        body: JSON.stringify({ sellerId, storeId, message: body }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Could not send your inquiry');
+      setState('sent'); setMessage('');
+    } catch (cause) {
+      setState('error'); setError(cause instanceof Error ? cause.message : 'Could not send your inquiry');
+    }
+  };
+
+  const field = "w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2.5 text-sm placeholder-white/50 outline-none focus:border-[#ff9900] focus:bg-white/15";
+  return (
+    <div className="p-6 sm:p-8" style={{ backgroundColor, color: textColor }}>
+      <div className="mx-auto grid w-full max-w-6xl gap-6 md:grid-cols-[1fr_1.2fr] md:items-center">
+        <div>
+          <h3 className="text-2xl font-bold">{title}</h3>
+          {description && <p className="mt-2 text-sm opacity-80">{description}</p>}
+        </div>
+        {state === 'sent' ? (
+          <div className="rounded-xl border border-white/20 bg-white/10 p-5 text-sm">
+            <p className="font-bold">{tr('ui.inquirySent')}</p>
+            <p className="mt-1 opacity-80">{tr('ui.theSupplierWillReplyInYour')}</p>
+            <Link href="/messages" className="mt-3 inline-block rounded-lg bg-[#ff9900] px-4 py-2 text-xs font-bold text-white">{tr('ui.openMessages')}</Link>
+          </div>
+        ) : (
+          <form onSubmit={submit} className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <input value={name} onChange={e => setName(e.target.value)} placeholder={tr('ui.yourName')} className={field} style={{ color: textColor }} />
+              <input value={phone} onChange={e => setPhone(e.target.value)} placeholder={tr('ui.phoneOptional')} type="tel" className={field} style={{ color: textColor }} />
+            </div>
+            <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder={tr('ui.whatDoYouNeedQuantitySpecifications')} rows={3} className={field} style={{ color: textColor }} />
+            {error && <p className="text-xs font-semibold text-red-300">{error}</p>}
+            <button type="submit" disabled={state === 'sending'} className="w-full rounded-lg bg-[#ff9900] px-4 py-3 text-sm font-bold text-white hover:bg-[#e68a00] disabled:opacity-50 sm:w-auto sm:px-8">
+              {state === 'sending' ? 'Sending…' : isAuthenticated ? buttonText : 'Sign in to send'}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Templates are authored with {{tokens}} so a default storefront is about the seller's
+// own business. The create flow bakes them in, but a config seeded straight into the
+// database — or saved by an older build — can still carry them, and a visible
+// "{{companyName}}" on a live storefront is worse than any fallback. Resolve them here
+// too, from the store record, so the page never shows its own plumbing.
+type StoreRecord = Record<string, unknown> | undefined;
+
+function storeTokens(store: StoreRecord): Record<string, string> {
+  const value = (key: string) => {
+    const raw = store?.[key];
+    return raw === null || raw === undefined || raw === '' ? '' : String(raw);
+  };
+  const location = [value('commune') || value('location_address') || value('address'), value('province')].filter(Boolean).join(', ');
+  return {
+    companyName: value('name') || 'This supplier',
+    description: value('description') || 'Contact this supplier for company and product information.',
+    category: value('business_category') || 'Wholesale supply',
+    phone: formatPhone(value('phone')) || value('phone') || 'Contact this supplier',
+    email: value('email') || 'Contact this supplier',
+    address: value('address') || value('location_address') || location || 'Location available from supplier',
+    location: location || 'Burundi',
+    yearsActive: value('years_active') ? `${value('years_active')} years` : 'New supplier',
+  };
+}
+
+function resolveTokens<T>(value: T, tokens: Record<string, string>): T {
+  if (typeof value === 'string') return value.replace(/\{\{(\w+)\}\}/g, (whole, key: string) => tokens[key] ?? whole) as unknown as T;
+  if (Array.isArray(value)) return value.map(item => resolveTokens(item, tokens)) as unknown as T;
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, resolveTokens(v, tokens)])) as unknown as T;
+  }
+  return value;
+}
+
+// A product with no photo yet. A broken <img> or a random stock picture both read as a
+// mistake, so the tile falls back to the product's own initials on a neutral ground —
+// deliberate, and it still tells the buyer which product they are looking at.
+export function ProductThumb({ src, name, className = '' }: { src?: string; name?: string; className?: string }) {
+  const initials = (name || '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(word => word[0]?.toUpperCase())
+    .join('');
+  if (src) return <img src={src} alt={name || ''} className={`h-full w-full object-cover ${className}`} />;
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-gradient-to-br from-[#eef2f7] to-[#dde5ee] text-[#8896a8]">
+      <Package size={22} strokeWidth={1.5} />
+      {initials && <span className="text-[11px] font-bold tracking-wide">{initials}</span>}
+    </div>
+  );
+}
+
+function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all', productSort = 'newest', productSearch = '', onStoreSearch, onTemplateAction }: { mod: StorefrontModule; storeId?: number; sellerId?: number; store?: Record<string, unknown>; categoryFilter?: string; productSort?: string; productSearch?: string; onStoreSearch?: (query: string) => void; onTemplateAction?: (target?: string, label?: string) => void }) {
+  const { tr } = useLocale();
+  const props = resolveTokens(mod.props, storeTokens(store)) as Record<string, string | number | boolean | null | undefined>;
+  const p = (key: string) => {
+    // A single-row product module never shows more tiles than it has columns.
+    if (key === 'limit' && props.singleRow) return Math.min(Number(props.limit) || 4, Number(props.columns) || 4);
+    return props[key];
+  };
   const [liveProducts, setLiveProducts] = useState<any[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState<string | null>(null);
@@ -127,7 +298,7 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
   const isProductModule = ['recommended-products', 'product-category', 'double-row-products', 'hot-products', 'new-arrivals', 'trending-now'].includes(mod.type);
   if (isProductModule && productsLoaded && !productsError && liveProducts.length === 0) {
     if (mod.type === 'trending-now') return null;
-    return <div className="flex min-h-[440px] w-full flex-col items-center justify-center bg-white p-8 text-center"><Package size={40} className="text-gray-300" /><p className="mt-3 text-sm font-semibold text-gray-600">No products match this filter.</p><p className="mt-1 text-xs text-gray-400">Try another category or search term.</p></div>;
+    return <div className="flex min-h-[440px] w-full flex-col items-center justify-center bg-white p-8 text-center"><Package size={40} className="text-gray-300" /><p className="mt-3 text-sm font-semibold text-gray-600">{tr('ui.noProductsMatchThisFilter')}</p><p className="mt-1 text-xs text-gray-400">{tr('ui.tryAnotherCategoryOrSearchTerm')}</p></div>;
   }
 
   switch (mod.type) {
@@ -148,7 +319,7 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
     case 'product-comparison': {
       const features = (props.features as unknown as string[]) || [];
       const items = (props.products as unknown as Array<{ name: string; values: string[] }>) || [];
-      return <div className="overflow-x-auto bg-white p-6"><h3 className="mb-4 text-xl font-bold">{String(p('title') || 'Compare Products')}</h3><table className="w-full min-w-[600px] border-collapse text-sm"><thead><tr><th className="border bg-gray-50 p-3 text-left">Feature</th>{items.map((item, i) => <th key={i} className="border p-3 text-left">{item.name}</th>)}</tr></thead><tbody>{features.map((feature, row) => <tr key={feature}><td className="border bg-gray-50 p-3 font-semibold">{feature}</td>{items.map((item, col) => <td key={col} className="border p-3">{item.values?.[row] || '—'}</td>)}</tr>)}</tbody></table></div>;
+      return <div className="overflow-x-auto bg-white p-6"><h3 className="mb-4 text-xl font-bold">{String(p('title') || 'Compare Products')}</h3><table className="w-full min-w-[600px] border-collapse text-sm"><thead><tr><th className="border bg-gray-50 p-3 text-left">{tr('ui.feature')}</th>{items.map((item, i) => <th key={i} className="border p-3 text-left">{item.name}</th>)}</tr></thead><tbody>{features.map((feature, row) => <tr key={feature}><td className="border bg-gray-50 p-3 font-semibold">{feature}</td>{items.map((item, col) => <td key={col} className="border p-3">{item.values?.[row] || '—'}</td>)}</tr>)}</tbody></table></div>;
     }
 
     case 'seasonal-sale':
@@ -156,7 +327,7 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
 
     case 'trending-now': {
       if (productsLoading || productsError || !liveProducts.length) return null;
-      return <div className="bg-white p-6"><h3 className="text-xl font-bold">Store picks</h3><p className="mt-1 text-sm text-gray-500">Products available from this supplier</p><div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{liveProducts.slice(0, 4).map((product: any) => <Link href={`/products/${product.id}`} key={product.id} className="group relative rounded border p-3 text-left hover:border-[#ff6a00] hover:shadow-md"><div className="aspect-square overflow-hidden bg-gray-100">{product.primary_image && <img src={product.primary_image} alt={product.name} className="h-full w-full object-cover transition group-hover:scale-105" />}</div><p className="mt-2 line-clamp-2 text-sm font-semibold">{product.name}</p><p className="text-sm font-bold text-[#b12704]">{Number(product.base_price).toLocaleString()} BIF</p><p className="mt-1 text-[10px] text-gray-500">MOQ {product.minimum_order_quantity} {product.unit_type}</p></Link>)}</div></div>;
+      return <div className="bg-white p-6"><h3 className="text-xl font-bold">{tr('ui.storePicks')}</h3><p className="mt-1 text-sm text-gray-500">{tr('ui.productsAvailableFromThisSupplier')}</p><div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{liveProducts.slice(0, 4).map((product: any) => <Link href={`/products/${product.id}`} key={product.id} className="group relative rounded border p-3 text-left hover:border-[#ff6a00] hover:shadow-md"><div className="aspect-square overflow-hidden bg-gray-100"><ProductThumb src={product.primary_image} name={product.name} className="transition group-hover:scale-105" /></div><p className="mt-2 line-clamp-2 text-sm font-semibold">{product.name}</p><p className="text-sm font-bold text-[#b12704]">{Number(product.base_price).toLocaleString()} BIF</p><p className="mt-1 text-[10px] text-gray-500">MOQ {product.minimum_order_quantity} {product.unit_type}</p></Link>)}</div></div>;
     }
 
     case 'hero':
@@ -176,8 +347,8 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
 
     case 'image-text':
       return (
-        <div className="relative h-32 rounded-lg overflow-hidden">
-          <img src={String(p('imageUrl') || 'https://via.placeholder.com/800x200')} alt={String(p('title') || '')} className="h-32 w-full object-cover" />
+        <div className="relative overflow-hidden rounded-lg" style={{ height: Number(p('height')) || 200 }}>
+          <img src={String(p('imageUrl') || 'https://via.placeholder.com/800x200')} alt={String(p('title') || '')} className="h-full w-full object-cover" />
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30">
             <h3 className="text-lg font-bold text-white">{String(p('title') || 'Image & Text')}</h3>
             {p('subtitle') && <p className="text-sm text-gray-200">{String(p('subtitle'))}</p>}
@@ -193,18 +364,24 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
 
     case 'video-grid': {
       const videos = (props.videos as unknown as Array<string | { videoUrl?: string; url?: string; title?: string }>) || [];
-      return <section className="bg-white p-4"><h3 className="mb-3 text-base font-bold">{String(p('title') || 'Videos')}</h3><div className="grid gap-3 sm:grid-cols-2">{videos.map((item, i) => { const entry = typeof item === 'string' ? { videoUrl: item } : item; const source = getVideoSource(entry.videoUrl || entry.url || ''); return <div key={i} className="aspect-video overflow-hidden rounded bg-black">{source.file ? <video src={source.url} controls playsInline className="h-full w-full object-contain" /> : <iframe src={source.url} title={entry.title || `Store video ${i + 1}`} className="h-full w-full" allowFullScreen />}</div>; })}</div></section>;
+      return <section className="bg-white p-4"><h3 className="mb-3 text-base font-bold">{String(p('title') || 'Videos')}</h3><div className={`grid gap-3 ${videos.length > 1 ? 'sm:grid-cols-2' : ''}`}>{videos.map((item, i) => { const entry = typeof item === 'string' ? { videoUrl: item } : item; const source = getVideoSource(entry.videoUrl || entry.url || ''); return <div key={i} className="aspect-video overflow-hidden rounded bg-black">{source.file ? <video src={source.url} controls playsInline className="h-full w-full object-contain" /> : <iframe src={source.url} title={entry.title || `Store video ${i + 1}`} className="h-full w-full" allowFullScreen />}</div>; })}</div></section>;
     }
 
     case 'page-background':
     case 'store-sign':
       return null;
 
+    case 'hot-zone':
+      return <HotZone imageUrl={String(p('imageUrl') || '')} alt={String(p('alt') || '')} title={String(p('title') || '')} regions={Array.isArray(p('regions')) ? (p('regions') as unknown as HotRegion[]) : []} />;
+
+    case 'inquiry-form':
+      return <InquiryForm storeId={storeId} sellerId={sellerId} title={String(p('title') || 'Send us an inquiry')} description={String(p('description') || '')} buttonText={String(p('buttonText') || 'Send inquiry')} backgroundColor={String(p('backgroundColor') || '#232f3e')} textColor={String(p('textColor') || '#ffffff')} />;
+
     case 'marketing':
       return (
-        <div className="rounded-lg p-6 text-center" style={{ backgroundColor: String(p('backgroundColor') || '#fff3f0') }}>
-          <h3 className="text-lg font-bold" style={{ color: String(p('textColor') || '#ff5a36') }}>{String(p('title') || 'Marketing Section')}</h3>
-          {p('description') && <p className="text-sm text-gray-700 mt-1">{String(p('description'))}</p>}
+        <div className="rounded-lg px-6 py-10 text-center sm:px-10 sm:py-14" style={{ backgroundColor: String(p('backgroundColor') || '#fff3f0') }}>
+          <h3 className="text-2xl font-bold sm:text-3xl" style={{ color: String(p('textColor') || '#ff5a36') }}>{String(p('title') || 'Marketing Section')}</h3>
+          {p('description') && <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 sm:text-base" style={{ color: String(p('textColor') || '#ff5a36'), opacity: 0.85 }}>{String(p('description'))}</p>}
           {p('buttonText') && <button type="button" onClick={() => onTemplateAction?.(actionTarget('buttonUrl', 'buttonLink', 'ctaLink', 'link'), String(p('buttonText')))} className="mt-3 inline-block rounded-lg bg-[#ff9900] px-4 py-2 text-sm font-semibold text-white hover:bg-[#e88b00]">{String(p('buttonText'))}</button>}
         </div>
       );
@@ -212,11 +389,11 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
     case 'video':
       const video = getVideoSource(String(p('videoUrl') || ''));
       return (
-        <div className="mx-auto aspect-video w-full max-w-2xl overflow-hidden rounded-lg bg-black/10 flex items-center justify-center">
+        <div className="flex aspect-video w-full items-center justify-center overflow-hidden rounded-lg bg-black/10">
           {p('videoUrl') ? (
             video.file ? <video src={video.url} controls playsInline className="h-full w-full rounded-lg bg-black object-contain" /> : <iframe src={video.url} title={String(p('title') || 'Store video')} className="h-full w-full rounded-lg" allowFullScreen />
           ) : (
-            <div className="text-center text-gray-500"><Video size={32} className="mx-auto mb-2" /><p className="text-sm">Video placeholder</p></div>
+            <div className="text-center text-gray-500"><Video size={32} className="mx-auto mb-2" /><p className="text-sm">{tr('ui.videoPlaceholder')}</p></div>
           )}
         </div>
       );
@@ -227,7 +404,7 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
           <h3 className="text-lg font-bold text-gray-900">{String(p('title') || 'Our Company')}</h3>
           {p('description') && <p className="text-sm text-gray-600 mt-1">{String(p('description'))}</p>}
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-            {p('showCertification') && <div><ShieldCheck size={24} className="mx-auto text-gray-400" /><p className="text-xs text-gray-500">Certified</p></div>}
+            {p('showCertification') && <div><ShieldCheck size={24} className="mx-auto text-gray-400" /><p className="text-xs text-gray-500">{tr('ui.certified')}</p></div>}
             {p('showYearsActive') && <div><Clock size={24} className="mx-auto text-gray-400" /><p className="text-xs text-gray-500">5+ Years</p></div>}
             {p('showEmployees') && <div><Users size={24} className="mx-auto text-gray-400" /><p className="text-xs text-gray-500">100+ Employees</p></div>}
           </div>
@@ -251,7 +428,7 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
         return (
           <div className="bg-[#f5f7fa] p-3">
             <div className="text-center mb-3"><h3 className="text-sm font-bold text-gray-900">{String(p('title') || 'Product Category')}</h3></div>
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center"><p className="text-xs text-red-600">Failed to load products</p></div>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center"><p className="text-xs text-red-600">{tr('ui.failedToLoadProducts')}</p></div>
           </div>
         );
       }
@@ -261,7 +438,7 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
             <div className="text-center mb-3"><h3 className="text-sm font-bold text-gray-900">{String(p('title') || 'Product Category')}</h3><div className="mx-auto mt-1 h-0.5 w-8 bg-[#1677ff]" /><div className="mx-auto mt-0.5 h-0.5 w-16 bg-[#1677ff]/30" /></div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
               {liveProducts.slice(0, Number(p('productCount')) || 6).map((pr: any) => (
-                <Link href={`/products/${pr.id}`} key={pr.id} className="group overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-[#ff6a00]/50 hover:shadow-md"><div className="aspect-square bg-gray-100 overflow-hidden"><img src={pr.primary_image || ''} alt={pr.name} className="h-full w-full object-cover transition group-hover:scale-105" /></div><div className="p-3"><p className="line-clamp-2 min-h-8 text-xs font-semibold text-gray-900">{pr.name}</p><p className="mt-1 text-sm font-extrabold text-[#ff5a36]">{Number(pr.base_price).toLocaleString()} BIF</p><p className="mt-1 text-[10px] text-gray-500">MOQ {pr.minimum_order_quantity} {pr.unit_type}</p><span className="mt-2 block rounded bg-[#ff6a00] px-2 py-1.5 text-center text-[10px] font-bold text-white">View product</span></div></Link>
+                <Link href={`/products/${pr.id}`} key={pr.id} className="group overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-[#ff6a00]/50 hover:shadow-md"><div className="aspect-square bg-gray-100 overflow-hidden"><ProductThumb src={pr.primary_image} name={pr.name} className="transition group-hover:scale-105" /></div><div className="p-3"><p className="line-clamp-2 min-h-8 text-xs font-semibold text-gray-900">{pr.name}</p><p className="mt-1 text-sm font-extrabold text-[#ff5a36]">{Number(pr.base_price).toLocaleString()} BIF</p><p className="mt-1 text-[10px] text-gray-500">MOQ {pr.minimum_order_quantity} {pr.unit_type}</p><span className="mt-2 block rounded bg-[#ff6a00] px-2 py-1.5 text-center text-[10px] font-bold text-white">{tr('ui.viewProduct')}</span></div></Link>
               ))}
             </div>
           </div>
@@ -296,19 +473,19 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
         return (
           <div className="rounded-lg border border-gray-200 p-4">
             <h3 className="text-lg font-bold text-gray-900 mb-3">{String(p('title') || 'Products')}</h3>
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center"><p className="text-sm text-red-600">Failed to load products</p></div>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center"><p className="text-sm text-red-600">{tr('ui.failedToLoadProducts')}</p></div>
           </div>
         );
       }
       if (liveProducts.length > 0) {
         return (
           <div className="bg-white border border-gray-200 p-3">
-            <div className="flex items-center justify-between mb-3"><h3 className="text-sm font-bold">{String(p('title') || 'Featured Products')}</h3><button type="button" onClick={() => onTemplateAction?.('/products', 'View products')} className="text-xs text-[#1677ff] hover:underline">View More ›</button></div>
+            <div className="flex items-center justify-between mb-3"><h3 className="text-sm font-bold">{String(p('title') || 'Featured Products')}</h3><button type="button" onClick={() => onTemplateAction?.('/products', 'View products')} className="text-xs text-[#1677ff] hover:underline">{tr('ui.viewMore')}</button></div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
               {liveProducts.map((pr: any) => (
                 <Link href={`/products/${pr.id}`} key={pr.id} className="group overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-[#ff6a00]/50 hover:shadow-md">
-                  <div className="aspect-square bg-gray-100 overflow-hidden"><img src={pr.primary_image || ''} alt={pr.name} className="h-full w-full object-cover transition group-hover:scale-105" /></div>
-                  <div className="p-3"><p className="line-clamp-2 min-h-8 text-xs font-semibold text-gray-900">{pr.name}</p><p className="mt-1 text-sm font-extrabold text-[#ff5a36]">{Number(pr.base_price).toLocaleString()} BIF</p><p className="mt-1 text-[10px] text-gray-500">MOQ {pr.minimum_order_quantity} {pr.unit_type}</p><span className="mt-2 block rounded bg-[#ff6a00] px-2 py-1.5 text-center text-[10px] font-bold text-white">View product</span></div>
+                  <div className="aspect-square bg-gray-100 overflow-hidden"><ProductThumb src={pr.primary_image} name={pr.name} className="transition group-hover:scale-105" /></div>
+                  <div className="p-3"><p className="line-clamp-2 min-h-8 text-xs font-semibold text-gray-900">{pr.name}</p><p className="mt-1 text-sm font-extrabold text-[#ff5a36]">{Number(pr.base_price).toLocaleString()} BIF</p><p className="mt-1 text-[10px] text-gray-500">MOQ {pr.minimum_order_quantity} {pr.unit_type}</p><span className="mt-2 block rounded bg-[#ff6a00] px-2 py-1.5 text-center text-[10px] font-bold text-white">{tr('ui.viewProduct')}</span></div>
                 </Link>
               ))}
             </div>
@@ -352,7 +529,7 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
       const stats = (props.stats as unknown as Array<{ value: string; label: string; suffix: string }>) || [];
       return (
         <div className="relative overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=1200&q=60" alt="factory" className="absolute inset-0 h-full w-full object-cover" />
+          <img src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=1200&q=60" alt={tr('ui.factory')} className="absolute inset-0 h-full w-full object-cover" />
           <div className="absolute inset-0 bg-black/55" />
           <div className="relative p-4" style={{ backgroundColor: `${String(p('backgroundColor') || '#0f4fd8')}ee` }}>
             <div className="grid grid-cols-4 gap-4 text-center">
@@ -383,20 +560,39 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
         </div>
       );
 
-    case 'company-capacity':
+    case 'company-capacity': {
+      // These three figures were hardcoded into the JSX — "15+", "80%", "50,000 m²" —
+      // and the props were never read at all. Every storefront carrying this module told
+      // buyers the seller ran a 50,000 m2 factory, whatever the seller had actually
+      // entered and whatever the database held. Read the real values, show only what the
+      // seller filled in, and render nothing when they have filled in none.
+      const trade = (props.tradeInfo || {}) as Record<string, unknown>;
+      const production = (props.productionInfo || {}) as Record<string, unknown>;
+      const capability = [
+        { label: tr('ui.yearsInBusiness'), value: String(trade.yearsInBusiness || '') },
+        { label: tr('ui.export2'), value: String(trade.exportPercentage || '') },
+        { label: tr('ui.factorySize'), value: String(production.factorySize || '') },
+      ].filter(item => item.value.trim());
+      if (!capability.length) return null;
       return (
         <div className="rounded-lg border border-gray-200 p-4">
           <h3 className="text-lg font-bold text-gray-900 mb-4">{String(p('title') || 'Manufacturer Capability')}</h3>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-3 bg-gray-50 rounded-lg"><p className="text-xs text-gray-500">Years in Business</p><p className="text-lg font-bold text-gray-900">15+</p></div>
-            <div className="text-center p-3 bg-gray-50 rounded-lg"><p className="text-xs text-gray-500">Export %</p><p className="text-lg font-bold text-gray-900">80%</p></div>
-            <div className="text-center p-3 bg-gray-50 rounded-lg"><p className="text-xs text-gray-500">Factory Size</p><p className="text-lg font-bold text-gray-900">50,000 m²</p></div>
+          <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${capability.length}, minmax(0, 1fr))` }}>
+            {capability.map(item => (
+              <div key={item.label} className="text-center p-3 bg-gray-50 rounded-lg">
+                <p className="text-xs text-gray-500">{item.label}</p>
+                <p className="text-lg font-bold text-gray-900">{item.value}</p>
+              </div>
+            ))}
           </div>
         </div>
       );
+    }
 
     case 'certifications':
       const certs = (props.certifications as unknown as Array<{ name: string; description: string }>) || [];
+      // A seller with no certifications yet gets no empty box.
+      if (!certs.length) return null;
       return (
         <div className="rounded-lg border border-gray-200 p-4">
           <h3 className="text-lg font-bold text-gray-900 mb-4">{String(p('title') || 'Certifications')}</h3>
@@ -411,17 +607,30 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
         </div>
       );
 
-    case 'company-performance':
+    case 'company-performance': {
+      // No invented numbers. The old fallbacks ("< 24 hours", "98.5%", "AAA") were
+      // rendered for any seller who left these blank, so a brand-new store published
+      // delivery statistics it had never earned. An unconfigured module shows nothing.
+      const performance = [
+        { label: 'Response Time', value: String(p('responseTime') || ''), tile: 'bg-green-50', tone: 'text-green-600' },
+        { label: 'On-time Delivery', value: String(p('onTimeDelivery') || ''), tile: 'bg-blue-50', tone: 'text-blue-600' },
+        { label: 'Transaction Level', value: String(p('transactionLevel') || ''), tile: 'bg-orange-50', tone: 'text-orange-600' },
+      ].filter(metric => metric.value);
+      if (!performance.length) return null;
       return (
         <div className="rounded-lg border border-gray-200 p-4">
           <h3 className="text-lg font-bold text-gray-900 mb-4">{String(p('title') || 'Company Performance')}</h3>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-3 bg-green-50 rounded-lg"><p className="text-xs text-gray-500">Response Time</p><p className="text-lg font-bold text-green-600">{String(p('responseTime') || '< 24 hours')}</p></div>
-            <div className="text-center p-3 bg-blue-50 rounded-lg"><p className="text-xs text-gray-500">On-time Delivery</p><p className="text-lg font-bold text-blue-600">{String(p('onTimeDelivery') || '98.5%')}</p></div>
-            <div className="text-center p-3 bg-orange-50 rounded-lg"><p className="text-xs text-gray-500">Transaction Level</p><p className="text-lg font-bold text-orange-600">{String(p('transactionLevel') || 'AAA')}</p></div>
+          <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${performance.length}, minmax(0, 1fr))` }}>
+            {performance.map(metric => (
+              <div key={metric.label} className={`text-center p-3 rounded-lg ${metric.tile}`}>
+                <p className="text-xs text-gray-500">{metric.label}</p>
+                <p className={`text-lg font-bold ${metric.tone}`}>{metric.value}</p>
+              </div>
+            ))}
           </div>
         </div>
       );
+    }
 
     case 'warehouse-info':
       return (
@@ -431,13 +640,13 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
             <div className="text-center p-3 bg-blue-50 rounded-lg">
               <Building size={24} className="mx-auto text-blue-500 mb-2" />
               <p className="text-2xl font-bold text-gray-900">{String(p('warehouseCount') || '5')}</p>
-              <p className="text-xs text-gray-500">Warehouses</p>
+              <p className="text-xs text-gray-500">{tr('ui.warehouses')}</p>
             </div>
             <div className="text-center p-3 bg-green-50 rounded-lg">
               <Globe size={24} className="mx-auto text-green-500 mb-2" />
-              <p className="text-xs text-gray-500">Locations</p>
+              <p className="text-xs text-gray-500">{tr('ui.locations')}</p>
               <div className="flex flex-wrap justify-center gap-1 mt-1">
-                {(props.locations as string[] || ['USA', 'Europe', 'Asia']).map((loc, i) => (
+                {(props.locations as unknown as string[] || ['USA', 'Europe', 'Asia']).map((loc, i) => (
                   <span key={i} className="text-xs bg-white px-2 py-0.5 rounded text-gray-700">{loc}</span>
                 ))}
               </div>
@@ -445,12 +654,12 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
             <div className="text-center p-3 bg-orange-50 rounded-lg">
               <Package size={24} className="mx-auto text-orange-500 mb-2" />
               <p className="text-2xl font-bold text-gray-900">{String(p('totalArea') || '100K')}</p>
-              <p className="text-xs text-gray-500">Total Area</p>
+              <p className="text-xs text-gray-500">{tr('ui.totalArea')}</p>
             </div>
             <div className="text-center p-3 bg-purple-50 rounded-lg">
               <Users size={24} className="mx-auto text-purple-500 mb-2" />
               <p className="text-2xl font-bold text-gray-900">{String(p('capacity') || '50K+')}</p>
-              <p className="text-xs text-gray-500">SKU Capacity</p>
+              <p className="text-xs text-gray-500">{tr('ui.skuCapacity')}</p>
             </div>
           </div>
         </div>
@@ -461,7 +670,7 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
         <div className="rounded-lg border border-gray-200 p-4">
           <h3 className="text-lg font-bold text-gray-900 mb-4">{String(p('title') || 'Shipping Options')}</h3>
           <div className="space-y-3">
-            {(props.shippingMethods as Array<{ name: string; time: string; price: string }> || [
+            {(props.shippingMethods as unknown as Array<{ name: string; time: string; price: string }> || [
               { name: 'Express', time: '3-5 days', price: '$25+' },
               { name: 'Standard', time: '7-14 days', price: '$15+' },
               { name: 'Economy', time: '15-30 days', price: '$10+' },
@@ -488,7 +697,7 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
         <div className="rounded-lg border border-gray-200 p-4">
           <h3 className="text-lg font-bold text-gray-900 mb-4">{String(p('title') || 'Trusted By')}</h3>
           <div className="flex flex-wrap gap-3">
-            {(props.badges as Array<{ name: string; icon: string }> || [
+            {(props.badges as unknown as Array<{ name: string; icon: string }> || [
               { name: 'Secure Payment', icon: 'lock' },
               { name: 'Verified Supplier', icon: 'check-circle' },
               { name: 'Money Back Guarantee', icon: 'shield' },
@@ -533,7 +742,7 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
         return (
           <div className="rounded-lg border border-gray-200 p-4">
             <h3 className="text-lg font-bold text-gray-900 mb-3">{String(p('title') || 'Products')}</h3>
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center"><p className="text-sm text-red-600">Failed to load products</p></div>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center"><p className="text-sm text-red-600">{tr('ui.failedToLoadProducts')}</p></div>
           </div>
         );
       }
@@ -542,13 +751,13 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
           <div className="bg-white border border-gray-200 p-3">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold">{String(p('title') || (mod.type === 'hot-products' ? 'Hot Products' : 'New Arrivals'))}</h3>
-              <button type="button" onClick={() => onTemplateAction?.('/products', 'View products')} className="text-xs text-[#1677ff] hover:underline">View More ›</button>
+              <button type="button" onClick={() => onTemplateAction?.('/products', 'View products')} className="text-xs text-[#1677ff] hover:underline">{tr('ui.viewMore')}</button>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
               {liveProducts.map((pr: any) => (
                 <Link href={`/products/${pr.id}`} key={pr.id} className="group overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-[#ff6a00]/50 hover:shadow-md">
-                  <div className="aspect-square bg-gray-100 overflow-hidden"><img src={pr.primary_image || ''} alt={pr.name} className="h-full w-full object-cover transition group-hover:scale-105" /></div>
-                  <div className="p-3"><p className="line-clamp-2 min-h-8 text-xs font-semibold text-gray-900">{pr.name}</p><p className="mt-1 text-sm font-extrabold text-[#ff5a36]">{Number(pr.base_price).toLocaleString()} BIF</p><p className="mt-1 text-[10px] text-gray-500">MOQ {pr.minimum_order_quantity} {pr.unit_type}</p><span className="mt-2 block rounded bg-[#ff6a00] px-2 py-1.5 text-center text-[10px] font-bold text-white">View product</span></div>
+                  <div className="aspect-square bg-gray-100 overflow-hidden"><ProductThumb src={pr.primary_image} name={pr.name} className="transition group-hover:scale-105" /></div>
+                  <div className="p-3"><p className="line-clamp-2 min-h-8 text-xs font-semibold text-gray-900">{pr.name}</p><p className="mt-1 text-sm font-extrabold text-[#ff5a36]">{Number(pr.base_price).toLocaleString()} BIF</p><p className="mt-1 text-[10px] text-gray-500">MOQ {pr.minimum_order_quantity} {pr.unit_type}</p><span className="mt-2 block rounded bg-[#ff6a00] px-2 py-1.5 text-center text-[10px] font-bold text-white">{tr('ui.viewProduct')}</span></div>
                 </Link>
               ))}
             </div>
@@ -578,7 +787,10 @@ function ModuleRenderer({ mod, storeId, categoryFilter = 'all', productSort = 'n
   }
 }
 
-export function StorefrontRenderer({ config }: { config: StorefrontConfig }) {
+export function StorefrontRenderer({ config, sellerId, store }: { config: StorefrontConfig; sellerId?: number; store?: Record<string, unknown> }) {
+  const { tr } = useLocale();
+  // A transparent store sign lets a full-bleed page background show through the header.
+  const signTransparent = config.sections.some(section => section.modules.some(mod => mod.type === 'store-sign' && Boolean(mod.props?.transparent)));
   const [activeTab, setActiveTab] = useState(config.sections[0]?.id || 'home');
   const [storeSearch, setStoreSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
@@ -664,12 +876,15 @@ export function StorefrontRenderer({ config }: { config: StorefrontConfig }) {
     const searchable = `${product.name || ''} ${product.description || ''} ${productCategory(product)}`.toLowerCase().replace(/s\b/g, '');
     return categoryMatches && (!query || searchable.includes(query));
   }), productSort);
+  // Category navigation lives with the products, not on the designed pages.
+  const showCategoryNav = Boolean(productSection) && activeSection?.id === productSection?.id;
   const activeHasProductModule = activeSection?.modules.some(mod => ['recommended-products', 'product-category', 'double-row-products', 'hot-products', 'new-arrivals', 'trending-now'].includes(mod.type));
 
   return (
-    <div className="mx-auto flex min-h-[760px] w-full max-w-7xl flex-col overflow-hidden rounded-lg border border-gray-200 bg-[#f5f7fa]">
+    <div className="flex min-h-[760px] w-full flex-col bg-[#f5f7fa]">
       {/* Alibaba Nav - blue bar */}
-      <div className="relative z-20 flex min-h-11 items-center gap-2 border-b border-[#075fca] bg-[#1677ff] px-2 text-white shadow-sm">
+      <div className="relative z-20 border-b border-[#075fca] bg-[#1677ff] text-white shadow-sm">
+      <div className="mx-auto flex min-h-11 w-full max-w-[1280px] items-center gap-2 px-2">
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">
         {config.sections.map((section) => {
           const isProducts = section.id === productSection?.id;
@@ -682,68 +897,101 @@ export function StorefrontRenderer({ config }: { config: StorefrontConfig }) {
             </button>
             {isProducts && (
               <div className="invisible absolute left-0 top-full z-50 w-56 translate-y-1 rounded-b-lg border border-gray-200 bg-white py-2 text-gray-800 opacity-0 shadow-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
-                <button onClick={() => setActiveTab(section.id)} className="flex w-full items-center gap-2 px-4 py-2 text-left text-xs font-bold hover:bg-orange-50 hover:text-[#ff6a00]"><LayoutGrid size={14} /> All store products</button>
+                <button onClick={() => setActiveTab(section.id)} className="flex w-full items-center gap-2 px-4 py-2 text-left text-xs font-bold hover:bg-orange-50 hover:text-[#ff6a00]"><LayoutGrid size={14} /> {tr('ui.allStoreProducts')}</button>
                 {visibleCategories.map(([category, count]) => <button key={category} onClick={() => chooseCategory(category)} className="flex w-full items-center justify-between px-4 py-2 text-left text-xs hover:bg-orange-50 hover:text-[#ff6a00]"><span>{category}</span><span className="text-gray-400">{count}</span></button>)}
-                <Link href="/products" className="mx-3 mt-1 block rounded bg-[#ff6a00] px-3 py-2 text-center text-xs font-bold text-white hover:bg-[#e85f00]">Shop marketplace</Link>
+                <Link href="/products" className="mx-3 mt-1 block rounded bg-[#ff6a00] px-3 py-2 text-center text-xs font-bold text-white hover:bg-[#e85f00]">{tr('ui.shopMarketplace')}</Link>
               </div>
             )}
           </div>;
         })}
         </div>
         <form onSubmit={searchThisStore} className="ml-auto hidden h-8 w-48 shrink-0 items-center overflow-hidden rounded-full border-2 border-white bg-white shadow-sm sm:flex">
-          <input name="search" value={storeSearch} onChange={(event) => setStoreSearch(event.target.value)} aria-label="Search in store" placeholder="Search in this store" className="min-w-0 flex-1 px-3 text-[11px] text-gray-700 outline-none" />
-          <button type="submit" aria-label="Search" className="flex h-full w-8 shrink-0 items-center justify-center text-[#1677ff] hover:bg-blue-50"><Search size={15} /></button>
+          <input name="search" value={storeSearch} onChange={(event) => setStoreSearch(event.target.value)} aria-label={tr('ui.searchInStore')} placeholder={tr('ui.searchInThisStore')} className="min-w-0 flex-1 px-3 text-[11px] text-gray-700 outline-none" />
+          <button type="submit" aria-label={tr('ui.search')} className="flex h-full w-8 shrink-0 items-center justify-center text-[#1677ff] hover:bg-blue-50"><Search size={15} /></button>
         </form>
+      </div>
       </div>
 
       {/* Shop Sign / Banner */}
       {config.shopSign?.imageUrl && !config.shopSign.hidden && (
-        <div className="relative h-36 bg-gray-100 overflow-hidden">
+        <div className={`relative h-36 overflow-hidden ${signTransparent ? 'bg-transparent' : 'bg-gray-100'}`}>
           <img src={config.shopSign.imageUrl} alt={config.shopSign.altText || 'Store Banner'} className="w-full h-full object-cover" />
         </div>
       )}
 
+      {/* Categories for tablet and phone. The sidebar that carries them is lg-only, so
+          without this a buyer on anything narrower cannot browse the store at all.
+          Products-only, to match the sidebar and the fact that picking a category
+          switches to this section anyway. */}
+      {showCategoryNav && <div className="border-b border-gray-200 bg-white lg:hidden">
+        <div className="mx-auto w-full max-w-[1280px] px-2 py-2">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            <button
+              type="button"
+              onClick={() => chooseCategory('all')}
+              className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${selectedCategory === 'all' ? 'border-[#ff6a00] bg-[#ff6a00] text-white' : 'border-gray-200 bg-white text-gray-700'}`}
+            >
+              All products ({storeProducts.length})
+            </button>
+            {visibleCategories.map(([category, count]) => (
+              <button
+                key={category}
+                type="button"
+                onClick={() => chooseCategory(category)}
+                className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${selectedCategory === category ? 'border-[#ff6a00] bg-[#ff6a00] text-white' : 'border-gray-200 bg-white text-gray-700'}`}
+              >
+                {category} <span className={selectedCategory === category ? 'text-white/80' : 'text-gray-400'}>{count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>}
+
       {/* Content */}
-      <div className="flex min-h-[650px] flex-1 bg-[#f5f7fa]">
-        <aside className="sticky top-16 hidden h-fit max-h-[calc(100vh-72px)] w-56 shrink-0 overflow-y-auto border-r border-gray-200 bg-[#f4f5f6] p-3 lg:block xl:w-64">
-          <button type="button" onClick={() => chooseCategory('all')} className="mb-2 flex w-full items-center gap-2 bg-[#e8f0f7] px-2.5 py-2 text-left text-xs font-medium text-[#3f4d5a] hover:bg-[#dceaf5]"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#8eafd0] text-white"><LayoutGrid size={12} /></span> Top picks</button>
+      <div className="mx-auto flex min-h-[650px] w-full max-w-[1280px] flex-1 bg-[#f5f7fa]">
+        {showCategoryNav && <aside className="sticky top-16 hidden h-fit max-h-[calc(100vh-72px)] w-56 shrink-0 overflow-y-auto border-r border-gray-200 bg-[#f4f5f6] p-3 lg:block xl:w-64">
+          <button type="button" onClick={() => chooseCategory('all')} className="mb-2 flex w-full items-center gap-2 bg-[#e8f0f7] px-2.5 py-2 text-left text-xs font-medium text-[#3f4d5a] hover:bg-[#dceaf5]"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#8eafd0] text-white"><LayoutGrid size={12} /></span> {tr('ui.topPicks')}</button>
           <div className="border border-[#cbd8e5] bg-white shadow-sm">
-            <div className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-900">Product categories</div>
+            <div className="border-b border-gray-200 px-4 py-3 text-sm font-bold text-gray-900">{tr('ui.productCategories')}</div>
             <div className="px-3 py-3">
-              <button onClick={() => chooseCategory('all')} className={`w-full truncate rounded px-2 py-2 text-left text-xs hover:bg-[#f5f8fb] hover:text-[#ff6a00] ${selectedCategory === 'all' ? 'bg-orange-50 font-bold text-[#ff6a00]' : 'text-gray-700'}`}>All products <span className="text-gray-400">({storeProducts.length})</span></button>
+              <button onClick={() => chooseCategory('all')} className={`w-full truncate rounded px-2 py-2 text-left text-xs hover:bg-[#f5f8fb] hover:text-[#ff6a00] ${selectedCategory === 'all' ? 'bg-orange-50 font-bold text-[#ff6a00]' : 'text-gray-700'}`}>{tr('ui.allProducts')} <span className="text-gray-400">({storeProducts.length})</span></button>
               {visibleCategories.map(([category, count]) => <button title={category} key={category} onClick={() => chooseCategory(category)} className={`flex min-h-9 w-full items-center justify-between gap-2 rounded px-2 py-2 text-left text-xs hover:bg-[#f5f8fb] hover:text-[#ff6a00] ${selectedCategory === category ? 'bg-orange-50 font-bold text-[#ff6a00]' : 'text-gray-600'}`}><span className="truncate">{category}</span><span className="shrink-0 text-gray-400">{count}</span></button>)}
-              {visibleCategories.length === 0 && <p className="px-2 py-2 text-xs text-gray-400">No categories yet.</p>}
+              {visibleCategories.length === 0 && <p className="px-2 py-2 text-xs text-gray-400">{tr('ui.noCategoriesYet')}</p>}
             </div>
           </div>
-          {storeProducts.length > 0 && <div className="mt-3 border border-[#cbd8e5] bg-white p-1 shadow-sm">{storeProducts.slice(0, 4).map(product => <Link href={`/products/${product.id}`} key={product.id} className="flex gap-2 border-b border-gray-100 p-1.5 last:border-0 hover:bg-orange-50"><div className="h-12 w-12 shrink-0 overflow-hidden border border-gray-100 bg-gray-100"><img src={product.primary_image || ''} alt={product.name} className="h-full w-full object-cover" /></div><div className="min-w-0"><p className="line-clamp-2 text-[9px] leading-tight text-gray-700">{product.name}</p><p className="mt-1 truncate text-[9px] font-bold text-[#b12704]">{Number(product.base_price).toLocaleString()} BIF</p><p className="truncate text-[8px] text-gray-400">Min. order {product.minimum_order_quantity}</p></div></Link>)}</div>}
-        </aside>
+          {storeProducts.length > 0 && <div className="mt-3 border border-[#cbd8e5] bg-white p-1 shadow-sm">{storeProducts.slice(0, 4).map(product => <Link href={`/products/${product.id}`} key={product.id} className="flex gap-2 border-b border-gray-100 p-1.5 last:border-0 hover:bg-orange-50"><div className="h-12 w-12 shrink-0 overflow-hidden border border-gray-100 bg-gray-100"><ProductThumb src={product.primary_image} name={product.name} /></div><div className="min-w-0"><p className="line-clamp-2 text-[9px] leading-tight text-gray-700">{product.name}</p><p className="mt-1 truncate text-[9px] font-bold text-[#b12704]">{Number(product.base_price).toLocaleString()} BIF</p><p className="truncate text-[8px] text-gray-400">Min. order {product.minimum_order_quantity}</p></div></Link>)}</div>}
+        </aside>}
         <main className="min-h-[650px] min-w-0 flex-1">
         {storeProducts.length > 0 && (
           <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-[#fafafa] px-4 py-2">
             <p className="text-xs font-semibold text-gray-700">{appliedSearch ? `Results for “${appliedSearch}” (${matchingProductCount})` : selectedCategory === 'all' ? `All products (${storeProducts.length})` : `${selectedCategory} (${categoryCounts[selectedCategory] || 0})`}</p>
-            <label className="flex items-center gap-2 text-[10px] font-medium text-gray-500"><span className="hidden sm:inline">Sort by</span><select value={productSort} onChange={event => setProductSort(event.target.value)} className="h-8 min-w-36 rounded border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm outline-none focus:border-[#1677ff] focus:ring-1 focus:ring-[#1677ff]" aria-label="Sort store products">
-              <option value="newest">Newest</option>
-              <option value="price-low">Price: low to high</option>
-              <option value="price-high">Price: high to low</option>
-              <option value="name">Name: A–Z</option>
+            <label className="flex items-center gap-2 text-[10px] font-medium text-gray-500"><span className="hidden sm:inline">{tr('ui.sortBy')}</span><select value={productSort} onChange={event => setProductSort(event.target.value)} className="h-8 min-w-36 rounded border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm outline-none focus:border-[#1677ff] focus:ring-1 focus:ring-[#1677ff]" aria-label={tr('ui.sortStoreProducts')}>
+              <option value="newest">{tr('ui.newest')}</option>
+              <option value="price-low">{tr('ui.priceLowToHigh')}</option>
+              <option value="price-high">{tr('ui.priceHighToLow')}</option>
+              <option value="name">{tr('ui.nameAz')}</option>
             </select></label>
           </div>
         )}
         {activeSection && activeSection.modules.length === 0 ? (
           <div className="m-4 flex min-h-[440px] w-[calc(100%-2rem)] flex-col items-center justify-center rounded bg-white px-6 text-center">
             <Package size={48} className="mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-500">No content in this section.</p>
+            <p className="text-gray-500">{tr('ui.noContentInThisSection')}</p>
           </div>
         ) : (
           <div className="space-y-0">
             {activeSection?.modules.map((mod) => (
-              <ModuleRenderer key={mod.id} mod={mod} storeId={config.storeId} categoryFilter={selectedCategory} productSort={productSort} productSearch={appliedSearch} onStoreSearch={applyStoreSearch} onTemplateAction={handleTemplateAction} />
+              // `fluid` breaks a module out of the content column; `hideBottom` removes the
+              // gap under it so stacked modules read as one continuous design.
+              <div key={mod.id} className={`${mod.props?.fluid ? 'relative left-1/2 w-screen -translate-x-1/2' : ''} ${mod.props?.hideBottom ? '' : 'mb-4'}`}>
+                <ModuleRenderer mod={mod} storeId={config.storeId} sellerId={sellerId} store={store} categoryFilter={selectedCategory} productSort={productSort} productSearch={appliedSearch} onStoreSearch={applyStoreSearch} onTemplateAction={handleTemplateAction} />
+              </div>
             ))}
             {activeSection?.id === productSection?.id && !activeHasProductModule && (
               <div className="bg-white p-4">
                 {filteredStoreProducts.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {filteredStoreProducts.map(product => <Link href={`/products/${product.id}`} key={product.id} className="group overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-[#ff6a00]/50 hover:shadow-md"><div className="aspect-square overflow-hidden bg-gray-100"><img src={product.primary_image || ''} alt={product.name} className="h-full w-full object-cover transition group-hover:scale-105" /></div><div className="p-3"><p className="line-clamp-2 min-h-8 text-xs font-semibold text-gray-900">{product.name}</p><p className="mt-1 text-sm font-extrabold text-[#ff5a36]">{Number(product.base_price).toLocaleString()} BIF</p><p className="mt-1 text-[10px] text-gray-500">MOQ {product.minimum_order_quantity} {product.unit_type}</p><span className="mt-2 block rounded bg-[#ff6a00] px-2 py-1.5 text-center text-[10px] font-bold text-white">View product</span></div></Link>)}
-                </div> : <div className="flex min-h-[440px] w-full flex-col items-center justify-center text-center"><Package size={40} className="text-gray-300" /><p className="mt-3 text-sm font-semibold text-gray-600">No products match this search.</p></div>}
+                  {filteredStoreProducts.map(product => <Link href={`/products/${product.id}`} key={product.id} className="group overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-[#ff6a00]/50 hover:shadow-md"><div className="aspect-square overflow-hidden bg-gray-100"><ProductThumb src={product.primary_image} name={product.name} className="transition group-hover:scale-105" /></div><div className="p-3"><p className="line-clamp-2 min-h-8 text-xs font-semibold text-gray-900">{product.name}</p><p className="mt-1 text-sm font-extrabold text-[#ff5a36]">{Number(product.base_price).toLocaleString()} BIF</p><p className="mt-1 text-[10px] text-gray-500">MOQ {product.minimum_order_quantity} {product.unit_type}</p><span className="mt-2 block rounded bg-[#ff6a00] px-2 py-1.5 text-center text-[10px] font-bold text-white">{tr('ui.viewProduct')}</span></div></Link>)}
+                </div> : <div className="flex min-h-[440px] w-full flex-col items-center justify-center text-center"><Package size={40} className="text-gray-300" /><p className="mt-3 text-sm font-semibold text-gray-600">{tr('ui.noProductsMatchThisSearch')}</p></div>}
               </div>
             )}
           </div>

@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { TranslatableText } from '@/components/translatable-text';
 import { Link } from 'wouter';
 import { PackageCheck, Pencil, ExternalLink } from 'lucide-react';
+import { useLocale } from '@/lib/i18n/locale-context';
 
 interface ProductCardProps {
   product: {
@@ -52,7 +54,7 @@ export function ProductCard({ product, variant = 'seller', showEdit = false, sho
           className="h-12 w-12 rounded-lg flex-shrink-0"
         />
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-gray-900 truncate">{product.name}</p>
+          <p className="text-xs font-semibold text-gray-900 truncate"><TranslatableText text={product.name} controls={false} /></p>
           {showCategory && <p className="text-[10px] text-gray-500">{product.category}</p>}
         </div>
         <div className="text-right flex-shrink-0">
@@ -82,7 +84,7 @@ export function ProductCard({ product, variant = 'seller', showEdit = false, sho
         </Link>
         <div className="p-3">
           <Link href={`/products/${product.id}`}>
-            <p className="text-sm font-semibold text-gray-900 line-clamp-2 hover:text-orange-500 transition-colors">{product.name}</p>
+            <p className="text-sm font-semibold text-gray-900 line-clamp-2 hover:text-orange-500 transition-colors"><TranslatableText text={product.name} controls={false} /></p>
           </Link>
           {showCategory && <p className="text-xs text-gray-500 mt-1">{product.category}</p>}
           <div className="mt-2 flex items-center justify-between">
@@ -163,11 +165,12 @@ export function ProductCardGrid({ products, variant = 'seller', showEdit = false
   showEdit?: boolean;
   columns?: 2 | 3 | 4;
 }) {
+  const { tr } = useLocale();
   if (products.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
         <PackageCheck size={32} className="mx-auto text-gray-300 mb-2" />
-        <p className="text-sm text-gray-500">No products yet</p>
+        <p className="text-sm text-gray-500">{tr('ui.noProductsYet')}</p>
       </div>
     );
   }

@@ -3,6 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { ArrowLeft, Upload, FileCheck, Shield, Clock, CheckCircle, AlertCircle, Camera, X } from 'lucide-react';
 import { AppShell } from '@/components/marketplace-shell';
 import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/lib/i18n/locale-context';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : '');
 
@@ -14,6 +15,7 @@ const ID_TYPES = [
 ];
 
 export function SellerVerificationPage() {
+  const { tr } = useLocale();
   const { user, session, refreshUser } = useAuth();
   const [, setLocation] = useLocation();
   const [verificationStatus, setVerificationStatus] = useState<string>('not_submitted');
@@ -117,8 +119,8 @@ export function SellerVerificationPage() {
               <Shield size={24} className="text-primary" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">Seller Verification</h1>
-              <p className="text-sm text-muted-foreground">Optional — Get a Verified badge on your profile</p>
+              <h1 className="text-xl font-bold">{tr('ui.sellerVerification')}</h1>
+              <p className="text-sm text-muted-foreground">{tr('ui.optionalGetAVerifiedBadgeOn')}</p>
             </div>
           </div>
 
@@ -141,7 +143,7 @@ export function SellerVerificationPage() {
               <div className="flex items-center gap-3">
                 <CheckCircle size={24} className="text-green-600" />
                 <div>
-                  <p className="font-semibold text-green-800">Verified Seller</p>
+                  <p className="font-semibold text-green-800">{tr('ui.verifiedSeller')}</p>
                   <p className="text-sm text-green-600">Your identity has been verified. Buyers will see a verified badge on your profile.</p>
                 </div>
               </div>
@@ -153,7 +155,7 @@ export function SellerVerificationPage() {
               <div className="flex items-center gap-3">
                 <Clock size={24} className="text-yellow-600" />
                 <div>
-                  <p className="font-semibold text-yellow-800">Under Review</p>
+                  <p className="font-semibold text-yellow-800">{tr('ui.underReview')}</p>
                   <p className="text-sm text-yellow-600">Your ID document has been submitted and is being reviewed. This usually takes 1-3 business days.</p>
                 </div>
               </div>
@@ -165,8 +167,8 @@ export function SellerVerificationPage() {
               <div className="flex items-center gap-3">
                 <AlertCircle size={24} className="text-orange-600" />
                 <div>
-                  <p className="font-semibold text-orange-800">Changes Needed</p>
-                  <p className="text-sm text-orange-600">Please re-submit with a clearer photo of your ID document.</p>
+                  <p className="font-semibold text-orange-800">{tr('ui.changesNeeded')}</p>
+                  <p className="text-sm text-orange-600">{tr('ui.pleaseResubmitWithAClearerPhoto')}</p>
                 </div>
               </div>
             </div>
@@ -176,7 +178,7 @@ export function SellerVerificationPage() {
           {verificationStatus !== 'verified' && (
             <div className="space-y-5">
               <div>
-                <label className="mb-2 block text-sm font-semibold">Select ID Type</label>
+                <label className="mb-2 block text-sm font-semibold">{tr('ui.selectIdType')}</label>
                 <div className="grid grid-cols-2 gap-3">
                   {ID_TYPES.map(type => (
                     <button
@@ -196,7 +198,7 @@ export function SellerVerificationPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold">Upload Document</label>
+                <label className="mb-2 block text-sm font-semibold">{tr('ui.uploadDocument')}</label>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -211,7 +213,7 @@ export function SellerVerificationPage() {
                       <FileCheck size={24} className="text-green-500" />
                       <div className="flex-1">
                         <p className="text-sm font-medium">{idName}</p>
-                        <p className="text-xs text-muted-foreground">Document ready</p>
+                        <p className="text-xs text-muted-foreground">{tr('ui.documentReady')}</p>
                       </div>
                       <button
                         onClick={() => { setIdDocumentUrl(''); setIdName(''); }}
@@ -222,7 +224,7 @@ export function SellerVerificationPage() {
                     </div>
                     {idDocumentUrl.startsWith('data:image') && (
                       <div className="mt-3 rounded-lg overflow-hidden border border-border">
-                        <img src={idDocumentUrl} alt="ID Document" className="max-h-48 w-full object-contain" />
+                        <img src={idDocumentUrl} alt={tr('ui.idDocument')} className="max-h-48 w-full object-contain" />
                       </div>
                     )}
                   </div>
@@ -238,9 +240,9 @@ export function SellerVerificationPage() {
                       <>
                         <Camera size={32} className="text-muted-foreground" />
                         <div>
-                          <p className="text-sm font-semibold">Click to upload</p>
-                          <p className="text-xs text-muted-foreground">Photo of your ID, passport, or business license</p>
-                          <p className="text-xs text-muted-foreground mt-1">Max 5MB — JPG, PNG, or PDF</p>
+                          <p className="text-sm font-semibold">{tr('ui.clickToUpload')}</p>
+                          <p className="text-xs text-muted-foreground">{tr('ui.photoOfYourIdPassportOr')}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{tr('ui.max5mbJpgPngOrPdf')}</p>
                         </div>
                       </>
                     )}
@@ -249,7 +251,7 @@ export function SellerVerificationPage() {
               </div>
 
               <div className="rounded-xl bg-muted/50 p-4">
-                <h4 className="text-sm font-semibold mb-2">Why verify your identity?</h4>
+                <h4 className="text-sm font-semibold mb-2">{tr('ui.whyVerifyYourIdentity')}</h4>
                 <ul className="space-y-1 text-xs text-muted-foreground">
                   <li>• Get a verified badge on your profile</li>
                   <li>• Build trust with buyers</li>

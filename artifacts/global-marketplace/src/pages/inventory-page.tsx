@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { SellerWorkspace } from '@/components/seller-workspace';
 import { useAuth } from '@/lib/auth-context';
+import { useLocale } from '@/lib/i18n/locale-context';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-seller-api.nzanilaexpress.workers.dev');
 
@@ -34,6 +35,7 @@ interface InventoryItem {
 }
 
 export function InventoryDashboardPage() {
+  const { tr } = useLocale();
   const { user } = useAuth();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,36 +117,36 @@ export function InventoryDashboardPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'active': return <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700"><CheckCircle size={10} /> Active</span>;
-      case 'low_stock': return <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-bold text-orange-700"><AlertTriangle size={10} /> Low Stock</span>;
-      case 'out_of_stock': return <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700"><XCircle size={10} /> Out of Stock</span>;
-      case 'inactive': return <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-700"><XCircle size={10} /> Inactive</span>;
+      case 'active': return <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700"><CheckCircle size={10} /> {tr('ui.active')}</span>;
+      case 'low_stock': return <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-bold text-orange-700"><AlertTriangle size={10} /> {tr('ui.lowStock')}</span>;
+      case 'out_of_stock': return <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700"><XCircle size={10} /> {tr('ui.outOfStock')}</span>;
+      case 'inactive': return <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-700"><XCircle size={10} /> {tr('ui.inactive')}</span>;
       default: return null;
     }
   };
 
   return (
-    <SellerWorkspace title="Inventory Management">
+    <SellerWorkspace title={tr('ui.inventoryManagement')}>
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-xs font-semibold text-gray-500 mb-1">Total Products</p>
+          <p className="text-xs font-semibold text-gray-500 mb-1">{tr('ui.totalProducts')}</p>
           <p className="text-2xl font-bold text-gray-900">{stats.totalProducts}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-xs font-semibold text-gray-500 mb-1">Active</p>
+          <p className="text-xs font-semibold text-gray-500 mb-1">{tr('ui.active')}</p>
           <p className="text-2xl font-bold text-emerald-600">{stats.activeProducts}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-xs font-semibold text-gray-500 mb-1">Low Stock</p>
+          <p className="text-xs font-semibold text-gray-500 mb-1">{tr('ui.lowStock')}</p>
           <p className="text-2xl font-bold text-orange-600">{stats.lowStockProducts}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-xs font-semibold text-gray-500 mb-1">Out of Stock</p>
+          <p className="text-xs font-semibold text-gray-500 mb-1">{tr('ui.outOfStock')}</p>
           <p className="text-2xl font-bold text-red-600">{stats.outOfStockProducts}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-xs font-semibold text-gray-500 mb-1">Inventory Value</p>
+          <p className="text-xs font-semibold text-gray-500 mb-1">{tr('ui.inventoryValue')}</p>
           <p className="text-2xl font-bold text-gray-900">${stats.totalValue.toLocaleString()}</p>
         </div>
       </div>
@@ -157,7 +159,7 @@ export function InventoryDashboardPage() {
               <Search size={16} className="text-gray-500" />
               <input
                 type="text"
-                placeholder="Search by name, SKU, or category..."
+                placeholder={tr('ui.searchByNameSkuOrCategory')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="bg-transparent text-sm outline-none w-full"
@@ -168,11 +170,11 @@ export function InventoryDashboardPage() {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
             >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="low_stock">Low Stock</option>
-              <option value="out_of_stock">Out of Stock</option>
-              <option value="inactive">Inactive</option>
+              <option value="all">{tr('ui.allStatus')}</option>
+              <option value="active">{tr('ui.active')}</option>
+              <option value="low_stock">{tr('ui.lowStock')}</option>
+              <option value="out_of_stock">{tr('ui.outOfStock')}</option>
+              <option value="inactive">{tr('ui.inactive')}</option>
             </select>
           </div>
           <div className="flex items-center gap-2">
@@ -194,15 +196,15 @@ export function InventoryDashboardPage() {
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Product</th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">{tr('ui.product')}</th>
               <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">SKU</th>
-              <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">Category</th>
-              <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">Price</th>
-              <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">Cost</th>
-              <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">Stock</th>
-              <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">Available</th>
-              <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase">Status</th>
-              <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase">Actions</th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase">{tr('ui.category')}</th>
+              <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">{tr('ui.price')}</th>
+              <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">{tr('ui.cost')}</th>
+              <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">{tr('ui.stock')}</th>
+              <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">{tr('ui.available')}</th>
+              <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase">{tr('ui.status')}</th>
+              <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase">{tr('ui.actions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -218,8 +220,8 @@ export function InventoryDashboardPage() {
               <tr>
                 <td colSpan={9} className="px-4 py-12 text-center">
                   <Package size={40} className="mx-auto text-gray-300 mb-3" />
-                  <p className="text-sm font-semibold text-gray-900">No products found</p>
-                  <p className="text-xs text-gray-500">Try adjusting your search or filters</p>
+                  <p className="text-sm font-semibold text-gray-900">{tr('ui.noProductsFound')}</p>
+                  <p className="text-xs text-gray-500">{tr('ui.tryAdjustingYourSearchOrFilters')}</p>
                 </td>
               </tr>
             ) : (

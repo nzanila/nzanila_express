@@ -25,7 +25,9 @@ export type ModuleType =
   | 'product-comparison'
   | 'seasonal-sale'
   | 'new-arrivals'
-  | 'trending-now';
+  | 'trending-now'
+  | 'hot-zone'
+  | 'inquiry-form';
 
 export interface StorefrontModule {
   id: string;
@@ -278,8 +280,10 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
     icon: () => null,
     defaultProps: {
       imageUrl: '',
-      altText: 'Store Banner',
+      altText: '{{companyName}}',
       hidden: false,
+      // Draw the sign over the page background instead of on its own band.
+      transparent: false,
     },
     category: 'core',
   },
@@ -306,11 +310,14 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
     icon: () => null,
     defaultProps: {
       title: '',
+      // Editable placeholders, not claims. These shipped as a 50,000 m2 factory with
+      // 3,000 workers serving 90+ countries — published verbatim by any seller who
+      // dragged the module in and never opened it.
       stats: [
-        { value: '50000', label: 'm² Factory Area', suffix: 'm²' },
-        { value: '50000', label: 'pcs Monthly Capacity', suffix: 'pcs' },
-        { value: '3000', label: 'Workers', suffix: '' },
-        { value: '90+', label: 'Countries Served', suffix: '+' },
+        { value: '', label: 'Metric 1', suffix: '' },
+        { value: '', label: 'Metric 2', suffix: '' },
+        { value: '', label: 'Metric 3', suffix: '' },
+        { value: '', label: 'Metric 4', suffix: '' },
       ],
       backgroundColor: '#1a56db',
       textColor: '#ffffff',
@@ -340,23 +347,24 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
     icon: () => null,
     defaultProps: {
       title: 'Manufacturer Capability',
+      // Blank rather than wrong — see the stats module above.
       tradeInfo: {
-        yearsInBusiness: '10+',
-        mainMarkets: 'North America, Europe, Asia',
-        exportPercentage: '80%',
-        nearestPort: 'Xiamen Port',
+        yearsInBusiness: '',
+        mainMarkets: '',
+        exportPercentage: '',
+        nearestPort: '',
       },
       rdInfo: {
-        rdEngineers: '15',
-        rdStaff: '30',
-        oemServices: true,
-        odmServices: true,
+        rdEngineers: '',
+        rdStaff: '',
+        oemServices: false,
+        odmServices: false,
       },
       productionInfo: {
-        factorySize: '50,000 m²',
-        workers: '500+',
-        monthlyCapacity: '100,000 pcs',
-        productionLines: '10',
+        factorySize: '',
+        workers: '',
+        monthlyCapacity: '',
+        productionLines: '',
       },
     },
     category: 'company',
@@ -368,12 +376,10 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
     icon: () => null,
     defaultProps: {
       title: 'Certifications',
-      certifications: [
-        { name: 'ISO 9001', imageUrl: '', description: 'Quality Management System' },
-        { name: 'CE', imageUrl: '', description: 'European Conformity' },
-        { name: 'FCC', imageUrl: '', description: 'Federal Communications Commission' },
-        { name: 'RoHS', imageUrl: '', description: 'Restriction of Hazardous Substances' },
-      ],
+      // Starts empty: a certification is a claim about a document the seller holds, and
+      // ISO 9001 / CE / FCC / RoHS were being asserted on behalf of sellers who had none.
+      // The renderer hides the module until the seller adds one.
+      certifications: [],
     },
     category: 'company',
   },
@@ -384,14 +390,45 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
     icon: () => null,
     defaultProps: {
       title: 'Company Performance',
-      metrics: [
-        { label: 'Response Time', value: '< 24 hours', rating: 4.8 },
-        { label: 'On-time Delivery', value: '98.5%', rating: 4.9 },
-        { label: 'Transaction Level', value: 'AAA', rating: 5.0 },
+      // Empty until the seller fills it in; the renderer hides the module meanwhile.
+      metrics: [],
+      responseTime: '',
+      onTimeDelivery: '',
+      transactionLevel: '',
+    },
+    category: 'company',
+  },
+  {
+    // Alibaba's "hot zone": one designed image with clickable regions. Regions are stored
+    // as percentages of the image, so the same artwork works at every width — this is the
+    // module that lets a seller ship their own layout without a component for it.
+    type: 'hot-zone',
+    label: 'Designed Banner (Hot Zone)',
+    description: 'Your own artwork with clickable areas that link to products or pages',
+    icon: () => null,
+    defaultProps: {
+      title: '',
+      imageUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1600&q=80',
+      alt: 'Featured categories',
+      regions: [
+        { label: 'Shop now', href: '/products', x: 5, y: 60, w: 28, h: 30 },
       ],
-      responseTime: '2 hours',
-      onTimeDelivery: '98.5%',
-      transactionLevel: 'AAA',
+    },
+    category: 'content',
+  },
+  {
+    // Every Alibaba storefront ends with an inline inquiry form. This is the lead-capture
+    // module the builder was missing.
+    type: 'inquiry-form',
+    label: 'Inquiry Form',
+    description: 'Let buyers send you a message or quote request without leaving the page',
+    icon: () => null,
+    defaultProps: {
+      title: 'Send us an inquiry',
+      description: 'Tell us what you need — quantities, specifications, delivery area — and we will reply with a quote.',
+      buttonText: 'Send inquiry',
+      backgroundColor: '#232f3e',
+      textColor: '#ffffff',
     },
     category: 'company',
   },
@@ -402,7 +439,7 @@ export const DEFAULT_STOREFRONT_CONFIG: StorefrontConfig = {
   template: 'showcase',
   shopSign: {
     imageUrl: null,
-    altText: 'Store Banner',
+    altText: '{{companyName}}',
     hidden: false,
   },
   sections: [
@@ -433,8 +470,11 @@ export const DEFAULT_STOREFRONT_CONFIG: StorefrontConfig = {
   ],
   updatedAt: new Date().toISOString(),
   header: {
-    companyName: 'Your Company',
-    tagline: 'Wholesale supplier and trusted business partner',
+    // Null, not placeholder text: the public store page reads
+    // `savedHeader.companyName || store.name`, so a literal 'Your Company' here won
+    // over the seller's real name and every default storefront was headed "Your Company".
+    companyName: null,
+    tagline: null,
     profileImage: null,
     verificationLabel: 'Verified Supplier',
     yearsActive: 'New supplier',
@@ -454,26 +494,95 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
   {
     id: 'default-ready',
     name: 'Default Ready Store',
-    description: 'A complete no-image starter with colors, product placeholders, contact details, location, and supplier information.',
-    preview: 'data:image/svg+xml,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 viewBox%3D%220 0 400 225%22%3E%3Crect width%3D%22400%22 height%3D%22225%22 fill%3D%22%23232f3e%22%2F%3E%3Crect y%3D%2270%22 width%3D%22400%22 height%3D%22155%22 fill%3D%22%23f5f7fa%22%2F%3E%3Crect x%3D%2225%22 y%3D%2225%22 width%3D%22120%22 height%3D%2212%22 rx%3D%226%22 fill%3D%22%23ff9900%22%2F%3E%3Crect x%3D%2225%22 y%3D%22100%22 width%3D%22100%22 height%3D%2270%22 rx%3D%226%22 fill%3D%22%23ff9900%22%2F%3E%3Crect x%3D%22150%22 y%3D%22100%22 width%3D%22100%22 height%3D%2270%22 rx%3D%226%22 fill%3D%22%231677ff%22%2F%3E%3Crect x%3D%22275%22 y%3D%22100%22 width%3D%22100%22 height%3D%2270%22 rx%3D%226%22 fill%3D%22%231a5f4a%22%2F%3E%3C%2Fsvg%3E',
+    description: 'Image-free starter built from your own store details — name, description, category, contacts and location. Add photos whenever you are ready.',
+    preview: 'data:image/svg+xml,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 viewBox%3D%220 0 400 225%22%3E%3Crect width%3D%22400%22 height%3D%22225%22 fill%3D%22%23f5f7fa%22%2F%3E%3Crect width%3D%22400%22 height%3D%2286%22 fill%3D%22%23233548%22%2F%3E%3Crect x%3D%2224%22 y%3D%2224%22 width%3D%22150%22 height%3D%2214%22 rx%3D%227%22 fill%3D%22%23ff6a00%22%2F%3E%3Crect x%3D%2224%22 y%3D%2248%22 width%3D%22240%22 height%3D%228%22 rx%3D%224%22 fill%3D%22%23ffffff%22 opacity%3D%22.5%22%2F%3E%3Crect x%3D%2224%22 y%3D%22110%22 width%3D%22108%22 height%3D%2270%22 rx%3D%228%22 fill%3D%22%23ffffff%22 stroke%3D%22%23dde3ea%22%2F%3E%3Crect x%3D%22146%22 y%3D%22110%22 width%3D%22108%22 height%3D%2270%22 rx%3D%228%22 fill%3D%22%23ffffff%22 stroke%3D%22%23dde3ea%22%2F%3E%3Crect x%3D%22268%22 y%3D%22110%22 width%3D%22108%22 height%3D%2270%22 rx%3D%228%22 fill%3D%22%23ffffff%22 stroke%3D%22%23dde3ea%22%2F%3E%3C%2Fsvg%3E',
     category: 'starter',
     config: {
       template: 'default-ready',
+      // No shop sign, no hero photo, no gallery: a brand-new seller has no photography,
+      // and stock imagery makes every default store look like somebody else's business.
+      // The design carries itself on type, colour and the seller's own words. The one
+      // picture it will ever show is the store/office photo the seller uploaded.
       shopSign: null,
       sections: [
         { id: 'home', name: 'Home', slug: 'home', modules: [
-          { id: 'default-welcome', type: 'marketing', position: 1, props: { title: 'Welcome to your store', description: 'Quality products, dependable supply, and straightforward wholesale service.', buttonText: 'Browse products', buttonUrl: '/products', backgroundColor: '#fff7ed', textColor: '#c2410c' } },
-          { id: 'default-categories', type: 'product-category', position: 2, props: { title: 'Featured products', categoryName: '', productCount: 6, layout: 'grid' } },
-          { id: 'default-stats', type: 'stats', position: 3, props: { title: 'Our capability', backgroundColor: '#232f3e', textColor: '#ffffff', backgroundImage: '', stats: [{ value: 'Fast', label: 'Response time', suffix: '' }, { value: 'Flexible', label: 'Order sizes', suffix: '' }, { value: 'Trusted', label: 'Supplier service', suffix: '' }, { value: 'Local', label: 'Buyer support', suffix: '' }] } },
+          { id: 'default-welcome', type: 'marketing', position: 1, props: {
+            title: '{{companyName}}',
+            description: '{{description}}',
+            buttonText: 'Browse products',
+            buttonUrl: '/products',
+            backgroundColor: '#233548',
+            textColor: '#ffffff',
+          } },
+          { id: 'default-features', type: 'features', position: 2, props: {
+            title: 'Why buy from {{companyName}}',
+            backgroundColor: '#ffffff',
+            textColor: '#233548',
+            features: [
+              { title: '{{category}}', description: 'Our main line of business.', icon: 'package' },
+              { title: 'Based in {{location}}', description: 'Collect locally or arrange delivery.', icon: 'map-pin' },
+              { title: 'Direct contact', description: 'Reach us on {{phone}}.', icon: 'phone' },
+            ],
+          } },
+          { id: 'default-products', type: 'recommended-products', position: 3, props: {
+            title: 'From our catalog', productSource: 'all', productIds: [], limit: 8, columns: 4,
+          } },
+          { id: 'default-stats', type: 'stats', position: 4, props: {
+            title: 'How we work',
+            backgroundColor: '#1a5f4a',
+            textColor: '#ffffff',
+            backgroundImage: '',
+            stats: [
+              { value: 'Wholesale', label: 'Order sizes', suffix: '' },
+              { value: 'Local', label: 'Buyer support', suffix: '' },
+              { value: 'Direct', label: 'From the supplier', suffix: '' },
+              { value: 'BIF', label: 'Priced in', suffix: '' },
+            ],
+          } },
+          { id: 'default-inquiry', type: 'inquiry-form', position: 5, props: {
+            title: 'Send {{companyName}} an inquiry',
+            description: 'Tell us the product, the quantity and where it needs to go.',
+            buttonText: 'Send inquiry',
+            backgroundColor: '#233548',
+            textColor: '#ffffff',
+          } },
         ] },
         { id: 'products', name: 'Products', slug: 'products', modules: [
-          { id: 'default-products', type: 'recommended-products', position: 1, props: { title: 'Product catalog', productSource: 'all', productIds: [], limit: 8, columns: 4 } },
+          { id: 'products-catalog', type: 'recommended-products', position: 1, props: {
+            title: 'Product catalog', productSource: 'all', productIds: [], limit: 12, columns: 4,
+          } },
         ] },
         { id: 'company-profile', name: 'Company Profile', slug: 'company-profile', modules: [
-          { id: 'default-company', type: 'company', position: 1, props: { title: 'About this company', description: 'Add your company story, certifications, warehouse capacity, and buyer services here.', showCertification: true, showYearsActive: true, showEmployees: true, layout: 'cards' } },
+          { id: 'company-about', type: 'company', position: 1, props: {
+            title: 'About {{companyName}}',
+            description: '{{description}}',
+            showCertification: true, showYearsActive: true, showEmployees: true, layout: 'cards',
+          } },
+          { id: 'company-capability', type: 'stats', position: 2, props: {
+            title: 'At a glance',
+            backgroundColor: '#f5f7fa',
+            textColor: '#233548',
+            backgroundImage: '',
+            stats: [
+              { value: '{{category}}', label: 'Business category', suffix: '' },
+              { value: '{{location}}', label: 'Based in', suffix: '' },
+              { value: '{{yearsActive}}', label: 'Trading', suffix: '' },
+            ],
+          } },
         ] },
         { id: 'contacts', name: 'Contacts', slug: 'contacts', modules: [
-          { id: 'default-contact', type: 'company', position: 1, props: { title: 'Contact and location', description: 'Phone: Add your phone number\nEmail: Add your email\nLocation: Add your warehouse or showroom address', showCertification: false, showYearsActive: false, showEmployees: false, layout: 'cards' } },
+          { id: 'default-contact', type: 'company', position: 1, props: {
+            title: 'Contact {{companyName}}',
+            description: 'Phone: {{phone}}\nEmail: {{email}}\nLocation: {{address}}',
+            showCertification: false, showYearsActive: false, showEmployees: false, layout: 'cards',
+          } },
+          { id: 'contact-inquiry', type: 'inquiry-form', position: 2, props: {
+            title: 'Message us',
+            description: 'We reply to inquiries from buyers across Burundi.',
+            buttonText: 'Send inquiry',
+            backgroundColor: '#1a5f4a',
+            textColor: '#ffffff',
+          } },
         ] },
       ],
     },
@@ -505,7 +614,7 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
       template: 'general-showcase',
       shopSign: {
         imageUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80',
-        altText: 'My Store',
+        altText: '{{companyName}}',
         hidden: false,
       },
       sections: [
@@ -613,7 +722,7 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
       template: 'product-focus',
       shopSign: {
         imageUrl: 'https://images.unsplash.com/photo-1472289065668-ce650ac443d2?auto=format&fit=crop&w=1200&q=80',
-        altText: 'Product Store',
+        altText: '{{companyName}}',
         hidden: false,
       },
       sections: [
@@ -706,7 +815,7 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
       template: 'brand-story',
       shopSign: {
         imageUrl: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&w=1200&q=80',
-        altText: 'Our Brand',
+        altText: '{{companyName}}',
         hidden: false,
       },
       sections: [
@@ -805,8 +914,8 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
   },
   {
     id: 'food-grocery',
-    name: 'Kigali Fresh - Full Storefront',
-    description: 'Complete agriculture storefront: hero + categories + featured + videos + supplier info',
+    name: 'Fresh Produce & Agriculture',
+    description: 'Agriculture storefront: rotating hero, product categories, featured rows, video and supplier profile — written from your own store details.',
     preview: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=400&q=80',
     category: 'industry',
     config: {
@@ -824,8 +933,8 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
               props: {
                 autoplaySeconds: 5,
                 slides: [
-                  { title: 'Kigali Fresh Traders', subtitle: 'Premium agricultural products and fresh produce from Burundi.', imageUrl: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80', buttonText: 'View products', buttonUrl: '/products' },
-                  { title: 'Fresh produce, dependable supply', subtitle: 'Rice, beans, cassava flour, and vegetables for buyers across East Africa.', imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80', buttonText: 'Contact supplier', buttonUrl: '/contacts' },
+                  { title: '{{companyName}}', subtitle: '{{description}}', imageUrl: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80', buttonText: 'View products', buttonUrl: '/products' },
+                  { title: 'Supplying {{location}}', subtitle: 'Wholesale {{category}} with dependable supply and direct contact.', imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80', buttonText: 'Contact supplier', buttonUrl: '/contacts' },
                 ],
               },
               position: 1,
@@ -846,12 +955,15 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
               id: 'stats-1',
               type: 'stats',
               props: {
-                title: '',
+                title: 'How we work',
+                // Facts about this seller, not invented factory figures. The previous
+                // defaults advertised a 2,000 m2 site and 50+ export countries to every
+                // trader who picked this design.
                 stats: [
-                  { value: '2,000', label: 'Factory Blueprint', suffix: ' m²' },
-                  { value: '5,000', label: 'Monthly Capacity', suffix: ' kg' },
-                  { value: '10-50', label: 'Workers, Staff', suffix: '' },
-                  { value: '50+', label: 'Countries Customer', suffix: '' },
+                  { value: '{{category}}', label: 'Main line', suffix: '' },
+                  { value: '{{location}}', label: 'Based in', suffix: '' },
+                  { value: 'Wholesale', label: 'Order sizes', suffix: '' },
+                  { value: 'BIF', label: 'Priced in', suffix: '' },
                 ],
                 backgroundColor: '#0f4fd8',
                 textColor: '#ffffff',
@@ -862,12 +974,12 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
               id: 'features-1',
               type: 'features',
               props: {
-                title: '',
+                title: 'Why buy from {{companyName}}',
                 features: [
-                  { icon: 'professional', title: 'Professional', description: 'Supplying quality products with our professional team and strong service.' },
-                  { icon: 'production', title: 'Production', description: 'Meticulous production team with advanced technology in production and management.' },
-                  { icon: 'oem', title: 'OEM&OEM', description: 'More than 10 years experiences in OEM & ODM orders, we will enjoy the fastest service.' },
-                  { icon: 'price', title: 'Competitive Price', description: 'Born to help customers, we will use our best to help quality products at low but high-quality prices and most favorable working.' },
+                  { icon: 'package', title: 'Fresh stock', description: 'Produce moved quickly from harvest to buyer.' },
+                  { icon: 'professional', title: 'Checked before it ships', description: 'Every order is sorted and inspected before collection.' },
+                  { icon: 'phone', title: 'Direct contact', description: 'Reach us on {{phone}} — no middleman.' },
+                  { icon: 'map-pin', title: 'Collect or deliver', description: 'Pick up in {{location}} or arrange delivery.' },
                 ],
               },
               position: 4,
@@ -889,9 +1001,9 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
               type: 'marketing',
               props: {
                 title: 'Looking for something specific?',
-                description: 'Request a catalog for detailed product specs, pricing, and more',
-                buttonText: 'Request catalog',
-                buttonUrl: '#',
+                description: 'Tell us the crop, the quantity and when you need it, and we will quote you.',
+                buttonText: 'Send an inquiry',
+                buttonUrl: '/contacts',
                 backgroundColor: '#0f4fd8',
                 textColor: '#ffffff',
                 imageUrl: '',
@@ -914,8 +1026,8 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
               id: 'company-1',
               type: 'company',
               props: {
-                title: 'About the supplier - Kigali Fresh Traders',
-                description: 'Premium agricultural products and fresh produce from Burundi. We specialize in high-quality rice, beans, cassava flour, and fresh vegetables. Our team combines dependable supply, strict quality control, and responsive service to help wholesale buyers grow with confidence.',
+                title: 'About {{companyName}}',
+                description: '{{description}}',
                 showCertification: true,
                 showYearsActive: true,
                 showEmployees: true,
@@ -950,36 +1062,30 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
           slug: 'company-profile',
           modules: [
             {
-              id: 'company-performance-1',
-              type: 'company-performance',
+              id: 'company-capacity-1',
+              type: 'company-capacity',
               props: {
-                title: 'Company Performance',
-                metrics: [],
-                responseTime: '≤10h',
-                onTimeDelivery: '98%',
-                transactionLevel: '95%',
+                title: '{{companyName}}',
+                // Blank rather than wrong: the seller fills these in from the builder.
+                // They used to ship as "2018 / East Africa / 95% export".
+                tradeInfo: { yearsInBusiness: '', mainMarkets: '{{location}}', exportPercentage: '', nearestPort: '' },
+                rdInfo: { rdEngineers: '', rdStaff: '', oemServices: false, odmServices: false },
+                productionInfo: { factorySize: '', workers: '', monthlyCapacity: '', productionLines: '' },
               },
               position: 1,
             },
             {
-              id: 'company-capacity-1',
-              type: 'company-capacity',
+              id: 'company-about-1',
+              type: 'company',
               props: {
-                title: 'Kigali Fresh Traders',
-                tradeInfo: { yearsInBusiness: '2018', mainMarkets: 'East Africa', exportPercentage: '95%', nearestPort: 'N/A' },
-                rdInfo: { rdEngineers: '0', rdStaff: '0', oemServices: false, odmServices: false },
-                productionInfo: { factorySize: '2,000 m²', workers: '10-50', monthlyCapacity: '5,000 kg', productionLines: '3' },
+                title: 'Our business',
+                description: '{{description}}',
+                showCertification: false,
+                showYearsActive: true,
+                showEmployees: false,
+                layout: 'cards',
               },
               position: 2,
-            },
-            {
-              id: 'certifications-1',
-              type: 'certifications',
-              props: {
-                title: 'Certificate Display',
-                certifications: [{ name: 'Certificate', description: '' }],
-              },
-              position: 3,
             },
           ],
         },
@@ -987,15 +1093,41 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
           id: 'contacts',
           name: 'Contacts',
           slug: 'contacts',
-          modules: [],
+          modules: [
+            {
+              id: 'contacts-company-1',
+              type: 'company',
+              props: {
+                title: 'Contact {{companyName}}',
+                description: 'Phone: {{phone}}\nEmail: {{email}}\nLocation: {{address}}',
+                showCertification: false,
+                showYearsActive: false,
+                showEmployees: false,
+                layout: 'cards',
+              },
+              position: 1,
+            },
+            {
+              id: 'contacts-inquiry-1',
+              type: 'inquiry-form',
+              props: {
+                title: 'Send {{companyName}} an inquiry',
+                description: 'Tell us the product, the quantity and where it needs to go.',
+                buttonText: 'Send inquiry',
+                backgroundColor: '#0f4fd8',
+                textColor: '#ffffff',
+              },
+              position: 2,
+            },
+          ],
         },
       ],
     },
   },
   {
     id: 'electronics',
-    name: 'BAOFENG - Alibaba Clone',
-    description: '1:1 clone of fjbaofeng.m.en.alibaba.com — hero + 2 blue cards + category grid + stats',
+    name: 'Electronics & Devices',
+    description: 'Electronics storefront: product hero, category cards, a category grid and supplier credentials — written from your own store details.',
     preview: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=400&q=80',
     category: 'industry',
     config: {
@@ -1011,13 +1143,13 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
               id: 'hero-1',
               type: 'hero',
               props: {
-                title: 'The Art of Technology',
-                subtitle: '20mm Ultra-Slim  |  Off-Grid Communication  |  Smart UHF',
+                title: '{{companyName}}',
+                subtitle: '{{description}}',
                 imageUrl: 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?auto=format&fit=crop&w=800&q=80',
-                buttonText: '',
-                buttonUrl: '',
+                buttonText: 'Shop products',
+                buttonUrl: '/products',
                 height: 280,
-                brand: 'BAOFENG',
+                brand: '{{companyName}}',
               },
               position: 1,
             },
@@ -1025,10 +1157,12 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
               id: 'category-cards-1',
               type: 'category-cards',
               props: {
-                title: '',
+                title: 'Shop by category',
+                // Two editable slots. These used to name a specific radio manufacturer's
+                // product lines (K68, DM-32), which no seller here sells.
                 categories: [
-                  { name: 'Business Radio', sublabel: 'K68', imageUrl: 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?auto=format&fit=crop&w=400&q=80', link: '#' },
-                  { name: 'DMR Radio', sublabel: 'DM-32', imageUrl: 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?auto=format&fit=crop&w=400&q=80', link: '#' },
+                  { name: 'Category 1', sublabel: '', imageUrl: '', link: '#' },
+                  { name: 'Category 2', sublabel: '', imageUrl: '', link: '#' },
                 ],
                 backgroundColor: '#1677ff',
                 textColor: '#ffffff',
@@ -1051,12 +1185,12 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
               id: 'stats-1',
               type: 'stats',
               props: {
-                title: '',
+                title: 'How we work',
                 stats: [
-                  { value: '60000', label: 'Factory Floor Area', suffix: 'm²' },
-                  { value: '50000', label: 'Radios Per day', suffix: 'pcs' },
-                  { value: '3000', label: 'Workers Staff', suffix: '' },
-                  { value: '90+', label: 'Country Customer', suffix: '' },
+                  { value: '{{category}}', label: 'Main line', suffix: '' },
+                  { value: '{{location}}', label: 'Based in', suffix: '' },
+                  { value: 'Wholesale', label: 'Order sizes', suffix: '' },
+                  { value: 'BIF', label: 'Priced in', suffix: '' },
                 ],
                 backgroundColor: '#0f4fd8',
                 textColor: '#ffffff',
@@ -1067,12 +1201,12 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
               id: 'features-1',
               type: 'features',
               props: {
-                title: '',
+                title: 'Why buy from {{companyName}}',
                 features: [
-                  { icon: 'professional', title: 'Professional', description: 'More than 20 years experience in radio' },
-                  { icon: 'production', title: 'Production', description: 'Strict QC with advanced production lines' },
-                  { icon: 'oem', title: 'OEM&ODM', description: 'Support custom logo / packaging / frequency' },
-                  { icon: 'price', title: 'Competitive Price', description: 'Factory direct, best cost performance' },
+                  { icon: 'package', title: 'Genuine stock', description: 'Devices sourced and checked before they are listed.' },
+                  { icon: 'professional', title: 'Tested before it ships', description: 'Every unit is powered on and inspected.' },
+                  { icon: 'phone', title: 'Direct contact', description: 'Reach us on {{phone}} — no middleman.' },
+                  { icon: 'map-pin', title: 'Collect or deliver', description: 'Pick up in {{location}} or arrange delivery.' },
                 ],
               },
               position: 5,
@@ -1104,60 +1238,30 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
           slug: 'company-profile',
           modules: [
             {
-              id: 'company-performance-1',
-              type: 'company-performance',
+              id: 'company-capacity-1',
+              type: 'company-capacity',
               props: {
-                title: 'Company Performance',
-                metrics: [
-                  { label: 'Response Time', value: '< 24 hours', rating: 4.8 },
-                  { label: 'On-time Delivery', value: '98.5%', rating: 4.9 },
-                  { label: 'Transaction Level', value: 'AAA', rating: 5.0 },
-                ],
-                responseTime: '2 hours',
-                onTimeDelivery: '98.5%',
-                transactionLevel: 'AAA',
+                title: '{{companyName}}',
+                // Blank rather than wrong: this shipped as a 50,000 m2 factory with 500+
+                // workers exporting through Xiamen Port, for any seller who picked it.
+                tradeInfo: { yearsInBusiness: '', mainMarkets: '{{location}}', exportPercentage: '', nearestPort: '' },
+                rdInfo: { rdEngineers: '', rdStaff: '', oemServices: false, odmServices: false },
+                productionInfo: { factorySize: '', workers: '', monthlyCapacity: '', productionLines: '' },
               },
               position: 1,
             },
             {
-              id: 'company-capacity-1',
-              type: 'company-capacity',
+              id: 'company-about-1',
+              type: 'company',
               props: {
-                title: 'Manufacturer Capability',
-                tradeInfo: {
-                  yearsInBusiness: '15+',
-                  mainMarkets: 'North America, Europe, Asia, South America',
-                  exportPercentage: '80%',
-                  nearestPort: 'Xiamen Port',
-                },
-                rdInfo: {
-                  rdEngineers: '20',
-                  rdStaff: '50',
-                  oemServices: true,
-                  odmServices: true,
-                },
-                productionInfo: {
-                  factorySize: '50,000 m²',
-                  workers: '500+',
-                  monthlyCapacity: '100,000 pcs',
-                  productionLines: '15',
-                },
+                title: 'About {{companyName}}',
+                description: '{{description}}',
+                showCertification: false,
+                showYearsActive: true,
+                showEmployees: false,
+                layout: 'cards',
               },
               position: 2,
-            },
-            {
-              id: 'certifications-1',
-              type: 'certifications',
-              props: {
-                title: 'Certifications',
-                certifications: [
-                  { name: 'ISO 9001', imageUrl: '', description: 'Quality Management System' },
-                  { name: 'CE', imageUrl: '', description: 'European Conformity' },
-                  { name: 'FCC', imageUrl: '', description: 'Federal Communications Commission' },
-                  { name: 'RoHS', imageUrl: '', description: 'Restriction of Hazardous Substances' },
-                ],
-              },
-              position: 3,
             },
           ],
         },
@@ -1165,7 +1269,33 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
           id: 'contacts',
           name: 'Contacts',
           slug: 'contacts',
-          modules: [],
+          modules: [
+            {
+              id: 'contacts-company-1',
+              type: 'company',
+              props: {
+                title: 'Contact {{companyName}}',
+                description: 'Phone: {{phone}}\nEmail: {{email}}\nLocation: {{address}}',
+                showCertification: false,
+                showYearsActive: false,
+                showEmployees: false,
+                layout: 'cards',
+              },
+              position: 1,
+            },
+            {
+              id: 'contacts-inquiry-1',
+              type: 'inquiry-form',
+              props: {
+                title: 'Send {{companyName}} an inquiry',
+                description: 'Tell us the product, the quantity and where it needs to go.',
+                buttonText: 'Send inquiry',
+                backgroundColor: '#232f3e',
+                textColor: '#ffffff',
+              },
+              position: 2,
+            },
+          ],
         },
       ],
     },
@@ -1192,7 +1322,7 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
             ] } },
             { id: 'warehouse-products', type: 'recommended-products', position: 3, props: { title: 'Featured warehouse inventory', productSource: 'all', productIds: [], limit: 8, columns: 4 } },
             { id: 'warehouse-stats', type: 'stats', position: 4, props: { title: 'Fulfillment capability', backgroundColor: '#0f4fd8', textColor: '#ffffff', stats: [
-              { value: '2,000', label: 'Warehouse area', suffix: ' m²' }, { value: '24', label: 'Dispatch target', suffix: ' hrs' }, { value: '10K+', label: 'Units available', suffix: '' }, { value: '98%', label: 'On-time shipping', suffix: '' },
+              { value: '', label: 'Warehouse area', suffix: ' m²' }, { value: '', label: 'Dispatch target', suffix: ' hrs' }, { value: '', label: 'Units available', suffix: '' }, { value: '', label: 'On-time shipping', suffix: '' },
             ] } },
             { id: 'warehouse-video', type: 'video', position: 5, props: { title: 'Warehouse tour', videoUrl: '', videoType: 'upload', aspectRatio: '16:9', autoplay: false } },
           ],
@@ -1201,13 +1331,2096 @@ export const STOREFRONT_TEMPLATES: StorefrontTemplate[] = [
           { id: 'warehouse-catalog', type: 'double-row-products', position: 1, props: { title: 'All warehouse products', productSource: 'all', productIds: [], limit: 10, rows: 2, columns: 5 } },
         ] },
         { id: 'company-profile', name: 'Company Profile', slug: 'company-profile', modules: [
-          { id: 'warehouse-company', type: 'company', position: 1, props: { title: 'Warehouse and company profile', description: 'Introduce your facilities, sourcing standards, fulfillment team, and buyer services.', showCertification: true, showYearsActive: true, showEmployees: true, layout: 'cards' } },
-          { id: 'warehouse-capacity', type: 'company-capacity', position: 2, props: { title: 'Operational capability', tradeInfo: { yearsInBusiness: '5+', mainMarkets: 'East Africa', exportPercentage: '60%', nearestPort: 'Dar es Salaam' }, rdInfo: { rdEngineers: '2', rdStaff: '5', oemServices: true, odmServices: false }, productionInfo: { factorySize: '2,000 m²', workers: '25+', monthlyCapacity: '10,000 units', productionLines: '3' } } },
-          { id: 'warehouse-certifications', type: 'certifications', position: 3, props: { title: 'Verification and certifications', certifications: [{ name: 'Business verified', imageUrl: '', description: 'Company documentation reviewed' }] } },
+          { id: 'warehouse-company', type: 'company', position: 1, props: { title: '{{companyName}} — warehouse and company profile', description: '{{description}}', showCertification: true, showYearsActive: true, showEmployees: true, layout: 'cards' } },
+          { id: 'warehouse-capacity', type: 'company-capacity', position: 2, props: { title: 'Operational capability', tradeInfo: { yearsInBusiness: '', mainMarkets: '', exportPercentage: '', nearestPort: '' }, rdInfo: { rdEngineers: '', rdStaff: '', oemServices: false, odmServices: false }, productionInfo: { factorySize: '', workers: '', monthlyCapacity: '', productionLines: '' } } },
+          { id: 'warehouse-certifications', type: 'certifications', position: 3, props: { title: 'Verification and certifications', certifications: [] } },
         ] },
         { id: 'contacts', name: 'Contacts', slug: 'contacts', modules: [] },
       ],
     },
+  },
+
+
+  // ---- Authored from the Alibaba canvas research: banner → (designed band + one product
+  // ---- row) repeated → capability/company → inquiry form. These nine previously existed
+  // ---- only as empty rows in the database.
+  {
+    id: 'fashion-store',
+    name: 'Fashion Store',
+    description: 'Editorial fashion storefront with a lookbook banner, category wall, and size-ready product rows',
+    preview: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=400&q=80',
+    category: 'fashion',
+    config: {
+      template: 'fashion-store',
+      shopSign: {
+        imageUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1600&q=80',
+        altText: '{{companyName}}',
+        hidden: false
+      },
+      sections: [
+        {
+          id: 'home',
+          name: 'Home',
+          slug: 'home',
+          modules: [
+            {
+              id: 'home-hero-slideshow-1',
+              type: 'hero-slideshow',
+              props: {
+                autoplaySeconds: 5,
+                slides: [
+                  {
+                    title: 'New season, new stock',
+                    subtitle: 'Wholesale fashion for boutiques and market traders',
+                    imageUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1600&q=80',
+                    buttonText: 'See the collection',
+                    buttonUrl: '/products'
+                  },
+                  {
+                    title: 'Order by the bundle',
+                    subtitle: 'Mixed sizes, one price, delivered to your shop',
+                    imageUrl: 'https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=1600&q=80',
+                    buttonText: 'View bundles',
+                    buttonUrl: '/products'
+                  }
+                ],
+                hideBottom: true
+              },
+              position: 1
+            },
+            {
+              id: 'home-hot-zone-2',
+              type: 'hot-zone',
+              props: {
+                title: 'Shop by category',
+                imageUrl: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1600&q=80',
+                alt: 'Shop by category',
+                regions: [
+                  {
+                    label: 'Women',
+                    href: '/products',
+                    x: 3,
+                    y: 10,
+                    w: 30,
+                    h: 80
+                  },
+                  {
+                    label: 'Men',
+                    href: '/products',
+                    x: 35,
+                    y: 10,
+                    w: 30,
+                    h: 80
+                  },
+                  {
+                    label: 'Kids',
+                    href: '/products',
+                    x: 67,
+                    y: 10,
+                    w: 30,
+                    h: 80
+                  }
+                ]
+              },
+              position: 2
+            },
+            {
+              id: 'home-recommended-products-3',
+              type: 'recommended-products',
+              props: {
+                title: 'This week’s best sellers',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 3
+            },
+            {
+              id: 'home-image-text-4',
+              type: 'image-text',
+              props: {
+                title: 'Fabric you can trust',
+                subtitle: 'Every piece checked before it ships — no surprises at your counter',
+                imageUrl: 'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&w=1600&q=80',
+                linkUrl: '/products',
+                textPosition: 'left',
+                height: 260,
+                hideBottom: true
+              },
+              position: 4
+            },
+            {
+              id: 'home-recommended-products-5',
+              type: 'recommended-products',
+              props: {
+                title: 'Just arrived',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 5
+            },
+            {
+              id: 'home-stats-6',
+              type: 'stats',
+              props: {
+                title: 'Why boutiques buy from us',
+                backgroundColor: '#1f1d1a',
+                textColor: '#f5efe6',
+                backgroundImage: '',
+                stats: [
+                  {
+                    value: 'MOQ',
+                    label: 'Flexible order sizes',
+                    suffix: ''
+                  },
+                  {
+                    value: '48h',
+                    label: 'Quote turnaround',
+                    suffix: ''
+                  },
+                  {
+                    value: 'BIF',
+                    label: 'Local pricing',
+                    suffix: ''
+                  },
+                  {
+                    value: 'Verified',
+                    label: 'Supplier status',
+                    suffix: ''
+                  }
+                ]
+              },
+              position: 6
+            },
+            {
+              id: 'home-inquiry-form-7',
+              type: 'inquiry-form',
+              props: {
+                title: 'Ask for a wholesale price list',
+                description: 'Tell us your shop size and the styles you move fastest.',
+                buttonText: 'Send inquiry',
+                backgroundColor: '#1f1d1a',
+                textColor: '#f5efe6'
+              },
+              position: 7
+            }
+          ]
+        },
+        {
+          id: 'products',
+          name: 'Products',
+          slug: 'products',
+          modules: [
+            {
+              id: 'products-recommended-products-1',
+              type: 'recommended-products',
+              props: {
+                title: 'Product catalog',
+                productSource: 'all',
+                productIds: [],
+                limit: 12,
+                columns: 4
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'company-profile',
+          name: 'Company Profile',
+          slug: 'company-profile',
+          modules: [
+            {
+              id: 'company-profile-company-1',
+              type: 'company',
+              props: {
+                title: 'About {{companyName}}',
+                description: '{{description}}',
+                showCertification: true,
+                showYearsActive: true,
+                showEmployees: true,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'contacts',
+          name: 'Contacts',
+          slug: 'contacts',
+          modules: [
+            {
+              id: 'contacts-company-1',
+              type: 'company',
+              props: {
+                title: 'Contact {{companyName}}',
+                description: 'Phone: {{phone}}\nEmail: {{email}}\nLocation: {{address}}',
+                showCertification: false,
+                showYearsActive: false,
+                showEmployees: false,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    id: 'tech-store',
+    name: 'Tech Store',
+    description: 'Electronics storefront with a spec-led hero, category hot zone, and comparison-ready product rows',
+    preview: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=400&q=80',
+    category: 'tech',
+    config: {
+      template: 'tech-store',
+      shopSign: {
+        imageUrl: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1600&q=80',
+        altText: '{{companyName}}',
+        hidden: false
+      },
+      sections: [
+        {
+          id: 'home',
+          name: 'Home',
+          slug: 'home',
+          modules: [
+            {
+              id: 'home-hero-slideshow-1',
+              type: 'hero-slideshow',
+              props: {
+                autoplaySeconds: 5,
+                slides: [
+                  {
+                    title: 'Genuine electronics, wholesale prices',
+                    subtitle: 'Phones, accessories and computing for resellers',
+                    imageUrl: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1600&q=80',
+                    buttonText: 'Browse devices',
+                    buttonUrl: '/products'
+                  }
+                ],
+                hideBottom: true
+              },
+              position: 1
+            },
+            {
+              id: 'home-hot-zone-2',
+              type: 'hot-zone',
+              props: {
+                title: 'Departments',
+                imageUrl: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&w=1600&q=80',
+                alt: 'Departments',
+                regions: [
+                  {
+                    label: 'Phones',
+                    href: '/products',
+                    x: 2,
+                    y: 8,
+                    w: 31,
+                    h: 84
+                  },
+                  {
+                    label: 'Computers',
+                    href: '/products',
+                    x: 35,
+                    y: 8,
+                    w: 31,
+                    h: 84
+                  },
+                  {
+                    label: 'Accessories',
+                    href: '/products',
+                    x: 68,
+                    y: 8,
+                    w: 30,
+                    h: 84
+                  }
+                ]
+              },
+              position: 2
+            },
+            {
+              id: 'home-recommended-products-3',
+              type: 'recommended-products',
+              props: {
+                title: 'Top sellers this month',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 3
+            },
+            {
+              id: 'home-image-text-4',
+              type: 'image-text',
+              props: {
+                title: 'Warranty on every unit',
+                subtitle: 'Sealed, serial-tracked stock with supplier-backed warranty',
+                imageUrl: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1600&q=80',
+                linkUrl: '/products',
+                textPosition: 'right',
+                height: 260,
+                hideBottom: true
+              },
+              position: 4
+            },
+            {
+              id: 'home-recommended-products-5',
+              type: 'recommended-products',
+              props: {
+                title: 'New arrivals',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 5
+            },
+            {
+              id: 'home-features-6',
+              type: 'features',
+              props: {
+                title: 'Built for resellers',
+                features: [
+                  {
+                    title: 'Sealed stock',
+                    description: 'Serial numbers logged on every unit'
+                  },
+                  {
+                    title: 'Bulk pricing',
+                    description: 'Tiered prices from 10 units'
+                  },
+                  {
+                    title: 'Fast dispatch',
+                    description: 'Same-day for in-stock items'
+                  },
+                  {
+                    title: 'Tech support',
+                    description: 'Help with setup and returns'
+                  }
+                ]
+              },
+              position: 6
+            },
+            {
+              id: 'home-inquiry-form-7',
+              type: 'inquiry-form',
+              props: {
+                title: 'Request a bulk quote',
+                description: 'Tell us the models and quantities — we reply with tiered pricing.',
+                buttonText: 'Send inquiry',
+                backgroundColor: '#0b1220',
+                textColor: '#ffffff'
+              },
+              position: 7
+            }
+          ]
+        },
+        {
+          id: 'products',
+          name: 'Products',
+          slug: 'products',
+          modules: [
+            {
+              id: 'products-recommended-products-1',
+              type: 'recommended-products',
+              props: {
+                title: 'Product catalog',
+                productSource: 'all',
+                productIds: [],
+                limit: 12,
+                columns: 4
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'company-profile',
+          name: 'Company Profile',
+          slug: 'company-profile',
+          modules: [
+            {
+              id: 'company-profile-company-1',
+              type: 'company',
+              props: {
+                title: 'About {{companyName}}',
+                description: '{{description}}',
+                showCertification: true,
+                showYearsActive: true,
+                showEmployees: true,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'contacts',
+          name: 'Contacts',
+          slug: 'contacts',
+          modules: [
+            {
+              id: 'contacts-company-1',
+              type: 'company',
+              props: {
+                title: 'Contact {{companyName}}',
+                description: 'Phone: {{phone}}\nEmail: {{email}}\nLocation: {{address}}',
+                showCertification: false,
+                showYearsActive: false,
+                showEmployees: false,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    id: 'kids-clothing',
+    name: 'Kids Clothing',
+    description: 'Bright, friendly children’s wear storefront with age-group hot zone and quick-buy rows',
+    preview: 'https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?auto=format&fit=crop&w=400&q=80',
+    category: 'fashion',
+    config: {
+      template: 'kids-clothing',
+      shopSign: {
+        imageUrl: 'https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?auto=format&fit=crop&w=1600&q=80',
+        altText: '{{companyName}}',
+        hidden: false
+      },
+      sections: [
+        {
+          id: 'home',
+          name: 'Home',
+          slug: 'home',
+          modules: [
+            {
+              id: 'home-hero-slideshow-1',
+              type: 'hero-slideshow',
+              props: {
+                autoplaySeconds: 5,
+                slides: [
+                  {
+                    title: 'Clothes that keep up with kids',
+                    subtitle: 'Durable wholesale childrenswear for shops and schools',
+                    imageUrl: 'https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?auto=format&fit=crop&w=1600&q=80',
+                    buttonText: 'Shop by age',
+                    buttonUrl: '/products'
+                  }
+                ],
+                hideBottom: true
+              },
+              position: 1
+            },
+            {
+              id: 'home-hot-zone-2',
+              type: 'hot-zone',
+              props: {
+                title: 'Shop by age',
+                imageUrl: 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?auto=format&fit=crop&w=1600&q=80',
+                alt: 'Shop by age',
+                regions: [
+                  {
+                    label: 'Babies',
+                    href: '/products',
+                    x: 2,
+                    y: 10,
+                    w: 23,
+                    h: 80
+                  },
+                  {
+                    label: 'Toddlers',
+                    href: '/products',
+                    x: 27,
+                    y: 10,
+                    w: 23,
+                    h: 80
+                  },
+                  {
+                    label: 'Kids',
+                    href: '/products',
+                    x: 52,
+                    y: 10,
+                    w: 22,
+                    h: 80
+                  },
+                  {
+                    label: 'School',
+                    href: '/products',
+                    x: 76,
+                    y: 10,
+                    w: 22,
+                    h: 80
+                  }
+                ]
+              },
+              position: 2
+            },
+            {
+              id: 'home-recommended-products-3',
+              type: 'recommended-products',
+              props: {
+                title: 'Parents’ favourites',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 3
+            },
+            {
+              id: 'home-image-text-4',
+              type: 'image-text',
+              props: {
+                title: 'School uniforms in bulk',
+                subtitle: 'Order by class size — mixed sizes at one price',
+                imageUrl: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=1600&q=80',
+                linkUrl: '/products',
+                textPosition: 'left',
+                height: 260,
+                hideBottom: true
+              },
+              position: 4
+            },
+            {
+              id: 'home-recommended-products-5',
+              type: 'recommended-products',
+              props: {
+                title: 'New this week',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 5
+            },
+            {
+              id: 'home-stats-6',
+              type: 'stats',
+              props: {
+                title: 'Trusted by shops and schools',
+                backgroundColor: '#fff4e0',
+                textColor: '#7c2d12',
+                backgroundImage: '',
+                stats: [
+                  {
+                    value: 'MOQ',
+                    label: 'Flexible order sizes',
+                    suffix: ''
+                  },
+                  {
+                    value: '48h',
+                    label: 'Quote turnaround',
+                    suffix: ''
+                  },
+                  {
+                    value: 'BIF',
+                    label: 'Local pricing',
+                    suffix: ''
+                  },
+                  {
+                    value: 'Verified',
+                    label: 'Supplier status',
+                    suffix: ''
+                  }
+                ]
+              },
+              position: 6
+            },
+            {
+              id: 'home-inquiry-form-7',
+              type: 'inquiry-form',
+              props: {
+                title: 'Order uniforms or stock for your shop',
+                description: 'Tell us the age range, quantities and delivery area.',
+                buttonText: 'Send inquiry',
+                backgroundColor: '#f97316',
+                textColor: '#ffffff'
+              },
+              position: 7
+            }
+          ]
+        },
+        {
+          id: 'products',
+          name: 'Products',
+          slug: 'products',
+          modules: [
+            {
+              id: 'products-recommended-products-1',
+              type: 'recommended-products',
+              props: {
+                title: 'Product catalog',
+                productSource: 'all',
+                productIds: [],
+                limit: 12,
+                columns: 4
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'company-profile',
+          name: 'Company Profile',
+          slug: 'company-profile',
+          modules: [
+            {
+              id: 'company-profile-company-1',
+              type: 'company',
+              props: {
+                title: 'About {{companyName}}',
+                description: '{{description}}',
+                showCertification: true,
+                showYearsActive: true,
+                showEmployees: true,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'contacts',
+          name: 'Contacts',
+          slug: 'contacts',
+          modules: [
+            {
+              id: 'contacts-company-1',
+              type: 'company',
+              props: {
+                title: 'Contact {{companyName}}',
+                description: 'Phone: {{phone}}\nEmail: {{email}}\nLocation: {{address}}',
+                showCertification: false,
+                showYearsActive: false,
+                showEmployees: false,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    id: 'luxury-fashion',
+    name: 'Luxury Fashion',
+    description: 'Restrained, premium storefront — dark palette, wide imagery, one row of product at a time',
+    preview: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=400&q=80',
+    category: 'fashion',
+    config: {
+      template: 'luxury-fashion',
+      shopSign: {
+        imageUrl: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1600&q=80',
+        altText: '{{companyName}}',
+        hidden: false
+      },
+      sections: [
+        {
+          id: 'home',
+          name: 'Home',
+          slug: 'home',
+          modules: [
+            {
+              id: 'home-hero-slideshow-1',
+              type: 'hero-slideshow',
+              props: {
+                autoplaySeconds: 5,
+                slides: [
+                  {
+                    title: 'Considered pieces. Serious quantities.',
+                    subtitle: 'Premium wholesale for boutiques that sell on quality',
+                    imageUrl: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1600&q=80',
+                    buttonText: 'View the collection',
+                    buttonUrl: '/products'
+                  }
+                ],
+                hideBottom: true
+              },
+              position: 1
+            },
+            {
+              id: 'home-image-text-2',
+              type: 'image-text',
+              props: {
+                title: 'Made to be worn for years',
+                subtitle: 'Natural fabrics, finished by hand, sourced responsibly',
+                imageUrl: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&w=1600&q=80',
+                linkUrl: '/products',
+                textPosition: 'center',
+                height: 320,
+                hideBottom: true
+              },
+              position: 2
+            },
+            {
+              id: 'home-recommended-products-3',
+              type: 'recommended-products',
+              props: {
+                title: 'The edit',
+                productSource: 'all',
+                productIds: [],
+                limit: 3,
+                columns: 3,
+                singleRow: true
+              },
+              position: 3
+            },
+            {
+              id: 'home-hot-zone-4',
+              type: 'hot-zone',
+              props: {
+                title: 'Collections',
+                imageUrl: 'https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?auto=format&fit=crop&w=1600&q=80',
+                alt: 'Collections',
+                regions: [
+                  {
+                    label: 'Tailoring',
+                    href: '/products',
+                    x: 3,
+                    y: 10,
+                    w: 45,
+                    h: 80
+                  },
+                  {
+                    label: 'Evening',
+                    href: '/products',
+                    x: 52,
+                    y: 10,
+                    w: 45,
+                    h: 80
+                  }
+                ]
+              },
+              position: 4
+            },
+            {
+              id: 'home-recommended-products-5',
+              type: 'recommended-products',
+              props: {
+                title: 'Recently added',
+                productSource: 'all',
+                productIds: [],
+                limit: 3,
+                columns: 3,
+                singleRow: true
+              },
+              position: 5
+            },
+            {
+              id: 'home-company-6',
+              type: 'company',
+              props: {
+                title: 'The house',
+                description: 'Tell the story behind the label — atelier, materials, and the people who make each piece.',
+                showCertification: true,
+                showYearsActive: true,
+                showEmployees: true,
+                layout: 'cards'
+              },
+              position: 6
+            },
+            {
+              id: 'home-inquiry-form-7',
+              type: 'inquiry-form',
+              props: {
+                title: 'Private wholesale enquiries',
+                description: 'Boutique buyers: tell us your market and we will send the line sheet.',
+                buttonText: 'Send inquiry',
+                backgroundColor: '#0f0f0f',
+                textColor: '#e7d9b8'
+              },
+              position: 7
+            }
+          ]
+        },
+        {
+          id: 'products',
+          name: 'Products',
+          slug: 'products',
+          modules: [
+            {
+              id: 'products-recommended-products-1',
+              type: 'recommended-products',
+              props: {
+                title: 'Product catalog',
+                productSource: 'all',
+                productIds: [],
+                limit: 12,
+                columns: 4
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'company-profile',
+          name: 'Company Profile',
+          slug: 'company-profile',
+          modules: [
+            {
+              id: 'company-profile-company-1',
+              type: 'company',
+              props: {
+                title: 'About {{companyName}}',
+                description: '{{description}}',
+                showCertification: true,
+                showYearsActive: true,
+                showEmployees: true,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'contacts',
+          name: 'Contacts',
+          slug: 'contacts',
+          modules: [
+            {
+              id: 'contacts-company-1',
+              type: 'company',
+              props: {
+                title: 'Contact {{companyName}}',
+                description: 'Phone: {{phone}}\nEmail: {{email}}\nLocation: {{address}}',
+                showCertification: false,
+                showYearsActive: false,
+                showEmployees: false,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    id: 'amazon-computers',
+    name: 'Computers Store',
+    description: 'Computers department storefront with category hot zone, deal rows, and inquiry form',
+    preview: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=400&q=80',
+    category: 'retail',
+    config: {
+      template: 'amazon-computers',
+      shopSign: {
+        imageUrl: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=1600&q=80',
+        altText: '{{companyName}}',
+        hidden: false
+      },
+      sections: [
+        {
+          id: 'home',
+          name: 'Home',
+          slug: 'home',
+          modules: [
+            {
+              id: 'home-hero-slideshow-1',
+              type: 'hero-slideshow',
+              props: {
+                autoplaySeconds: 5,
+                slides: [
+                  {
+                    title: 'Computers at wholesale prices',
+                    subtitle: 'Laptops, desktops and peripherals for offices, schools and resellers',
+                    imageUrl: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=1600&q=80',
+                    buttonText: 'Shop all',
+                    buttonUrl: '/products'
+                  }
+                ],
+                hideBottom: true
+              },
+              position: 1
+            },
+            {
+              id: 'home-hot-zone-2',
+              type: 'hot-zone',
+              props: {
+                title: 'Shop by category',
+                imageUrl: 'https://images.unsplash.com/photo-1547082299-de196ea013d6?auto=format&fit=crop&w=1600&q=80',
+                alt: 'Shop by category',
+                regions: [
+                  {
+                    label: 'Laptops',
+                    href: '/products',
+                    x: 2,
+                    y: 8,
+                    w: 31,
+                    h: 84
+                  },
+                  {
+                    label: 'Desktops',
+                    href: '/products',
+                    x: 35,
+                    y: 8,
+                    w: 31,
+                    h: 84
+                  },
+                  {
+                    label: 'Accessories',
+                    href: '/products',
+                    x: 68,
+                    y: 8,
+                    w: 30,
+                    h: 84
+                  }
+                ]
+              },
+              position: 2
+            },
+            {
+              id: 'home-recommended-products-3',
+              type: 'recommended-products',
+              props: {
+                title: 'Best sellers',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 3
+            },
+            {
+              id: 'home-image-text-4',
+              type: 'image-text',
+              props: {
+                title: 'Office in a box',
+                subtitle: 'Bulk laptop bundles configured and ready to deploy',
+                imageUrl: 'https://images.unsplash.com/photo-1593642632823-8f785ba67e45?auto=format&fit=crop&w=1600&q=80',
+                linkUrl: '/products',
+                textPosition: 'left',
+                height: 260,
+                hideBottom: true
+              },
+              position: 4
+            },
+            {
+              id: 'home-recommended-products-5',
+              type: 'recommended-products',
+              props: {
+                title: 'Deals this week',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 5
+            },
+            {
+              id: 'home-image-text-6',
+              type: 'image-text',
+              props: {
+                title: 'Repairs and upgrades',
+                subtitle: 'RAM, SSD and screen replacements while you wait',
+                imageUrl: 'https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?auto=format&fit=crop&w=1600&q=80',
+                linkUrl: '/products',
+                textPosition: 'right',
+                height: 260,
+                hideBottom: true
+              },
+              position: 6
+            },
+            {
+              id: 'home-recommended-products-7',
+              type: 'recommended-products',
+              props: {
+                title: 'New arrivals',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 7
+            },
+            {
+              id: 'home-features-8',
+              type: 'features',
+              props: {
+                title: 'Why buy from {{companyName}}',
+                features: [
+                  {
+                    title: 'Genuine stock',
+                    description: 'Sourced from authorised suppliers'
+                  },
+                  {
+                    title: 'Bulk discounts',
+                    description: 'Better prices as quantity grows'
+                  },
+                  {
+                    title: 'Fast delivery',
+                    description: 'Across Bujumbura and beyond'
+                  },
+                  {
+                    title: 'Easy returns',
+                    description: 'Damaged goods replaced quickly'
+                  }
+                ]
+              },
+              position: 8
+            },
+            {
+              id: 'home-inquiry-form-9',
+              type: 'inquiry-form',
+              props: {
+                title: 'Need a quote?',
+                description: 'Send quantities and models — we reply within one business day.',
+                buttonText: 'Send inquiry',
+                backgroundColor: '#131921',
+                textColor: '#ffffff'
+              },
+              position: 9
+            }
+          ]
+        },
+        {
+          id: 'products',
+          name: 'Products',
+          slug: 'products',
+          modules: [
+            {
+              id: 'products-recommended-products-1',
+              type: 'recommended-products',
+              props: {
+                title: 'Product catalog',
+                productSource: 'all',
+                productIds: [],
+                limit: 12,
+                columns: 4
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'company-profile',
+          name: 'Company Profile',
+          slug: 'company-profile',
+          modules: [
+            {
+              id: 'company-profile-company-1',
+              type: 'company',
+              props: {
+                title: 'About {{companyName}}',
+                description: '{{description}}',
+                showCertification: true,
+                showYearsActive: true,
+                showEmployees: true,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'contacts',
+          name: 'Contacts',
+          slug: 'contacts',
+          modules: [
+            {
+              id: 'contacts-company-1',
+              type: 'company',
+              props: {
+                title: 'Contact {{companyName}}',
+                description: 'Phone: {{phone}}\nEmail: {{email}}\nLocation: {{address}}',
+                showCertification: false,
+                showYearsActive: false,
+                showEmployees: false,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    id: 'amazon-phones',
+    name: 'Phones Store',
+    description: 'Phones department storefront with category hot zone, deal rows, and inquiry form',
+    preview: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=400&q=80',
+    category: 'retail',
+    config: {
+      template: 'amazon-phones',
+      shopSign: {
+        imageUrl: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1600&q=80',
+        altText: '{{companyName}}',
+        hidden: false
+      },
+      sections: [
+        {
+          id: 'home',
+          name: 'Home',
+          slug: 'home',
+          modules: [
+            {
+              id: 'home-hero-slideshow-1',
+              type: 'hero-slideshow',
+              props: {
+                autoplaySeconds: 5,
+                slides: [
+                  {
+                    title: 'Phones at wholesale prices',
+                    subtitle: 'Smartphones, feature phones and accessories at trade prices',
+                    imageUrl: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1600&q=80',
+                    buttonText: 'Shop all',
+                    buttonUrl: '/products'
+                  }
+                ],
+                hideBottom: true
+              },
+              position: 1
+            },
+            {
+              id: 'home-hot-zone-2',
+              type: 'hot-zone',
+              props: {
+                title: 'Shop by category',
+                imageUrl: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&w=1600&q=80',
+                alt: 'Shop by category',
+                regions: [
+                  {
+                    label: 'Smartphones',
+                    href: '/products',
+                    x: 2,
+                    y: 8,
+                    w: 31,
+                    h: 84
+                  },
+                  {
+                    label: 'Feature phones',
+                    href: '/products',
+                    x: 35,
+                    y: 8,
+                    w: 31,
+                    h: 84
+                  },
+                  {
+                    label: 'Accessories',
+                    href: '/products',
+                    x: 68,
+                    y: 8,
+                    w: 30,
+                    h: 84
+                  }
+                ]
+              },
+              position: 2
+            },
+            {
+              id: 'home-recommended-products-3',
+              type: 'recommended-products',
+              props: {
+                title: 'Best sellers',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 3
+            },
+            {
+              id: 'home-image-text-4',
+              type: 'image-text',
+              props: {
+                title: 'Sealed and genuine',
+                subtitle: 'Every phone serial-logged with supplier warranty',
+                imageUrl: 'https://images.unsplash.com/photo-1556656793-08538906a9f8?auto=format&fit=crop&w=1600&q=80',
+                linkUrl: '/products',
+                textPosition: 'left',
+                height: 260,
+                hideBottom: true
+              },
+              position: 4
+            },
+            {
+              id: 'home-recommended-products-5',
+              type: 'recommended-products',
+              props: {
+                title: 'Deals this week',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 5
+            },
+            {
+              id: 'home-image-text-6',
+              type: 'image-text',
+              props: {
+                title: 'Cases, chargers, screens',
+                subtitle: 'High-margin accessories to sell alongside every handset',
+                imageUrl: 'https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?auto=format&fit=crop&w=1600&q=80',
+                linkUrl: '/products',
+                textPosition: 'right',
+                height: 260,
+                hideBottom: true
+              },
+              position: 6
+            },
+            {
+              id: 'home-recommended-products-7',
+              type: 'recommended-products',
+              props: {
+                title: 'New arrivals',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 7
+            },
+            {
+              id: 'home-features-8',
+              type: 'features',
+              props: {
+                title: 'Why buy from {{companyName}}',
+                features: [
+                  {
+                    title: 'Genuine stock',
+                    description: 'Sourced from authorised suppliers'
+                  },
+                  {
+                    title: 'Bulk discounts',
+                    description: 'Better prices as quantity grows'
+                  },
+                  {
+                    title: 'Fast delivery',
+                    description: 'Across Bujumbura and beyond'
+                  },
+                  {
+                    title: 'Easy returns',
+                    description: 'Damaged goods replaced quickly'
+                  }
+                ]
+              },
+              position: 8
+            },
+            {
+              id: 'home-inquiry-form-9',
+              type: 'inquiry-form',
+              props: {
+                title: 'Need a quote?',
+                description: 'Send quantities and models — we reply within one business day.',
+                buttonText: 'Send inquiry',
+                backgroundColor: '#131921',
+                textColor: '#ffffff'
+              },
+              position: 9
+            }
+          ]
+        },
+        {
+          id: 'products',
+          name: 'Products',
+          slug: 'products',
+          modules: [
+            {
+              id: 'products-recommended-products-1',
+              type: 'recommended-products',
+              props: {
+                title: 'Product catalog',
+                productSource: 'all',
+                productIds: [],
+                limit: 12,
+                columns: 4
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'company-profile',
+          name: 'Company Profile',
+          slug: 'company-profile',
+          modules: [
+            {
+              id: 'company-profile-company-1',
+              type: 'company',
+              props: {
+                title: 'About {{companyName}}',
+                description: '{{description}}',
+                showCertification: true,
+                showYearsActive: true,
+                showEmployees: true,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'contacts',
+          name: 'Contacts',
+          slug: 'contacts',
+          modules: [
+            {
+              id: 'contacts-company-1',
+              type: 'company',
+              props: {
+                title: 'Contact {{companyName}}',
+                description: 'Phone: {{phone}}\nEmail: {{email}}\nLocation: {{address}}',
+                showCertification: false,
+                showYearsActive: false,
+                showEmployees: false,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    id: 'amazon-clothing',
+    name: 'Clothing Store',
+    description: 'Clothing department storefront with category hot zone, deal rows, and inquiry form',
+    preview: 'https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=400&q=80',
+    category: 'retail',
+    config: {
+      template: 'amazon-clothing',
+      shopSign: {
+        imageUrl: 'https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=1600&q=80',
+        altText: '{{companyName}}',
+        hidden: false
+      },
+      sections: [
+        {
+          id: 'home',
+          name: 'Home',
+          slug: 'home',
+          modules: [
+            {
+              id: 'home-hero-slideshow-1',
+              type: 'hero-slideshow',
+              props: {
+                autoplaySeconds: 5,
+                slides: [
+                  {
+                    title: 'Clothing at wholesale prices',
+                    subtitle: 'Everyday wear for men, women and kids, by the bundle',
+                    imageUrl: 'https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=1600&q=80',
+                    buttonText: 'Shop all',
+                    buttonUrl: '/products'
+                  }
+                ],
+                hideBottom: true
+              },
+              position: 1
+            },
+            {
+              id: 'home-hot-zone-2',
+              type: 'hot-zone',
+              props: {
+                title: 'Shop by category',
+                imageUrl: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1600&q=80',
+                alt: 'Shop by category',
+                regions: [
+                  {
+                    label: 'Women',
+                    href: '/products',
+                    x: 3,
+                    y: 10,
+                    w: 30,
+                    h: 80
+                  },
+                  {
+                    label: 'Men',
+                    href: '/products',
+                    x: 35,
+                    y: 10,
+                    w: 30,
+                    h: 80
+                  },
+                  {
+                    label: 'Kids',
+                    href: '/products',
+                    x: 67,
+                    y: 10,
+                    w: 30,
+                    h: 80
+                  }
+                ]
+              },
+              position: 2
+            },
+            {
+              id: 'home-recommended-products-3',
+              type: 'recommended-products',
+              props: {
+                title: 'Best sellers',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 3
+            },
+            {
+              id: 'home-image-text-4',
+              type: 'image-text',
+              props: {
+                title: 'Mixed bundles',
+                subtitle: 'Assorted sizes at one price — easy to stock a rail',
+                imageUrl: 'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&w=1600&q=80',
+                linkUrl: '/products',
+                textPosition: 'left',
+                height: 260,
+                hideBottom: true
+              },
+              position: 4
+            },
+            {
+              id: 'home-recommended-products-5',
+              type: 'recommended-products',
+              props: {
+                title: 'Deals this week',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 5
+            },
+            {
+              id: 'home-image-text-6',
+              type: 'image-text',
+              props: {
+                title: 'Workwear and uniforms',
+                subtitle: 'Durable pieces for teams, schools and shops',
+                imageUrl: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=1600&q=80',
+                linkUrl: '/products',
+                textPosition: 'right',
+                height: 260,
+                hideBottom: true
+              },
+              position: 6
+            },
+            {
+              id: 'home-recommended-products-7',
+              type: 'recommended-products',
+              props: {
+                title: 'New arrivals',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 7
+            },
+            {
+              id: 'home-features-8',
+              type: 'features',
+              props: {
+                title: 'Why buy from {{companyName}}',
+                features: [
+                  {
+                    title: 'Genuine stock',
+                    description: 'Sourced from authorised suppliers'
+                  },
+                  {
+                    title: 'Bulk discounts',
+                    description: 'Better prices as quantity grows'
+                  },
+                  {
+                    title: 'Fast delivery',
+                    description: 'Across Bujumbura and beyond'
+                  },
+                  {
+                    title: 'Easy returns',
+                    description: 'Damaged goods replaced quickly'
+                  }
+                ]
+              },
+              position: 8
+            },
+            {
+              id: 'home-inquiry-form-9',
+              type: 'inquiry-form',
+              props: {
+                title: 'Need a quote?',
+                description: 'Send quantities and models — we reply within one business day.',
+                buttonText: 'Send inquiry',
+                backgroundColor: '#131921',
+                textColor: '#ffffff'
+              },
+              position: 9
+            }
+          ]
+        },
+        {
+          id: 'products',
+          name: 'Products',
+          slug: 'products',
+          modules: [
+            {
+              id: 'products-recommended-products-1',
+              type: 'recommended-products',
+              props: {
+                title: 'Product catalog',
+                productSource: 'all',
+                productIds: [],
+                limit: 12,
+                columns: 4
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'company-profile',
+          name: 'Company Profile',
+          slug: 'company-profile',
+          modules: [
+            {
+              id: 'company-profile-company-1',
+              type: 'company',
+              props: {
+                title: 'About {{companyName}}',
+                description: '{{description}}',
+                showCertification: true,
+                showYearsActive: true,
+                showEmployees: true,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'contacts',
+          name: 'Contacts',
+          slug: 'contacts',
+          modules: [
+            {
+              id: 'contacts-company-1',
+              type: 'company',
+              props: {
+                title: 'Contact {{companyName}}',
+                description: 'Phone: {{phone}}\nEmail: {{email}}\nLocation: {{address}}',
+                showCertification: false,
+                showYearsActive: false,
+                showEmployees: false,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    id: 'amazon-electronics',
+    name: 'Electronics Store',
+    description: 'Electronics department storefront with category hot zone, deal rows, and inquiry form',
+    preview: 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?auto=format&fit=crop&w=400&q=80',
+    category: 'retail',
+    config: {
+      template: 'amazon-electronics',
+      shopSign: {
+        imageUrl: 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?auto=format&fit=crop&w=1600&q=80',
+        altText: '{{companyName}}',
+        hidden: false
+      },
+      sections: [
+        {
+          id: 'home',
+          name: 'Home',
+          slug: 'home',
+          modules: [
+            {
+              id: 'home-hero-slideshow-1',
+              type: 'hero-slideshow',
+              props: {
+                autoplaySeconds: 5,
+                slides: [
+                  {
+                    title: 'Electronics at wholesale prices',
+                    subtitle: 'TVs, audio, solar and small appliances for resellers',
+                    imageUrl: 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?auto=format&fit=crop&w=1600&q=80',
+                    buttonText: 'Shop all',
+                    buttonUrl: '/products'
+                  }
+                ],
+                hideBottom: true
+              },
+              position: 1
+            },
+            {
+              id: 'home-hot-zone-2',
+              type: 'hot-zone',
+              props: {
+                title: 'Shop by category',
+                imageUrl: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&w=1600&q=80',
+                alt: 'Shop by category',
+                regions: [
+                  {
+                    label: 'TV & audio',
+                    href: '/products',
+                    x: 2,
+                    y: 8,
+                    w: 31,
+                    h: 84
+                  },
+                  {
+                    label: 'Solar & power',
+                    href: '/products',
+                    x: 35,
+                    y: 8,
+                    w: 31,
+                    h: 84
+                  },
+                  {
+                    label: 'Appliances',
+                    href: '/products',
+                    x: 68,
+                    y: 8,
+                    w: 30,
+                    h: 84
+                  }
+                ]
+              },
+              position: 2
+            },
+            {
+              id: 'home-recommended-products-3',
+              type: 'recommended-products',
+              props: {
+                title: 'Best sellers',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 3
+            },
+            {
+              id: 'home-image-text-4',
+              type: 'image-text',
+              props: {
+                title: 'Solar that sells',
+                subtitle: 'Panels, batteries and lights for homes off the grid',
+                imageUrl: 'https://images.unsplash.com/photo-1509391366360-2e959784a276?auto=format&fit=crop&w=1600&q=80',
+                linkUrl: '/products',
+                textPosition: 'left',
+                height: 260,
+                hideBottom: true
+              },
+              position: 4
+            },
+            {
+              id: 'home-recommended-products-5',
+              type: 'recommended-products',
+              props: {
+                title: 'Deals this week',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 5
+            },
+            {
+              id: 'home-image-text-6',
+              type: 'image-text',
+              props: {
+                title: 'Tested before dispatch',
+                subtitle: 'Every unit powered on and checked',
+                imageUrl: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1600&q=80',
+                linkUrl: '/products',
+                textPosition: 'right',
+                height: 260,
+                hideBottom: true
+              },
+              position: 6
+            },
+            {
+              id: 'home-recommended-products-7',
+              type: 'recommended-products',
+              props: {
+                title: 'New arrivals',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 7
+            },
+            {
+              id: 'home-features-8',
+              type: 'features',
+              props: {
+                title: 'Why buy from {{companyName}}',
+                features: [
+                  {
+                    title: 'Genuine stock',
+                    description: 'Sourced from authorised suppliers'
+                  },
+                  {
+                    title: 'Bulk discounts',
+                    description: 'Better prices as quantity grows'
+                  },
+                  {
+                    title: 'Fast delivery',
+                    description: 'Across Bujumbura and beyond'
+                  },
+                  {
+                    title: 'Easy returns',
+                    description: 'Damaged goods replaced quickly'
+                  }
+                ]
+              },
+              position: 8
+            },
+            {
+              id: 'home-inquiry-form-9',
+              type: 'inquiry-form',
+              props: {
+                title: 'Need a quote?',
+                description: 'Send quantities and models — we reply within one business day.',
+                buttonText: 'Send inquiry',
+                backgroundColor: '#131921',
+                textColor: '#ffffff'
+              },
+              position: 9
+            }
+          ]
+        },
+        {
+          id: 'products',
+          name: 'Products',
+          slug: 'products',
+          modules: [
+            {
+              id: 'products-recommended-products-1',
+              type: 'recommended-products',
+              props: {
+                title: 'Product catalog',
+                productSource: 'all',
+                productIds: [],
+                limit: 12,
+                columns: 4
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'company-profile',
+          name: 'Company Profile',
+          slug: 'company-profile',
+          modules: [
+            {
+              id: 'company-profile-company-1',
+              type: 'company',
+              props: {
+                title: 'About {{companyName}}',
+                description: '{{description}}',
+                showCertification: true,
+                showYearsActive: true,
+                showEmployees: true,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'contacts',
+          name: 'Contacts',
+          slug: 'contacts',
+          modules: [
+            {
+              id: 'contacts-company-1',
+              type: 'company',
+              props: {
+                title: 'Contact {{companyName}}',
+                description: 'Phone: {{phone}}\nEmail: {{email}}\nLocation: {{address}}',
+                showCertification: false,
+                showYearsActive: false,
+                showEmployees: false,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    id: 'amazon-home',
+    name: 'Home & Furniture Store',
+    description: 'Home & Furniture department storefront with category hot zone, deal rows, and inquiry form',
+    preview: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=400&q=80',
+    category: 'retail',
+    config: {
+      template: 'amazon-home',
+      shopSign: {
+        imageUrl: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=1600&q=80',
+        altText: '{{companyName}}',
+        hidden: false
+      },
+      sections: [
+        {
+          id: 'home',
+          name: 'Home',
+          slug: 'home',
+          modules: [
+            {
+              id: 'home-hero-slideshow-1',
+              type: 'hero-slideshow',
+              props: {
+                autoplaySeconds: 5,
+                slides: [
+                  {
+                    title: 'Home & Furniture at wholesale prices',
+                    subtitle: 'Furniture, kitchen and homeware for shops and landlords',
+                    imageUrl: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=1600&q=80',
+                    buttonText: 'Shop all',
+                    buttonUrl: '/products'
+                  }
+                ],
+                hideBottom: true
+              },
+              position: 1
+            },
+            {
+              id: 'home-hot-zone-2',
+              type: 'hot-zone',
+              props: {
+                title: 'Shop by category',
+                imageUrl: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=1600&q=80',
+                alt: 'Shop by category',
+                regions: [
+                  {
+                    label: 'Furniture',
+                    href: '/products',
+                    x: 2,
+                    y: 8,
+                    w: 31,
+                    h: 84
+                  },
+                  {
+                    label: 'Kitchen',
+                    href: '/products',
+                    x: 35,
+                    y: 8,
+                    w: 31,
+                    h: 84
+                  },
+                  {
+                    label: 'Decor',
+                    href: '/products',
+                    x: 68,
+                    y: 8,
+                    w: 30,
+                    h: 84
+                  }
+                ]
+              },
+              position: 2
+            },
+            {
+              id: 'home-recommended-products-3',
+              type: 'recommended-products',
+              props: {
+                title: 'Best sellers',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 3
+            },
+            {
+              id: 'home-image-text-4',
+              type: 'image-text',
+              props: {
+                title: 'Furnish a whole room',
+                subtitle: 'Sets priced for landlords and guesthouses',
+                imageUrl: 'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?auto=format&fit=crop&w=1600&q=80',
+                linkUrl: '/products',
+                textPosition: 'left',
+                height: 260,
+                hideBottom: true
+              },
+              position: 4
+            },
+            {
+              id: 'home-recommended-products-5',
+              type: 'recommended-products',
+              props: {
+                title: 'Deals this week',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 5
+            },
+            {
+              id: 'home-image-text-6',
+              type: 'image-text',
+              props: {
+                title: 'Made locally',
+                subtitle: 'Solid wood pieces from Burundian workshops',
+                imageUrl: 'https://images.unsplash.com/photo-1538688525198-9b88f6f53126?auto=format&fit=crop&w=1600&q=80',
+                linkUrl: '/products',
+                textPosition: 'right',
+                height: 260,
+                hideBottom: true
+              },
+              position: 6
+            },
+            {
+              id: 'home-recommended-products-7',
+              type: 'recommended-products',
+              props: {
+                title: 'New arrivals',
+                productSource: 'all',
+                productIds: [],
+                limit: 4,
+                columns: 4,
+                singleRow: true
+              },
+              position: 7
+            },
+            {
+              id: 'home-features-8',
+              type: 'features',
+              props: {
+                title: 'Why buy from {{companyName}}',
+                features: [
+                  {
+                    title: 'Genuine stock',
+                    description: 'Sourced from authorised suppliers'
+                  },
+                  {
+                    title: 'Bulk discounts',
+                    description: 'Better prices as quantity grows'
+                  },
+                  {
+                    title: 'Fast delivery',
+                    description: 'Across Bujumbura and beyond'
+                  },
+                  {
+                    title: 'Easy returns',
+                    description: 'Damaged goods replaced quickly'
+                  }
+                ]
+              },
+              position: 8
+            },
+            {
+              id: 'home-inquiry-form-9',
+              type: 'inquiry-form',
+              props: {
+                title: 'Need a quote?',
+                description: 'Send quantities and models — we reply within one business day.',
+                buttonText: 'Send inquiry',
+                backgroundColor: '#131921',
+                textColor: '#ffffff'
+              },
+              position: 9
+            }
+          ]
+        },
+        {
+          id: 'products',
+          name: 'Products',
+          slug: 'products',
+          modules: [
+            {
+              id: 'products-recommended-products-1',
+              type: 'recommended-products',
+              props: {
+                title: 'Product catalog',
+                productSource: 'all',
+                productIds: [],
+                limit: 12,
+                columns: 4
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'company-profile',
+          name: 'Company Profile',
+          slug: 'company-profile',
+          modules: [
+            {
+              id: 'company-profile-company-1',
+              type: 'company',
+              props: {
+                title: 'About {{companyName}}',
+                description: '{{description}}',
+                showCertification: true,
+                showYearsActive: true,
+                showEmployees: true,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        },
+        {
+          id: 'contacts',
+          name: 'Contacts',
+          slug: 'contacts',
+          modules: [
+            {
+              id: 'contacts-company-1',
+              type: 'company',
+              props: {
+                title: 'Contact {{companyName}}',
+                description: 'Phone: {{phone}}\nEmail: {{email}}\nLocation: {{address}}',
+                showCertification: false,
+                showYearsActive: false,
+                showEmployees: false,
+                layout: 'cards'
+              },
+              position: 1
+            }
+          ]
+        }
+      ]
+    }
   },
 ];
 

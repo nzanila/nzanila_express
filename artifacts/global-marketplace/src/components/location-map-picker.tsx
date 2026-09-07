@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Search, Crosshair, ArrowLeft, MapPin, X } from 'lucide-react';
-import { useLocale } from '@/lib/i18n/locale-context';
+import { useLocale, tg } from '@/lib/i18n/locale-context';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -82,7 +82,7 @@ export function LocationMapPicker({
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [searching, setSearching] = useState(false);
-  const moveTimeoutRef = useRef<NodeJS.Timeout>();
+  const moveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const isProgrammaticMoveRef = useRef(false);
 
   // Reverse geocode
@@ -170,8 +170,13 @@ export function LocationMapPicker({
     }
   };
 
+  // `height="fill"` lets the picker take the whole height it is given instead of a fixed
+  // pixel box — the map is the point of this screen, so in the modal it gets everything
+  // left over after the search bar and the address strip.
+  const fill = height === 'fill';
+
   return (
-    <div className="relative">
+    <div className={`relative ${fill ? 'flex h-full min-h-0 flex-col' : ''}`}>
       {onClose && (
         <button onClick={onClose} className="absolute top-2 right-2 z-[1001] bg-white rounded-full p-2 shadow-lg hover:bg-gray-100">
           <X size={20} />
@@ -185,7 +190,7 @@ export function LocationMapPicker({
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={locale === 'fr' ? 'Rechercher un lieu...' : locale === 'rn' ? 'Rondera ahantu...' : locale === 'sw' ? 'Tafuta mahali...' : 'Search for a place...'}
+            placeholder={locale === 'fr' ? 'Rechercher un lieu...' : locale === 'sw' ? 'Tafuta mahali...' : 'Search for a place...'}
             className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-10 text-sm outline-none focus:border-[#ff6a00] focus:ring-2 focus:ring-[#ff6a00]/20"
           />
           {searchQuery && (
@@ -219,11 +224,11 @@ export function LocationMapPicker({
         className="absolute top-16 left-2 z-[1001] flex items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-lg hover:bg-gray-50 border border-gray-200"
       >
         <Crosshair size={14} className="text-[#1a5f4a]" />
-        {searching ? '...' : (locale === 'fr' ? 'Ma position' : locale === 'rn' ? 'Aho niriho' : locale === 'sw' ? 'Eneo langu' : 'My location')}
+        {searching ? '...' : (locale === 'fr' ? 'Ma position' : locale === 'sw' ? 'Eneo langu' : 'My location')}
       </button>
 
       {/* Map with fixed pin */}
-      <div className="relative" style={{ height }}>
+      <div className={`relative ${fill ? 'min-h-0 flex-1' : ''}`} style={fill ? undefined : { height }}>
         <FixedPinOverlay />
         <MapContainer
           center={[mapCenter.lat, mapCenter.lng]}
@@ -243,14 +248,14 @@ export function LocationMapPicker({
         {/* Moving indicator */}
         {isMoving && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] rounded-full bg-black/70 px-4 py-2 text-xs font-semibold text-white">
-            {locale === 'fr' ? 'Déplacez la carte...' : locale === 'rn' ? 'Siba karamu...' : locale === 'sw' ? 'Songesha ramani...' : 'Move the map...'}
+            {locale === 'fr' ? 'Déplacez la carte...' : locale === 'sw' ? 'Songesha ramani...' : 'Move the map...'}
           </div>
         )}
       </div>
 
       {/* Address display */}
       <div className="px-2 py-2 bg-white border-t border-gray-100">
-        <p className="text-[10px] font-semibold text-gray-400 uppercase mb-0.5">Location</p>
+        <p className="text-[10px] font-semibold text-gray-400 uppercase mb-0.5">{tg('ui.location')}</p>
         {approximateAddress ? (
           <div>
             <p className="text-xs font-medium text-gray-700 line-clamp-2">{approximateAddress}</p>
@@ -290,32 +295,33 @@ export function LocationMapPickerModal({
   initialLat,
   initialLng
 }: LocationMapPickerModalProps) {
+  const { tr } = useLocale();
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="text-lg font-semibold">Select Location on Map</h3>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+    <div className="fixed inset-0 z-50 flex bg-black/60 sm:items-center sm:justify-center sm:p-6">
+      <div className="flex h-full w-full flex-col overflow-hidden bg-white sm:h-[92vh] sm:max-w-[1200px] sm:rounded-2xl sm:shadow-2xl">
+        <div className="flex shrink-0 items-center justify-between border-b px-4 py-3 sm:px-5 sm:py-4">
+          <h3 className="text-base font-semibold sm:text-lg">{tr('ui.selectLocationOnMap')}</h3>
+          <button onClick={onClose} className="rounded-lg p-2 hover:bg-gray-100" aria-label={tr('ui.close')}>
             <X size={20} />
           </button>
         </div>
-        <div className="p-4">
+        <div className="min-h-0 flex-1 sm:p-4">
           <LocationMapPicker
             onLocationSelect={onLocationSelect}
             initialLat={initialLat}
             initialLng={initialLng}
-            height="500px"
+            height="fill"
           />
         </div>
-        <div className="p-4 border-t bg-gray-50">
-          <p className="text-sm text-gray-600 mb-3">
+        <div className="shrink-0 border-t bg-gray-50 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-4">
+          <p className="mb-3 text-sm text-gray-600">
             Move the map until the pin is at the correct place. Use search or GPS for best results.
           </p>
           <button
             onClick={onClose}
-            className="w-full py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary/90"
+            className="h-12 w-full rounded-xl bg-primary text-base font-semibold text-white hover:bg-primary/90"
           >
             Confirm Location
           </button>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LocationMapPickerModal } from './location-map-picker';
 import { MapPin, Home, Briefcase, Building2, Upload } from 'lucide-react';
+import { useLocale, tg } from '@/lib/i18n/locale-context';
 
 interface BurundiProvince {
   id: number;
@@ -157,7 +158,7 @@ export function BuyerAddressForm({ onSubmit, initialData, onCancel }: BuyerAddre
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Address Type */}
       <div>
-        <label className="mb-2 block text-sm font-semibold">Address Type</label>
+        <label className="mb-2 block text-sm font-semibold">{tg('ui.addressType')}</label>
         <div className="grid grid-cols-3 gap-3">
           {addressTypes.map((type) => {
             const Icon = type.icon;
@@ -183,19 +184,19 @@ export function BuyerAddressForm({ onSubmit, initialData, onCancel }: BuyerAddre
       {/* Recipient Information */}
       <div className="space-y-4">
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Recipient Name *</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.recipientName')}</label>
           <input
             type="text"
             value={formData.recipientName}
             onChange={(e) => setFormData({ ...formData, recipientName: e.target.value })}
-            placeholder="e.g. Jean Ndayisaba"
+            placeholder={tg('ui.egJeanNdayisaba')}
             className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             required
           />
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Phone Number *</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.phoneNumber')}</label>
           <div className="flex items-center rounded-xl border border-border bg-card focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
             <span className="border-r border-border px-3 text-sm font-semibold text-muted-foreground">+257</span>
             <input
@@ -212,17 +213,17 @@ export function BuyerAddressForm({ onSubmit, initialData, onCancel }: BuyerAddre
 
       {/* Location Information */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Delivery Location</h3>
+        <h3 className="text-lg font-semibold">{tg('ui.deliveryLocation')}</h3>
         
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Province *</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.province')}</label>
           <select
             value={formData.provinceId}
             onChange={(e) => setFormData({ ...formData, provinceId: e.target.value })}
             className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             required
           >
-            <option value="">Select Province</option>
+            <option value="">{tg('ui.selectProvince')}</option>
             {provinces.map((province) => (
               <option key={province.id} value={province.id}>
                 {province.name}
@@ -232,7 +233,7 @@ export function BuyerAddressForm({ onSubmit, initialData, onCancel }: BuyerAddre
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Commune/City *</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.communecity')}</label>
           <select
             value={formData.communeId}
             onChange={(e) => setFormData({ ...formData, communeId: e.target.value })}
@@ -240,7 +241,7 @@ export function BuyerAddressForm({ onSubmit, initialData, onCancel }: BuyerAddre
             required
             disabled={!formData.provinceId}
           >
-            <option value="">Select Commune</option>
+            <option value="">{tg('ui.selectCommune')}</option>
             {communes.map((commune) => (
               <option key={commune.id} value={commune.id}>
                 {commune.name}
@@ -250,7 +251,7 @@ export function BuyerAddressForm({ onSubmit, initialData, onCancel }: BuyerAddre
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Zone/Quartier *</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.zonequartier')}</label>
           <select
             value={formData.zoneId}
             onChange={(e) => setFormData({ ...formData, zoneId: e.target.value })}
@@ -258,7 +259,7 @@ export function BuyerAddressForm({ onSubmit, initialData, onCancel }: BuyerAddre
             required
             disabled={!formData.communeId}
           >
-            <option value="">Select Zone</option>
+            <option value="">{tg('ui.selectZone')}</option>
             {zones.map((zone) => (
               <option key={zone.id} value={zone.id}>
                 {zone.name}
@@ -268,19 +269,19 @@ export function BuyerAddressForm({ onSubmit, initialData, onCancel }: BuyerAddre
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Nearest Landmark *</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.nearestLandmark')}</label>
           <input
             type="text"
             value={formData.landmark}
             onChange={(e) => setFormData({ ...formData, landmark: e.target.value })}
-            placeholder="e.g. Near Market, Next to Pharmacy"
+            placeholder={tg('ui.egNearMarketNextToPharmacy')}
             className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             required
           />
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Detailed Directions</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.detailedDirections')}</label>
           <textarea
             value={formData.detailedDirections}
             onChange={(e) => setFormData({ ...formData, detailedDirections: e.target.value })}
@@ -292,7 +293,7 @@ export function BuyerAddressForm({ onSubmit, initialData, onCancel }: BuyerAddre
 
         {/* Map Location Picker */}
         <div>
-          <label className="mb-1.5 block text-sm font-semibold">Location on Map (Optional)</label>
+          <label className="mb-1.5 block text-sm font-semibold">{tg('ui.locationOnMapOptional')}</label>
           <button
             type="button"
             onClick={() => setShowMapPicker(true)}
@@ -302,7 +303,7 @@ export function BuyerAddressForm({ onSubmit, initialData, onCancel }: BuyerAddre
             {formData.latitude && formData.longitude ? (
               <span>Update Location ({formData.latitude.toFixed(4)}, {formData.longitude.toFixed(4)})</span>
             ) : (
-              <span>Select Location on Map</span>
+              <span>{tg('ui.selectLocationOnMap')}</span>
             )}
           </button>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -320,8 +321,8 @@ export function BuyerAddressForm({ onSubmit, initialData, onCancel }: BuyerAddre
           className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
         />
         <div>
-          <p className="font-semibold">Set as Default Address</p>
-          <p className="text-sm text-muted-foreground">This will be used as your default delivery address</p>
+          <p className="font-semibold">{tg('ui.setAsDefaultAddress')}</p>
+          <p className="text-sm text-muted-foreground">{tg('ui.thisWillBeUsedAsYour')}</p>
         </div>
       </label>
 

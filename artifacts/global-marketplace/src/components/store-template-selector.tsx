@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Check, Store, Building, Zap, ChevronRight } from 'lucide-react';
+import { useLocale } from '@/lib/i18n/locale-context';
 
 interface Template {
   id: string;
@@ -43,13 +44,14 @@ interface StoreTemplateSelectorProps {
 }
 
 export function StoreTemplateSelector({ selectedTemplate, onTemplateSelect }: StoreTemplateSelectorProps) {
+  const { tr } = useLocale();
   const [hoveredTemplate, setHoveredTemplate] = useState<string | null>(null);
 
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-lg font-bold text-gray-900 mb-2">Choose Your Store Template</h3>
-        <p className="text-sm text-gray-600">Select a professional template to get started. You can customize it later.</p>
+        <h3 className="text-lg font-bold text-gray-900 mb-2">{tr('ui.chooseYourStoreTemplate')}</h3>
+        <p className="text-sm text-gray-600">{tr('ui.selectAProfessionalTemplateToGet')}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

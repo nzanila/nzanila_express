@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
 import { ArrowRight, PackageCheck, Search, ShoppingBag, Star } from 'lucide-react';
 import { type Product } from '@workspace/api-client-react';
+import { useLocale } from '@/lib/i18n/locale-context';
 
-const money = (v: number) => `$${v.toFixed(2)}`;
+const money = (v: number) => `$${(Number(v) || 0).toFixed(2)}`;
 
 export function HomePageSlideshow({ products, loading }: { products?: Product[]; loading?: boolean }) {
+  const { tr } = useLocale();
   const [current, setCurrent] = useState(0);
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export function HomePageSlideshow({ products, loading }: { products?: Product[];
           <div className="mb-3 flex items-center gap-1.5">
             <Star size={14} className="fill-primary text-primary" />
             <span className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
-              {product.rating.toFixed(1)} · {product.reviews} reviews
+              {(Number(product.rating) || 0).toFixed(1)} · {product.reviews ?? 0} reviews
             </span>
           </div>
 
@@ -81,7 +83,7 @@ export function HomePageSlideshow({ products, loading }: { products?: Product[];
       <form action="/products" className="absolute bottom-6 left-6 right-6">
         <div className="flex h-12 max-w-2xl items-center rounded-lg border border-border bg-card px-3 shadow-sm">
           <Search size={17} className="text-muted-foreground" />
-          <input name="search" className="min-w-0 flex-1 bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground" placeholder="What are you looking to source?" data-testid="input-hero-search" />
+          <input name="search" className="min-w-0 flex-1 bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground" placeholder={tr('ui.whatAreYouLookingToSource')} data-testid="input-hero-search" />
           <span className="hidden rounded-md bg-muted px-2 py-1 font-mono text-[10px] text-muted-foreground lg:inline">⌘ K</span>
         </div>
       </form>

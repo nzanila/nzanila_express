@@ -3,7 +3,9 @@ import { Link, useLocation } from 'wouter';
 import { MapPin, Plus, Trash2, Edit, Home, Building, Map, Check, AlertTriangle, ShoppingBag, ArrowRight } from 'lucide-react';
 import { BuyerWorkspace } from '@/components/buyer-workspace';
 import { useAuth, type User } from '@/lib/auth-context';
+import { formatPhone } from '@/lib/phone';
 import { LocationSearchPicker, type LocationData } from '@/components/location-search-picker';
+import { useLocale } from '@/lib/i18n/locale-context';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : 'https://nzanila-api-server.nzanilaexpress.workers.dev');
 
@@ -24,6 +26,7 @@ interface BuyerAddress {
 }
 
 export function BuyerProfilePage() {
+  const { tr } = useLocale();
   const { user, session, logout } = useAuth();
   const [, setLocation] = useLocation();
   const [addresses, setAddresses] = useState<BuyerAddress[]>([]);
@@ -150,8 +153,8 @@ export function BuyerProfilePage() {
       <div className="mx-auto max-w-4xl space-y-5">
         <div className="mb-5 flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Buyer account</p>
-            <p className="mt-1 text-sm text-muted-foreground">Manage your delivery addresses and account security.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{tr('ui.buyerAccount')}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{tr('ui.manageYourDeliveryAddressesAndAccount')}</p>
           </div>
           <Link href="/products" className="hidden items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-xs font-semibold text-foreground hover:border-primary hover:text-primary sm:inline-flex">
             Browse products <ArrowRight size={14} />
@@ -165,9 +168,9 @@ export function BuyerProfilePage() {
                 {user?.name?.charAt(0) || '?'}
               </div>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Buyer account</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{tr('ui.buyerAccount')}</p>
                 <h1 className="mt-1 text-2xl font-bold text-foreground">{user?.name || 'Buyer'}</h1>
-                <p className="text-sm text-muted-foreground">{user?.phone?.startsWith('user_') ? '' : user?.phone}</p>
+                <p className="text-sm text-muted-foreground">{formatPhone(user?.phone)}</p>
               </div>
             </div>
             <button onClick={() => { setEditingAddress(null); setShowLocationPicker(true); }} className="inline-flex items-center gap-2 rounded-xl bg-primary px-3.5 py-2.5 text-xs font-bold text-primary-foreground hover:bg-primary/90">
@@ -179,9 +182,9 @@ export function BuyerProfilePage() {
 
         <div className="rounded-3xl border border-border bg-card p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-foreground">Saved Addresses</h2>
+            <h2 className="text-lg font-bold text-foreground">{tr('ui.savedAddresses')}</h2>
             {defaultAddress && (
-              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary">Default delivery</span>
+              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary">{tr('ui.defaultDelivery')}</span>
             )}
           </div>
 
@@ -213,7 +216,7 @@ export function BuyerProfilePage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
-                      {!addr.isDefault && <button onClick={() => handleSetDefault(addr.id)} className="rounded-lg p-1.5 text-xs text-muted-foreground hover:bg-white" title="Set as default"><Check size={14} /></button>}
+                      {!addr.isDefault && <button onClick={() => handleSetDefault(addr.id)} className="rounded-lg p-1.5 text-xs text-muted-foreground hover:bg-white" title={tr('ui.setAsDefault')}><Check size={14} /></button>}
                       <button onClick={() => { setEditingAddress(addr); setShowLocationPicker(true); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-white"><Edit size={14} /></button>
                       <button onClick={() => handleDelete(addr.id)} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50"><Trash2 size={14} /></button>
                     </div>
@@ -240,12 +243,12 @@ export function BuyerProfilePage() {
         </div>
 
         <div className="mt-8 rounded-2xl border border-border bg-card p-5">
-          <h2 className="text-lg font-bold">Account security</h2>
-          <p className="mt-1 text-xs text-muted-foreground">Change your password or contact support if you forgot it.</p>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2"><input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} placeholder="Current password" className="rounded-xl border border-border px-3 py-2 text-sm" /><input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="New password (6+ characters)" className="rounded-xl border border-border px-3 py-2 text-sm" /></div>
-          <button onClick={changePassword} disabled={newPassword.length < 6 || !currentPassword} className="mt-3 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground disabled:opacity-40">Change password</button>
+          <h2 className="text-lg font-bold">{tr('ui.accountSecurity')}</h2>
+          <p className="mt-1 text-xs text-muted-foreground">{tr('ui.changeYourPasswordOrContactSupport')}</p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2"><input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} placeholder={tr('ui.currentPassword')} className="rounded-xl border border-border px-3 py-2 text-sm" /><input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder={tr('ui.newPassword6Characters')} className="rounded-xl border border-border px-3 py-2 text-sm" /></div>
+          <button onClick={changePassword} disabled={newPassword.length < 6 || !currentPassword} className="mt-3 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground disabled:opacity-40">{tr('ui.changePassword')}</button>
           {passwordMessage && <p className="mt-2 text-xs text-muted-foreground">{passwordMessage}</p>}
-          <p className="mt-3 text-xs text-muted-foreground">Forgot your password? <a className="font-semibold text-primary" href="https://wa.me/250799494538" target="_blank" rel="noreferrer">Message us on WhatsApp: +250 79 949 4538</a></p>
+          <p className="mt-3 text-xs text-muted-foreground">{tr('ui.forgotYourPassword')} <a className="font-semibold text-primary" href="https://wa.me/250799494538" target="_blank" rel="noreferrer">{tr('ui.messageUsOnWhatsapp25079')}</a></p>
         </div>
 
         <div className="mt-4 rounded-2xl border border-border bg-card p-4">
@@ -253,7 +256,7 @@ export function BuyerProfilePage() {
             <Trash2 size={16} />
             Delete my account
           </button>
-          <p className="mt-1 text-xs text-muted-foreground">Permanently delete your account and all data</p>
+          <p className="mt-1 text-xs text-muted-foreground">{tr('ui.permanentlyDeleteYourAccountAndAll')}</p>
         </div>
       </div>
 
@@ -265,7 +268,7 @@ export function BuyerProfilePage() {
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
                 <AlertTriangle size={20} className="text-red-600" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900">Delete Account?</h3>
+              <h3 className="text-lg font-bold text-gray-900">{tr('ui.deleteAccount')}</h3>
             </div>
             <p className="text-sm text-gray-500 mb-6">
               This action cannot be undone. All your data, addresses, and order history will be permanently deleted.

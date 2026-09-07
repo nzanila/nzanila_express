@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { type Category, type Product } from '@workspace/api-client-react';
 import { SkeletonBlock } from '@/components/marketplace-shell';
+import { useLocale } from '@/lib/i18n/locale-context';
 
 export function AlibabaHomeHero({
   categories,
@@ -16,11 +17,12 @@ export function AlibabaHomeHero({
   categoriesLoading?: boolean;
   productsLoading?: boolean;
 }) {
+  const { tr } = useLocale();
 
   return (
     <section className="mb-4 bg-white px-3 py-3 lg:px-8">
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-          <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-bold text-gray-900">Recommended products</h2><span className="text-[11px] text-gray-500">{productsLoading ? 'Loading…' : `${products?.length ?? 0} products`}</span></div>
+          <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-bold text-gray-900">{tr('ui.recommendedProducts')}</h2><span className="text-[11px] text-gray-500">{productsLoading ? 'Loading…' : `${products?.length ?? 0} products`}</span></div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {(productsLoading ? [] : (products || []).slice(0, 4)).map((product) => (
               <Link key={product.id} href={`/products/${product.id}`} className="overflow-hidden rounded-md border border-gray-200 bg-white hover:border-[#ff6a00]">

@@ -5,6 +5,7 @@ import { AppShell } from '@/components/marketplace-shell';
 import { useAuth } from '@/lib/auth-context';
 import { LocationMapPickerModal } from '@/components/location-map-picker';
 import { getLocationsForCountry, getDefaultCenter } from '@/lib/locations';
+import { useLocale } from '@/lib/i18n/locale-context';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5000' : '');
 
@@ -57,6 +58,7 @@ interface SellerProduct {
 }
 
 export function SellerProfilePage() {
+  const { tr } = useLocale();
   const params = useParams();
   const { user } = useAuth();
   const sellerId = params?.id ?? (user?.role === 'seller' ? String(user.id) : undefined);
@@ -107,7 +109,7 @@ export function SellerProfilePage() {
         <div className="px-4 py-8 sm:px-6 lg:px-10">
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <p className="text-muted-foreground">{error || 'Seller not found'}</p>
-            <Link href="/suppliers" className="mt-4 text-sm text-primary hover:underline">Back to suppliers</Link>
+            <Link href="/suppliers" className="mt-4 text-sm text-primary hover:underline">{tr('ui.backToSuppliers')}</Link>
           </div>
         </div>
       </AppShell>
@@ -118,7 +120,7 @@ export function SellerProfilePage() {
     <div className="mx-auto max-w-5xl">
       {isOwnProfile && (
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">Store profile</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{tr('ui.storeProfile')}</h1>
           <Link 
             href="/seller/profile/edit" 
             className="flex items-center gap-2 rounded-xl bg-[#ff6a00] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#e55f00]"
@@ -176,19 +178,19 @@ export function SellerProfilePage() {
 
         <div className="mt-6 grid gap-3 sm:grid-cols-4">
           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600">Rating</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600">{tr('ui.rating')}</p>
             <p className="mt-2 text-2xl font-bold text-gray-900">{profile.rating > 0 ? profile.rating.toFixed(1) : 'New'}</p>
           </div>
           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600">Response</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600">{tr('ui.response')}</p>
             <p className="mt-2 text-2xl font-bold text-gray-900">{profile.responseTimeHours}h</p>
           </div>
           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600">Orders</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600">{tr('ui.orders')}</p>
             <p className="mt-2 text-2xl font-bold text-gray-900">{profile.totalOrders || 0}</p>
           </div>
           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600">Service</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-600">{tr('ui.service')}</p>
             <p className="mt-2 text-sm font-bold text-gray-900">{[profile.offersDelivery ? 'Delivery' : '', profile.offersPickup ? 'Pickup' : ''].filter(Boolean).join(' / ') || 'Online only'}</p>
           </div>
         </div>
@@ -198,9 +200,9 @@ export function SellerProfilePage() {
       {profile.store && (
         <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">Your Store</h2>
+            <h2 className="text-lg font-bold text-gray-900">{tr('ui.yourStore')}</h2>
             <Link
-              href={`/seller/${sellerId}/storefront`}
+              href={`/supplier/stores/${profile.store.id}/storefront`}
               className="flex items-center gap-2 rounded-xl border border-[#ff6a00] bg-[#ff6a00]/10 px-3 py-2 text-xs font-bold text-[#ff6a00] hover:bg-[#ff6a00]/20"
             >
               <Eye size={14} /> View Storefront
@@ -208,15 +210,15 @@ export function SellerProfilePage() {
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Store Name</span>
+              <span className="text-sm text-gray-600">{tr('ui.storeName')}</span>
               <span className="text-sm font-semibold text-gray-900">{profile.store.name}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Template</span>
+              <span className="text-sm text-gray-600">{tr('ui.template')}</span>
               <span className="text-sm font-semibold text-[#1677ff] capitalize">{profile.store.storeTemplate}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Store URL</span>
+              <span className="text-sm text-gray-600">{tr('ui.storeUrl')}</span>
               <Link href={`/store/${profile.store.slug}`} className="text-sm font-semibold text-[#1677ff] hover:underline">
                 /store/{profile.store.slug}
               </Link>
@@ -229,7 +231,7 @@ export function SellerProfilePage() {
       {isOwnProfile && (
         <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 mb-6">
           <h2 className="text-lg font-bold text-gray-900 mb-4">STORE PREVIEW</h2>
-          <p className="text-sm text-gray-600 mb-4">This is how buyers see your shop.</p>
+          <p className="text-sm text-gray-600 mb-4">{tr('ui.thisIsHowBuyersSeeYour')}</p>
           
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
             <div className="flex items-center gap-3 mb-3">
@@ -253,14 +255,14 @@ export function SellerProfilePage() {
             </div>
             
             <div className="flex flex-wrap gap-2 text-xs text-gray-600 mb-3">
-              {profile.offersDelivery && <span className="flex items-center gap-1"><Truck size={12} /> Delivery</span>}
-              {profile.offersPickup && <span className="flex items-center gap-1"><ShoppingBag size={12} /> Pickup</span>}
+              {profile.offersDelivery && <span className="flex items-center gap-1"><Truck size={12} /> {tr('ui.delivery')}</span>}
+              {profile.offersPickup && <span className="flex items-center gap-1"><ShoppingBag size={12} /> {tr('ui.pickup')}</span>}
               <span>·</span>
-              <span>Opening hours: 9AM - 6PM</span>
+              <span>{tr('ui.openingHours9am6pm')}</span>
             </div>
             
             <div className="rounded-lg bg-white p-3">
-              <p className="text-xs font-medium text-gray-700 mb-2">Public product list</p>
+              <p className="text-xs font-medium text-gray-700 mb-2">{tr('ui.publicProductList')}</p>
               <div className="space-y-2">
                 {products.slice(0, 3).map(product => (
                   <div key={product.id} className="flex items-center justify-between text-xs">
@@ -268,7 +270,7 @@ export function SellerProfilePage() {
                     <span className="font-medium text-[#ff6a00]">{product.price} BIF/{product.unit}</span>
                   </div>
                 ))}
-                {products.length === 0 && <p className="text-gray-500 text-xs">No products yet</p>}
+                {products.length === 0 && <p className="text-gray-500 text-xs">{tr('ui.noProductsYet')}</p>}
               </div>
             </div>
           </div>
@@ -299,7 +301,7 @@ export function SellerProfilePage() {
           </div>
           <div className="mt-4">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-bold text-gray-700">Profile completeness</span>
+              <span className="text-xs font-bold text-gray-700">{tr('ui.profileCompleteness')}</span>
               <span className="text-xs font-bold text-gray-900">
                 {Math.round(
                   ([
@@ -343,7 +345,7 @@ export function SellerProfilePage() {
         <div className="space-y-6">
           {profile.businessDescription && (
             <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
-              <h3 className="text-lg font-bold text-gray-900">About this supplier</h3>
+              <h3 className="text-lg font-bold text-gray-900">{tr('ui.aboutThisSupplier')}</h3>
               <p className="mt-3 text-sm leading-6 text-gray-600">{profile.businessDescription}</p>
             </div>
           )}
@@ -351,7 +353,7 @@ export function SellerProfilePage() {
           {products.length > 0 && (
             <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-bold text-gray-900">Featured products</h2>
+                <h2 className="text-lg font-bold text-gray-900">{tr('ui.featuredProducts')}</h2>
                 <span className="text-xs font-bold text-gray-600">{products.filter(p => p.is_active !== false).length} items</span>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -379,19 +381,19 @@ export function SellerProfilePage() {
               <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-bold text-gray-900">BUSINESS INFORMATION</h3>
-                  <Link href="/seller/profile/edit" className="text-xs font-bold text-[#ff6a00] hover:underline">Edit</Link>
+                  <Link href="/seller/profile/edit" className="text-xs font-bold text-[#ff6a00] hover:underline">{tr('ui.edit')}</Link>
                 </div>
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-600">Business name</span>
+                    <span className="text-gray-600">{tr('ui.businessName')}</span>
                     <span className="font-medium text-gray-900">{profile.businessName}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-600">Business description</span>
+                    <span className="text-gray-600">{tr('ui.businessDescription2')}</span>
                     <span className="font-medium text-gray-900 max-w-[150px] truncate">{profile.businessDescription || 'Not set'}</span>
                   </div>
                   <div className="flex justify-between py-2">
-                    <span className="text-gray-600">Logo/profile picture</span>
+                    <span className="text-gray-600">{tr('ui.logoprofilePicture')}</span>
                     <span className="font-medium text-gray-900">{profile.profilePicture ? 'Set' : 'Not set'}</span>
                   </div>
                 </div>
@@ -400,19 +402,19 @@ export function SellerProfilePage() {
               <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-bold text-gray-900">SHOP LOCATION</h3>
-                  <Link href="/seller/profile/edit" className="text-xs font-bold text-[#ff6a00] hover:underline">Edit</Link>
+                  <Link href="/seller/profile/edit" className="text-xs font-bold text-[#ff6a00] hover:underline">{tr('ui.edit')}</Link>
                 </div>
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-600">General location</span>
+                    <span className="text-gray-600">{tr('ui.generalLocation')}</span>
                     <span className="font-medium text-gray-900">{profile.city || profile.province || 'Not set'}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-600">Nearest landmark</span>
+                    <span className="text-gray-600">{tr('ui.nearestLandmark2')}</span>
                     <span className="font-medium text-gray-900">{profile.landmark || 'Not set'}</span>
                   </div>
                   <div className="flex justify-between py-2">
-                    <span className="text-gray-600">Directions</span>
+                    <span className="text-gray-600">{tr('ui.directions')}</span>
                     <span className="font-medium text-gray-900 max-w-[150px] truncate">{profile.businessDescription || 'Not set'}</span>
                   </div>
                 </div>
@@ -421,23 +423,23 @@ export function SellerProfilePage() {
               <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-bold text-gray-900">SERVICES</h3>
-                  <Link href="/seller/profile/edit" className="text-xs font-bold text-[#ff6a00] hover:underline">Edit</Link>
+                  <Link href="/seller/profile/edit" className="text-xs font-bold text-[#ff6a00] hover:underline">{tr('ui.edit')}</Link>
                 </div>
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-600">Seller delivery</span>
+                    <span className="text-gray-600">{tr('ui.sellerDelivery')}</span>
                     <span className={`font-medium ${profile.offersDelivery ? 'text-emerald-600' : 'text-gray-400'}`}>
                       {profile.offersDelivery ? 'Available' : 'Not available'}
                     </span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-600">Buyer pickup</span>
+                    <span className="text-gray-600">{tr('ui.buyerPickup')}</span>
                     <span className={`font-medium ${profile.offersPickup ? 'text-emerald-600' : 'text-gray-400'}`}>
                       {profile.offersPickup ? 'Available' : 'Not available'}
                     </span>
                   </div>
                   <div className="flex justify-between py-2">
-                    <span className="text-gray-600">Delivery areas</span>
+                    <span className="text-gray-600">{tr('ui.deliveryAreas')}</span>
                     <span className="font-medium text-gray-900 max-w-[150px] truncate">{profile.deliveryAreas || 'Not set'}</span>
                   </div>
                 </div>
@@ -446,15 +448,15 @@ export function SellerProfilePage() {
               <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-bold text-gray-900">VERIFICATION</h3>
-                  <Link href="/seller/verify" className="text-xs font-bold text-[#ff6a00] hover:underline">View status</Link>
+                  <Link href="/seller/verify" className="text-xs font-bold text-[#ff6a00] hover:underline">{tr('ui.viewStatus')}</Link>
                 </div>
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-600">Phone</span>
-                    <span className="font-medium text-emerald-600">Verified</span>
+                    <span className="text-gray-600">{tr('ui.phone')}</span>
+                    <span className="font-medium text-emerald-600">{tr('ui.verified')}</span>
                   </div>
                   <div className="flex justify-between py-2">
-                    <span className="text-gray-600">Seller profile</span>
+                    <span className="text-gray-600">{tr('ui.sellerProfile')}</span>
                     <span className={`font-medium ${profile.verificationStatus === 'verified' ? 'text-emerald-600' : 'text-yellow-600'}`}>
                       {profile.verificationStatus === 'verified' ? 'Approved' : 'Pending'}
                     </span>
@@ -467,18 +469,18 @@ export function SellerProfilePage() {
           {!isOwnProfile && (
             <>
               <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h3 className="text-lg font-bold text-gray-900">Business details</h3>
+                <h3 className="text-lg font-bold text-gray-900">{tr('ui.businessDetails')}</h3>
                 <div className="mt-4 space-y-3 text-sm">
                   <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
-                    <span className="text-gray-600">Location</span>
+                    <span className="text-gray-600">{tr('ui.location')}</span>
                     <span className="font-medium text-gray-900">{profile.city || profile.province || 'Not provided'}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
-                    <span className="text-gray-600">Delivery</span>
+                    <span className="text-gray-600">{tr('ui.delivery')}</span>
                     <span className="font-medium text-gray-900">{profile.offersDelivery ? 'Available' : 'Not available'}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
-                    <span className="text-gray-600">Pickup</span>
+                    <span className="text-gray-600">{tr('ui.pickup')}</span>
                     <span className="font-medium text-gray-900">{profile.offersPickup ? 'Available' : 'Not available'}</span>
                   </div>
                 </div>
@@ -486,7 +488,7 @@ export function SellerProfilePage() {
 
               {profile.productCategories?.length ? (
                 <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
-                  <h3 className="text-lg font-bold text-gray-900">Categories</h3>
+                  <h3 className="text-lg font-bold text-gray-900">{tr('ui.categories')}</h3>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {profile.productCategories.map(cat => (
                       <span key={cat} className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-900">{cat}</span>
@@ -509,9 +511,11 @@ export function SellerProfilePage() {
              <Link href="/supplier" className="mb-4 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900">
                <ArrowLeft size={16} /> Back to dashboard
              </Link>
-             <Link href={`/seller/${sellerId}/storefront`} className="mb-4 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900">
-               <Settings size={16} /> Customize Storefront
-             </Link>
+             {profile.store?.id && (
+               <Link href={`/supplier/stores/${profile.store.id}/storefront`} className="mb-4 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900">
+                 <Settings size={16} /> Customize Storefront
+               </Link>
+             )}
            </>
          )}
         {!isOwnProfile && (
@@ -526,6 +530,7 @@ export function SellerProfilePage() {
 }
 
 export function SellerProfileEditPage() {
+  const { tr } = useLocale();
   const { user, session } = useAuth();
   const [, setLocation] = useLocation();
   const [profile, setProfile] = useState<any>(null);
@@ -666,9 +671,9 @@ export function SellerProfileEditPage() {
             <Link href="/seller/profile" className="text-gray-500 hover:text-gray-900">
               <ArrowLeft size={20} />
             </Link>
-            <h1 className="text-xl font-bold">Edit store profile</h1>
+            <h1 className="text-xl font-bold">{tr('ui.editStoreProfile')}</h1>
           </div>
-          <Link href="/seller/profile" className="text-sm text-gray-600 hover:text-gray-900">Cancel</Link>
+          <Link href="/seller/profile" className="text-sm text-gray-600 hover:text-gray-900">{tr('ui.cancel')}</Link>
         </div>
 
         {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
@@ -681,21 +686,21 @@ export function SellerProfileEditPage() {
             
             <div className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Business name</label>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">{tr('ui.businessName')}</label>
                 <input value={businessName} onChange={e => setBusinessName(e.target.value)} className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]" />
               </div>
               
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Business description</label>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">{tr('ui.businessDescription2')}</label>
                 <textarea value={businessDescription} onChange={e => setBusinessDescription(e.target.value)} rows={3} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]" />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Logo or profile picture</label>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">{tr('ui.logoOrProfilePicture')}</label>
                 <div className="flex items-center gap-4">
                   <div className="h-16 w-16 flex-shrink-0 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
                     {profilePicture ? (
-                      <img src={profilePicture} alt="Profile" className="h-full w-full object-cover" />
+                      <img src={profilePicture} alt={tr('ui.profile')} className="h-full w-full object-cover" />
                     ) : (
                       <Camera size={24} className="text-gray-400" />
                     )}
@@ -715,7 +720,7 @@ export function SellerProfileEditPage() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Shop/business picture</label>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">{tr('ui.shopbusinessPicture')}</label>
                 <div className="flex items-center gap-4">
                   <div className="h-16 w-16 flex-shrink-0 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
                     <Camera size={24} className="text-gray-400" />
@@ -736,25 +741,25 @@ export function SellerProfileEditPage() {
             
             <div className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Choose shop location on map</label>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">{tr('ui.chooseShopLocationOnMap')}</label>
                 <button onClick={() => setShowMap(true)} className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-left text-gray-600 hover:border-[#ff6a00]">
                   {shopLatitude ? `📍 ${shopLatitude.toFixed(4)}, ${shopLongitude?.toFixed(4)}` : 'Click to set location on map'}
                 </button>
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-gray-700">General location</label>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">{tr('ui.generalLocation')}</label>
                 <input value={city || province} onChange={e => { setCity(e.target.value); setProvince(e.target.value); }} className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]" />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Nearest landmark</label>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">{tr('ui.nearestLandmark2')}</label>
                 <input value={landmark} onChange={e => setLandmark(e.target.value)} className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]" />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Directions</label>
-                <textarea value={businessDescription} onChange={e => setBusinessDescription(e.target.value)} rows={2} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]" placeholder="How to find your shop..." />
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">{tr('ui.directions')}</label>
+                <textarea value={businessDescription} onChange={e => setBusinessDescription(e.target.value)} rows={2} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]" placeholder={tr('ui.howToFindYourShop')} />
               </div>
             </div>
           </section>
@@ -766,8 +771,8 @@ export function SellerProfileEditPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between py-3 border-b border-gray-100">
                 <div>
-                  <p className="font-medium text-gray-900">Seller delivery</p>
-                  <p className="text-xs text-gray-600">Offer delivery to customers</p>
+                  <p className="font-medium text-gray-900">{tr('ui.sellerDelivery')}</p>
+                  <p className="text-xs text-gray-600">{tr('ui.offerDeliveryToCustomers')}</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input type="checkbox" checked={offersDelivery} onChange={e => setOffersDelivery(e.target.checked)} className="sr-only peer" />
@@ -777,8 +782,8 @@ export function SellerProfileEditPage() {
 
               <div className="flex items-center justify-between py-3 border-b border-gray-100">
                 <div>
-                  <p className="font-medium text-gray-900">Buyer pickup</p>
-                  <p className="text-xs text-gray-600">Allow customers to pick up orders</p>
+                  <p className="font-medium text-gray-900">{tr('ui.buyerPickup')}</p>
+                  <p className="text-xs text-gray-600">{tr('ui.allowCustomersToPickUpOrders')}</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input type="checkbox" checked={offersPickup} onChange={e => setOffersPickup(e.target.checked)} className="sr-only peer" />
@@ -788,18 +793,18 @@ export function SellerProfileEditPage() {
 
               {offersDelivery && (
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-gray-700">Delivery areas</label>
-                  <input value={deliveryAreas} onChange={e => setDeliveryAreas(e.target.value)} placeholder="e.g. Bujumbura, Gitega, Bubanza" className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]" />
+                  <label className="mb-1.5 block text-xs font-semibold text-gray-700">{tr('ui.deliveryAreas')}</label>
+                  <input value={deliveryAreas} onChange={e => setDeliveryAreas(e.target.value)} placeholder={tr('ui.egBujumburaGitegaBubanza')} className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]" />
                 </div>
               )}
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Delivery fee rule</label>
-                <input value={deliveryFee} onChange={e => setDeliveryFee(e.target.value)} placeholder="Base delivery fee in BIF" className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]" />
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">{tr('ui.deliveryFeeRule')}</label>
+                <input value={deliveryFee} onChange={e => setDeliveryFee(e.target.value)} placeholder={tr('ui.baseDeliveryFeeInBif')} className="h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#ff6a00] focus:ring-1 focus:ring-[#ff6a00]" />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-gray-700">Opening hours</label>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-700">{tr('ui.openingHours2')}</label>
                 <div className="space-y-2">
                   {Object.entries(openingHours).slice(0, 3).map(([day, hours]) => (
                     <div key={day} className="flex items-center gap-2">
@@ -828,8 +833,8 @@ export function SellerProfileEditPage() {
             
             <div className="flex items-center justify-between py-3">
               <div>
-                <p className="font-medium text-gray-900">Store status</p>
-                <p className="text-xs text-gray-600">Control if your store is visible to buyers</p>
+                <p className="font-medium text-gray-900">{tr('ui.storeStatus')}</p>
+                <p className="text-xs text-gray-600">{tr('ui.controlIfYourStoreIsVisible')}</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input type="checkbox" defaultChecked={true} className="sr-only peer" />
