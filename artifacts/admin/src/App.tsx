@@ -491,7 +491,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const nav = navGroups.flatMap(group => group.items);
   const signOut = () => { localStorage.removeItem(TOKEN_KEY); window.location.reload(); };
 
-  return <div className="flex min-h-screen bg-[#f6f7f9]">
+  return <div className="flex h-dvh overflow-hidden bg-[#f6f7f9]">
     <aside className="hidden w-56 shrink-0 flex-col bg-[#0f172a] p-4 text-white md:flex">
       <div className="mb-7 flex items-center gap-2 px-1">
         <span className="grid h-8 w-8 place-items-center rounded-lg bg-white/10"><ShieldCheck size={17} /></span>
@@ -517,8 +517,8 @@ function Shell({ children }: { children: React.ReactNode }) {
         <LogOut size={16} /> Sign out
       </button>
     </aside>
-    <div className="flex min-w-0 flex-1 flex-col">
-      <div className="flex items-center justify-between gap-2 border-b border-gray-200 bg-white px-4 py-2.5">
+    <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-200 bg-white px-4 py-2.5">
         <span className="text-sm font-bold md:hidden">Nzanila Admin</span>
         <nav className="flex flex-wrap gap-1 md:hidden">
           {nav.map(item => <Link key={item.href} href={item.href}
@@ -534,7 +534,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         </span>
         <NotificationBell />
       </div>
-      <main className="min-w-0 flex-1 p-4 md:p-7">{children}</main>
+      <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-7">{children}</main>
     </div>
   </div>;
 }
