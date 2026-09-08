@@ -22,7 +22,9 @@ import {
   Package, Video, ShieldCheck, Clock, Users, Building, Globe,
   ChevronDown, LayoutGrid, Search,
 } from 'lucide-react';
-import { useLocale } from '@/lib/i18n/locale-context';
+import { useLocale, tg } from '@/lib/i18n/locale-context';
+import { Languages, RotateCcw, Loader2 } from 'lucide-react';
+import { sectionLabel, useStorefrontTranslator, useStorefrontText, StorefrontTranslatorContext } from '@/lib/storefront-i18n';
 
 const API = import.meta.env.VITE_API_URL || 'https://nzanila-seller-api.nzanilaexpress.workers.dev';
 
@@ -62,7 +64,7 @@ const CATEGORY_LABELS: Record<number, string> = {
 };
 
 function productCategory(product: any) {
-  return product.category_name || product.custom_category_suggestion || CATEGORY_LABELS[Number(product.category_id)] || 'Other';
+  return product.category_name || product.custom_category_suggestion || CATEGORY_LABELS[Number(product.category_id)] || tg('ui.sf.other');
 }
 
 // The public store products API returns a marketplace-shaped record (`image`,
@@ -106,8 +108,8 @@ function HotZone({ imageUrl, alt, title, regions }: { imageUrl: string; alt: str
           const external = /^https?:\/\//.test(String(region.href || ''));
           if (!region.href) return <span key={index} style={style} className={cls} aria-hidden="true" />;
           return external
-            ? <a key={index} href={region.href} target="_blank" rel="noopener noreferrer" style={style} className={cls} aria-label={region.label || 'Open'} />
-            : <Link key={index} href={region.href} style={style} className={cls} aria-label={region.label || 'Open'} />;
+            ? <a key={index} href={region.href} target="_blank" rel="noopener noreferrer" style={style} className={cls} aria-label={region.label || tg('ui.sf.open')} />
+            : <Link key={index} href={region.href} style={style} className={cls} aria-label={region.label || tg('ui.sf.open')} />;
         })}
       </div>
     </div>
@@ -142,7 +144,7 @@ function InquiryForm({ storeId, sellerId, title, description, buttonText, backgr
         body: JSON.stringify({ sellerId, storeId, message: body }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || 'Could not send your inquiry');
+      if (!response.ok) throw new Error(payload.error || tg('ui.sf.couldNotSendInquiry'));
       setState('sent'); setMessage('');
     } catch (cause) {
       setState('error'); setError(cause instanceof Error ? cause.message : 'Could not send your inquiry');
@@ -195,12 +197,12 @@ function storeTokens(store: StoreRecord): Record<string, string> {
   };
   const location = [value('commune') || value('location_address') || value('address'), value('province')].filter(Boolean).join(', ');
   return {
-    companyName: value('name') || 'This supplier',
-    description: value('description') || 'Contact this supplier for company and product information.',
-    category: value('business_category') || 'Wholesale supply',
-    phone: formatPhone(value('phone')) || value('phone') || 'Contact this supplier',
-    email: value('email') || 'Contact this supplier',
-    address: value('address') || value('location_address') || location || 'Location available from supplier',
+    companyName: value('name') || tg('ui.sf.thisSupplier'),
+    description: value('description') || tg('ui.contactThisSupplierForCompanyAnd'),
+    category: value('business_category') || tg('ui.sf.wholesaleSupply'),
+    phone: formatPhone(value('phone')) || value('phone') || tg('ui.sf.contactThisSupplier'),
+    email: value('email') || tg('ui.sf.contactThisSupplier'),
+    address: value('address') || value('location_address') || location || tg('ui.sf.locationFromSupplier'),
     location: location || 'Burundi',
     yearsActive: value('years_active') ? `${value('years_active')} years` : 'New supplier',
   };
@@ -234,9 +236,14 @@ export function ProductThumb({ src, name, className = '' }: { src?: string; name
   );
 }
 
-function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all', productSort = 'newest', productSearch = '', onStoreSearch, onTemplateAction }: { mod: StorefrontModule; storeId?: number; sellerId?: number; store?: Record<string, unknown>; categoryFilter?: string; productSort?: string; productSearch?: string; onStoreSearch?: (query: string) => void; onTemplateAction?: (target?: string, label?: string) => void }) {
+function ModuleRenderer({ mod, sectionId, storeId, sellerId, store, categoryFilter = 'all', productSort = 'newest', productSearch = '', onStoreSearch, onTemplateAction }: { mod: StorefrontModule; sectionId?: string; storeId?: number; sellerId?: number; store?: Record<string, unknown>; categoryFilter?: string; productSort?: string; productSearch?: string; onStoreSearch?: (query: string) => void; onTemplateAction?: (target?: string, label?: string) => void }) {
   const { tr } = useLocale();
+  const translator = useStorefrontText();
   const props = resolveTokens(mod.props, storeTokens(store)) as Record<string, string | number | boolean | null | undefined>;
+  // Seller copy as the buyer should read it: hand-translated template defaults, machine-
+  // translated seller wording, or the original (see lib/storefront-i18n.ts).
+  const tx = (path: string, value: unknown = props[path]) => translator.text(sectionId, mod.id, mod.type, path, value);
+  const txOr = (path: string, fallbackKey: string) => tx(path) || tr(fallbackKey);
   const p = (key: string) => {
     // A single-row product module never shows more tiles than it has columns.
     if (key === 'limit' && props.singleRow) return Math.min(Number(props.limit) || 4, Number(props.columns) || 4);
@@ -306,24 +313,24 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
     case 'hero-slideshow': {
       const slide = slideshowItems[slideIndex] || slideshowItems[0];
       return <div className="relative h-64 overflow-hidden bg-[#131921] text-white sm:h-80">
-        {slide?.imageUrl && <img src={slide.imageUrl} alt={slide.headline || 'Store promotion'} className="absolute inset-0 h-full w-full object-cover" />}
+        {slide?.imageUrl && <img src={slide.imageUrl} alt={tx(`slides.${slideIndex}.headline`, slide.headline) || tr('ui.sf.storePromotion')} className="absolute inset-0 h-full w-full object-cover" />}
         <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/35 to-transparent" />
-        <div className="relative flex h-full max-w-xl flex-col justify-center px-7 sm:px-12"><h2 className="text-3xl font-bold sm:text-4xl">{slide?.headline}</h2><p className="mt-2 text-base text-white/90">{slide?.subheadline}</p>{slide?.ctaLabel && <button type="button" onClick={() => onTemplateAction?.(slide.ctaLink, slide.ctaLabel)} className="mt-5 w-fit rounded bg-[#ff9900] px-5 py-2 text-sm font-bold text-[#131921] hover:bg-[#ffad2f]">{slide.ctaLabel}</button>}</div>
-        <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">{slideshowItems.map((_, i) => <button key={i} aria-label={`Show slide ${i + 1}`} onClick={() => setSlideIndex(i)} className={`h-2 rounded-full ${i === slideIndex ? 'w-7 bg-white' : 'w-2 bg-white/50'}`} />)}</div>
+        <div className="relative flex h-full max-w-xl flex-col justify-center px-7 sm:px-12"><h2 className="text-3xl font-bold sm:text-4xl">{tx(`slides.${slideIndex}.headline`, slide?.headline) || tx(`slides.${slideIndex}.title`, slide?.headline)}</h2><p className="mt-2 text-base text-white/90">{tx(`slides.${slideIndex}.subheadline`, slide?.subheadline) || tx(`slides.${slideIndex}.subtitle`, slide?.subheadline)}</p>{slide?.ctaLabel && <button type="button" onClick={() => onTemplateAction?.(slide.ctaLink, slide.ctaLabel)} className="mt-5 w-fit rounded bg-[#ff9900] px-5 py-2 text-sm font-bold text-[#131921] hover:bg-[#ffad2f]">{tx(`slides.${slideIndex}.ctaLabel`, slide.ctaLabel) || tx(`slides.${slideIndex}.buttonText`, slide.ctaLabel)}</button>}</div>
+        <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">{slideshowItems.map((_, i) => <button key={i} aria-label={`${tr('ui.sf.showSlide')} ${i + 1}`} onClick={() => setSlideIndex(i)} className={`h-2 rounded-full ${i === slideIndex ? 'w-7 bg-white' : 'w-2 bg-white/50'}`} />)}</div>
       </div>;
     }
 
     case 'shop-now-banner':
-      return <div className="relative overflow-hidden px-8 py-14 sm:px-12" style={{ minHeight: Number(p('height')) || 250, backgroundColor: String(p('backgroundColor') || '#febd69'), color: String(p('textColor') || '#131921') }}>{p('imageUrl') && <img src={String(p('imageUrl'))} alt="" className="absolute inset-0 h-full w-full object-cover" />}<div className="absolute inset-0 bg-white/30" style={{ opacity: Number(p('overlayOpacity')) || .3 }} /><div className="relative max-w-lg"><h3 className="text-3xl font-bold">{String(p('title') || '')}</h3><p className="mt-2">{String(p('subtitle') || '')}</p><button type="button" onClick={() => onTemplateAction?.(actionTarget('buttonUrl', 'buttonLink', 'ctaLink', 'link'), String(p('buttonText') || 'Shop Now'))} className="mt-5 inline-block rounded px-5 py-2 text-sm font-bold hover:brightness-105" style={{ backgroundColor: String(p('buttonColor') || '#ff9900') }}>{String(p('buttonText') || 'Shop Now')}</button></div></div>;
+      return <div className="relative overflow-hidden px-8 py-14 sm:px-12" style={{ minHeight: Number(p('height')) || 250, backgroundColor: String(p('backgroundColor') || '#febd69'), color: String(p('textColor') || '#131921') }}>{p('imageUrl') && <img src={String(p('imageUrl'))} alt="" className="absolute inset-0 h-full w-full object-cover" />}<div className="absolute inset-0 bg-white/30" style={{ opacity: Number(p('overlayOpacity')) || .3 }} /><div className="relative max-w-lg"><h3 className="text-3xl font-bold">{tx('title')}</h3><p className="mt-2">{tx('subtitle')}</p><button type="button" onClick={() => onTemplateAction?.(actionTarget('buttonUrl', 'buttonLink', 'ctaLink', 'link'), String(p('buttonText') || 'Shop Now'))} className="mt-5 inline-block rounded px-5 py-2 text-sm font-bold hover:brightness-105" style={{ backgroundColor: String(p('buttonColor') || '#ff9900') }}>{txOr('buttonText', 'ui.sf.default.shop-now-banner.buttonText')}</button></div></div>;
 
     case 'product-comparison': {
       const features = (props.features as unknown as string[]) || [];
       const items = (props.products as unknown as Array<{ name: string; values: string[] }>) || [];
-      return <div className="overflow-x-auto bg-white p-6"><h3 className="mb-4 text-xl font-bold">{String(p('title') || 'Compare Products')}</h3><table className="w-full min-w-[600px] border-collapse text-sm"><thead><tr><th className="border bg-gray-50 p-3 text-left">{tr('ui.feature')}</th>{items.map((item, i) => <th key={i} className="border p-3 text-left">{item.name}</th>)}</tr></thead><tbody>{features.map((feature, row) => <tr key={feature}><td className="border bg-gray-50 p-3 font-semibold">{feature}</td>{items.map((item, col) => <td key={col} className="border p-3">{item.values?.[row] || '—'}</td>)}</tr>)}</tbody></table></div>;
+      return <div className="overflow-x-auto bg-white p-6"><h3 className="mb-4 text-xl font-bold">{txOr('title', 'ui.sf.default.product-comparison.title')}</h3><table className="w-full min-w-[600px] border-collapse text-sm"><thead><tr><th className="border bg-gray-50 p-3 text-left">{tr('ui.feature')}</th>{items.map((item, i) => <th key={i} className="border p-3 text-left">{tx(`products.${i}.name`, item.name)}</th>)}</tr></thead><tbody>{features.map((feature, row) => <tr key={feature}><td className="border bg-gray-50 p-3 font-semibold">{tx(`features.${row}`, feature)}</td>{items.map((item, col) => <td key={col} className="border p-3">{item.values?.[row] || '—'}</td>)}</tr>)}</tbody></table></div>;
     }
 
     case 'seasonal-sale':
-      return <div className="p-8 text-center" style={{ backgroundColor: String(p('backgroundColor') || '#cc0c39'), color: String(p('textColor') || '#fff') }}><p className="text-sm font-bold uppercase tracking-widest">{String(p('discount') || '')} off</p><h3 className="mt-2 text-3xl font-black">{String(p('title') || 'Seasonal Sale')}</h3><p className="mt-2">{String(p('subtitle') || '')}</p><button type="button" onClick={() => onTemplateAction?.(actionTarget('buttonUrl', 'buttonLink', 'ctaLink', 'link'), String(p('buttonText') || 'Shop Sale'))} className="mt-5 inline-block rounded bg-white px-5 py-2 text-sm font-bold text-gray-900 hover:bg-gray-100">{String(p('buttonText') || 'Shop Sale')}</button></div>;
+      return <div className="p-8 text-center" style={{ backgroundColor: String(p('backgroundColor') || '#cc0c39'), color: String(p('textColor') || '#fff') }}><p className="text-sm font-bold uppercase tracking-widest">{String(p('discount') || '')} off</p><h3 className="mt-2 text-3xl font-black">{txOr('title', 'ui.sf.default.seasonal-sale.title')}</h3><p className="mt-2">{tx('subtitle')}</p><button type="button" onClick={() => onTemplateAction?.(actionTarget('buttonUrl', 'buttonLink', 'ctaLink', 'link'), String(p('buttonText') || 'Shop Sale'))} className="mt-5 inline-block rounded bg-white px-5 py-2 text-sm font-bold text-gray-900 hover:bg-gray-100">{txOr('buttonText', 'ui.sf.default.seasonal-sale.buttonText')}</button></div>;
 
     case 'trending-now': {
       if (productsLoading || productsError || !liveProducts.length) return null;
@@ -334,13 +341,13 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
       return (
         <div className="relative h-44 overflow-hidden bg-black flex">
           <div className="flex-1 flex flex-col justify-center px-6 bg-black text-white">
-            {p('brand') && <p className="text-xs font-bold tracking-widest text-white mb-1">{String(p('brand'))}</p>}
-            <h3 className="text-lg font-bold leading-tight">{String(p('title') || 'Hero Banner')}</h3>
-            {p('subtitle') && <p className="text-[11px] text-gray-300 mt-1">{String(p('subtitle'))}</p>}
-            {p('buttonText') ? <button type="button" onClick={() => onTemplateAction?.(actionTarget('buttonUrl', 'buttonLink', 'ctaLink', 'link'), String(p('buttonText')))} className="mt-2 inline-block w-fit rounded bg-[#ff9900] px-3 py-1 text-xs font-semibold text-white hover:bg-[#ffad2f]">{String(p('buttonText'))}</button> : null}
+            {p('brand') && <p className="text-xs font-bold tracking-widest text-white mb-1">{tx('brand')}</p>}
+            <h3 className="text-lg font-bold leading-tight">{txOr('title', 'ui.sf.hero')}</h3>
+            {p('subtitle') && <p className="text-[11px] text-gray-300 mt-1">{tx('subtitle')}</p>}
+            {p('buttonText') ? <button type="button" onClick={() => onTemplateAction?.(actionTarget('buttonUrl', 'buttonLink', 'ctaLink', 'link'), String(p('buttonText')))} className="mt-2 inline-block w-fit rounded bg-[#ff9900] px-3 py-1 text-xs font-semibold text-white hover:bg-[#ffad2f]">{tx('buttonText')}</button> : null}
           </div>
           <div className="h-44 w-[52%] bg-gradient-to-l from-gray-700 to-black relative overflow-hidden">
-            <img src={String(p('imageUrl') || 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?auto=format&fit=crop&w=600&q=80')} alt={String(p('title') || 'Hero')} className="h-full w-full object-cover object-right" />
+            <img src={String(p('imageUrl') || 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?auto=format&fit=crop&w=600&q=80')} alt={txOr('title', 'ui.sf.hero')} className="h-full w-full object-cover object-right" />
           </div>
         </div>
       );
@@ -350,8 +357,8 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
         <div className="relative overflow-hidden rounded-lg" style={{ height: Number(p('height')) || 200 }}>
           <img src={String(p('imageUrl') || 'https://via.placeholder.com/800x200')} alt={String(p('title') || '')} className="h-full w-full object-cover" />
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30">
-            <h3 className="text-lg font-bold text-white">{String(p('title') || 'Image & Text')}</h3>
-            {p('subtitle') && <p className="text-sm text-gray-200">{String(p('subtitle'))}</p>}
+            <h3 className="text-lg font-bold text-white">{txOr('title', 'ui.sf.imageText')}</h3>
+            {p('subtitle') && <p className="text-sm text-gray-200">{tx('subtitle')}</p>}
           </div>
         </div>
       );
@@ -359,12 +366,12 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
     case 'image-grid': {
       const images = (props.images as unknown as Array<string | { imageUrl?: string; url?: string; altText?: string; title?: string; link?: string }>) || [];
       const columns = Math.min(4, Math.max(2, Number(p('columns')) || 3));
-      return <section className="bg-white p-4"><h3 className="mb-3 text-base font-bold">{String(p('title') || 'Gallery')}</h3><div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>{images.map((item, i) => { const image = typeof item === 'string' ? { imageUrl: item } : item; return <button type="button" key={i} onClick={() => onTemplateAction?.(image.link, image.title)} className="aspect-square overflow-hidden rounded border bg-gray-100"><img src={image.imageUrl || image.url || ''} alt={image.altText || image.title || `Gallery image ${i + 1}`} className="h-full w-full object-cover transition hover:scale-105" /></button>; })}</div></section>;
+      return <section className="bg-white p-4"><h3 className="mb-3 text-base font-bold">{txOr('title', 'ui.sf.default.image-grid.title')}</h3><div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>{images.map((item, i) => { const image = typeof item === 'string' ? { imageUrl: item } : item; return <button type="button" key={i} onClick={() => onTemplateAction?.(image.link, image.title)} className="aspect-square overflow-hidden rounded border bg-gray-100"><img src={image.imageUrl || image.url || ''} alt={image.altText || image.title || `${tr('ui.sf.galleryImage')} ${i + 1}`} className="h-full w-full object-cover transition hover:scale-105" /></button>; })}</div></section>;
     }
 
     case 'video-grid': {
       const videos = (props.videos as unknown as Array<string | { videoUrl?: string; url?: string; title?: string }>) || [];
-      return <section className="bg-white p-4"><h3 className="mb-3 text-base font-bold">{String(p('title') || 'Videos')}</h3><div className={`grid gap-3 ${videos.length > 1 ? 'sm:grid-cols-2' : ''}`}>{videos.map((item, i) => { const entry = typeof item === 'string' ? { videoUrl: item } : item; const source = getVideoSource(entry.videoUrl || entry.url || ''); return <div key={i} className="aspect-video overflow-hidden rounded bg-black">{source.file ? <video src={source.url} controls playsInline className="h-full w-full object-contain" /> : <iframe src={source.url} title={entry.title || `Store video ${i + 1}`} className="h-full w-full" allowFullScreen />}</div>; })}</div></section>;
+      return <section className="bg-white p-4"><h3 className="mb-3 text-base font-bold">{txOr('title', 'ui.sf.default.video-grid.title')}</h3><div className={`grid gap-3 ${videos.length > 1 ? 'sm:grid-cols-2' : ''}`}>{videos.map((item, i) => { const entry = typeof item === 'string' ? { videoUrl: item } : item; const source = getVideoSource(entry.videoUrl || entry.url || ''); return <div key={i} className="aspect-video overflow-hidden rounded bg-black">{source.file ? <video src={source.url} controls playsInline className="h-full w-full object-contain" /> : <iframe src={source.url} title={entry.title || `${tr('ui.sf.storeVideo')} ${i + 1}`} className="h-full w-full" allowFullScreen />}</div>; })}</div></section>;
     }
 
     case 'page-background':
@@ -372,17 +379,17 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
       return null;
 
     case 'hot-zone':
-      return <HotZone imageUrl={String(p('imageUrl') || '')} alt={String(p('alt') || '')} title={String(p('title') || '')} regions={Array.isArray(p('regions')) ? (p('regions') as unknown as HotRegion[]) : []} />;
+      return <HotZone imageUrl={String(p('imageUrl') || '')} alt={tx('alt')} title={tx('title')} regions={Array.isArray(p('regions')) ? (p('regions') as unknown as HotRegion[]) : []} />;
 
     case 'inquiry-form':
-      return <InquiryForm storeId={storeId} sellerId={sellerId} title={String(p('title') || 'Send us an inquiry')} description={String(p('description') || '')} buttonText={String(p('buttonText') || 'Send inquiry')} backgroundColor={String(p('backgroundColor') || '#232f3e')} textColor={String(p('textColor') || '#ffffff')} />;
+      return <InquiryForm storeId={storeId} sellerId={sellerId} title={txOr('title', 'ui.sf.default.inquiry-form.title')} description={tx('description')} buttonText={txOr('buttonText', 'ui.sf.default.inquiry-form.buttonText')} backgroundColor={String(p('backgroundColor') || '#232f3e')} textColor={String(p('textColor') || '#ffffff')} />;
 
     case 'marketing':
       return (
         <div className="rounded-lg px-6 py-10 text-center sm:px-10 sm:py-14" style={{ backgroundColor: String(p('backgroundColor') || '#fff3f0') }}>
-          <h3 className="text-2xl font-bold sm:text-3xl" style={{ color: String(p('textColor') || '#ff5a36') }}>{String(p('title') || 'Marketing Section')}</h3>
-          {p('description') && <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 sm:text-base" style={{ color: String(p('textColor') || '#ff5a36'), opacity: 0.85 }}>{String(p('description'))}</p>}
-          {p('buttonText') && <button type="button" onClick={() => onTemplateAction?.(actionTarget('buttonUrl', 'buttonLink', 'ctaLink', 'link'), String(p('buttonText')))} className="mt-3 inline-block rounded-lg bg-[#ff9900] px-4 py-2 text-sm font-semibold text-white hover:bg-[#e88b00]">{String(p('buttonText'))}</button>}
+          <h3 className="text-2xl font-bold sm:text-3xl" style={{ color: String(p('textColor') || '#ff5a36') }}>{txOr('title', 'ui.sf.marketingSection')}</h3>
+          {p('description') && <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 sm:text-base" style={{ color: String(p('textColor') || '#ff5a36'), opacity: 0.85 }}>{tx('description')}</p>}
+          {p('buttonText') && <button type="button" onClick={() => onTemplateAction?.(actionTarget('buttonUrl', 'buttonLink', 'ctaLink', 'link'), String(p('buttonText')))} className="mt-3 inline-block rounded-lg bg-[#ff9900] px-4 py-2 text-sm font-semibold text-white hover:bg-[#e88b00]">{tx('buttonText')}</button>}
         </div>
       );
 
@@ -391,7 +398,7 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
       return (
         <div className="flex aspect-video w-full items-center justify-center overflow-hidden rounded-lg bg-black/10">
           {p('videoUrl') ? (
-            video.file ? <video src={video.url} controls playsInline className="h-full w-full rounded-lg bg-black object-contain" /> : <iframe src={video.url} title={String(p('title') || 'Store video')} className="h-full w-full rounded-lg" allowFullScreen />
+            video.file ? <video src={video.url} controls playsInline className="h-full w-full rounded-lg bg-black object-contain" /> : <iframe src={video.url} title={txOr('title', 'ui.sf.storeVideo')} className="h-full w-full rounded-lg" allowFullScreen />
           ) : (
             <div className="text-center text-gray-500"><Video size={32} className="mx-auto mb-2" /><p className="text-sm">{tr('ui.videoPlaceholder')}</p></div>
           )}
@@ -401,12 +408,12 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
     case 'company':
       return (
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="text-lg font-bold text-gray-900">{String(p('title') || 'Our Company')}</h3>
-          {p('description') && <p className="text-sm text-gray-600 mt-1">{String(p('description'))}</p>}
+          <h3 className="text-lg font-bold text-gray-900">{txOr('title', 'ui.sf.default.company.title')}</h3>
+          {p('description') && <p className="text-sm text-gray-600 mt-1">{tx('description')}</p>}
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
             {p('showCertification') && <div><ShieldCheck size={24} className="mx-auto text-gray-400" /><p className="text-xs text-gray-500">{tr('ui.certified')}</p></div>}
-            {p('showYearsActive') && <div><Clock size={24} className="mx-auto text-gray-400" /><p className="text-xs text-gray-500">5+ Years</p></div>}
-            {p('showEmployees') && <div><Users size={24} className="mx-auto text-gray-400" /><p className="text-xs text-gray-500">100+ Employees</p></div>}
+            {p('showYearsActive') && <div><Clock size={24} className="mx-auto text-gray-400" /><p className="text-xs text-gray-500">{tr('ui.sf.yearsSample')}</p></div>}
+            {p('showEmployees') && <div><Users size={24} className="mx-auto text-gray-400" /><p className="text-xs text-gray-500">{tr('ui.sf.employeesSample')}</p></div>}
           </div>
         </div>
       );
@@ -415,7 +422,7 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
       if (productsLoading) {
         return (
           <div className="bg-[#f5f7fa] p-3">
-            <div className="text-center mb-3"><h3 className="text-sm font-bold text-gray-900">{String(p('title') || 'Product Category')}</h3><div className="mx-auto mt-1 h-0.5 w-8 bg-[#1677ff]" /></div>
+            <div className="text-center mb-3"><h3 className="text-sm font-bold text-gray-900">{txOr('title', 'ui.sf.productCategory')}</h3><div className="mx-auto mt-1 h-0.5 w-8 bg-[#1677ff]" /></div>
             <div className="grid grid-cols-3 gap-2">
               {Array.from({ length: Number(p('productCount')) || 6 }).map((_, i) => (
                 <div key={i} className="bg-white p-1 animate-pulse"><div className="h-20 bg-gray-200 rounded" /><div className="h-3 bg-gray-200 rounded mt-1 w-3/4 mx-auto" /></div>
@@ -427,7 +434,7 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
       if (productsError) {
         return (
           <div className="bg-[#f5f7fa] p-3">
-            <div className="text-center mb-3"><h3 className="text-sm font-bold text-gray-900">{String(p('title') || 'Product Category')}</h3></div>
+            <div className="text-center mb-3"><h3 className="text-sm font-bold text-gray-900">{txOr('title', 'ui.sf.productCategory')}</h3></div>
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center"><p className="text-xs text-red-600">{tr('ui.failedToLoadProducts')}</p></div>
           </div>
         );
@@ -435,7 +442,7 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
       if (liveProducts.length > 0) {
         return (
           <div className="bg-[#f5f7fa] p-3">
-            <div className="text-center mb-3"><h3 className="text-sm font-bold text-gray-900">{String(p('title') || 'Product Category')}</h3><div className="mx-auto mt-1 h-0.5 w-8 bg-[#1677ff]" /><div className="mx-auto mt-0.5 h-0.5 w-16 bg-[#1677ff]/30" /></div>
+            <div className="text-center mb-3"><h3 className="text-sm font-bold text-gray-900">{txOr('title', 'ui.sf.productCategory')}</h3><div className="mx-auto mt-1 h-0.5 w-8 bg-[#1677ff]" /><div className="mx-auto mt-0.5 h-0.5 w-16 bg-[#1677ff]/30" /></div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
               {liveProducts.slice(0, Number(p('productCount')) || 6).map((pr: any) => (
                 <Link href={`/products/${pr.id}`} key={pr.id} className="group overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-[#ff6a00]/50 hover:shadow-md"><div className="aspect-square bg-gray-100 overflow-hidden"><ProductThumb src={pr.primary_image} name={pr.name} className="transition group-hover:scale-105" /></div><div className="p-3"><p className="line-clamp-2 min-h-8 text-xs font-semibold text-gray-900">{pr.name}</p><p className="mt-1 text-sm font-extrabold text-[#ff5a36]">{Number(pr.base_price).toLocaleString()} BIF</p><p className="mt-1 text-[10px] text-gray-500">MOQ {pr.minimum_order_quantity} {pr.unit_type}</p><span className="mt-2 block rounded bg-[#ff6a00] px-2 py-1.5 text-center text-[10px] font-bold text-white">{tr('ui.viewProduct')}</span></div></Link>
@@ -446,10 +453,10 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
       }
       return (
         <div className="bg-[#f5f7fa] p-3">
-          <div className="text-center mb-3"><h3 className="text-sm font-bold text-gray-900">{String(p('title') || 'Product Category')}</h3><div className="mx-auto mt-1 h-0.5 w-8 bg-[#1677ff]" /></div>
+          <div className="text-center mb-3"><h3 className="text-sm font-bold text-gray-900">{txOr('title', 'ui.sf.productCategory')}</h3><div className="mx-auto mt-1 h-0.5 w-8 bg-[#1677ff]" /></div>
           <div className="grid grid-cols-3 gap-2">
             {Array.from({ length: Number(p('productCount')) || 6 }).map((_, i) => (
-              <div key={i} className="bg-white p-1"><div className="h-20 bg-gray-100 flex items-center justify-center"><Package size={20} className="text-gray-400" /></div><p className="text-[11px] font-medium text-center text-gray-400">Product {i + 1}</p></div>
+              <div key={i} className="bg-white p-1"><div className="h-20 bg-gray-100 flex items-center justify-center"><Package size={20} className="text-gray-400" /></div><p className="text-[11px] font-medium text-center text-gray-400">{tr('ui.sf.product')} {i + 1}</p></div>
             ))}
           </div>
         </div>
@@ -460,7 +467,7 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
       if (productsLoading) {
         return (
           <div className="rounded-lg border border-gray-200 p-4">
-            <h3 className="text-lg font-bold text-gray-900 mb-3">{String(p('title') || 'Products')}</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-3">{txOr('title', 'ui.sf.products')}</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {Array.from({ length: Number(p('limit')) || 4 }).map((_, i) => (
                 <div key={i} className="bg-white rounded-lg border border-gray-100 overflow-hidden animate-pulse"><div className="aspect-square bg-gray-200" /><div className="p-2"><div className="h-3 bg-gray-200 rounded w-3/4 mb-1" /><div className="h-3 bg-gray-200 rounded w-1/2" /></div></div>
@@ -472,7 +479,7 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
       if (productsError) {
         return (
           <div className="rounded-lg border border-gray-200 p-4">
-            <h3 className="text-lg font-bold text-gray-900 mb-3">{String(p('title') || 'Products')}</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-3">{txOr('title', 'ui.sf.products')}</h3>
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center"><p className="text-sm text-red-600">{tr('ui.failedToLoadProducts')}</p></div>
           </div>
         );
@@ -480,7 +487,7 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
       if (liveProducts.length > 0) {
         return (
           <div className="bg-white border border-gray-200 p-3">
-            <div className="flex items-center justify-between mb-3"><h3 className="text-sm font-bold">{String(p('title') || 'Featured Products')}</h3><button type="button" onClick={() => onTemplateAction?.('/products', 'View products')} className="text-xs text-[#1677ff] hover:underline">{tr('ui.viewMore')}</button></div>
+            <div className="flex items-center justify-between mb-3"><h3 className="text-sm font-bold">{txOr('title', 'ui.sf.default.double-row-products.title')}</h3><button type="button" onClick={() => onTemplateAction?.('/products', tr('ui.sf.viewProducts'))} className="text-xs text-[#1677ff] hover:underline">{tr('ui.viewMore')}</button></div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
               {liveProducts.map((pr: any) => (
                 <Link href={`/products/${pr.id}`} key={pr.id} className="group overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-[#ff6a00]/50 hover:shadow-md">
@@ -494,7 +501,7 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
       }
       return (
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="text-lg font-bold text-gray-900 mb-3">{String(p('title') || 'Products')}</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-3">{txOr('title', 'ui.sf.products')}</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {Array.from({ length: Number(p('limit')) || 4 }).map((_, i) => (
               <div key={i} className="bg-white rounded-lg border border-gray-100 overflow-hidden">
@@ -512,10 +519,10 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
         <div className="grid grid-cols-2 gap-3">
           {categories.map((cat, i) => (
             <button type="button" onClick={() => onStoreSearch?.(cat.name)} key={i} className="relative h-28 overflow-hidden flex p-0 text-left hover:brightness-105" style={{ backgroundColor: String(p('backgroundColor') || '#1677ff') }}>
-              {cat.sublabel && <div className="absolute right-0 top-0 bg-white text-[#1677ff] text-[10px] font-bold px-6 py-0.5 rotate-[35deg] translate-x-6 translate-y-3">{cat.sublabel}</div>}
+              {cat.sublabel && <div className="absolute right-0 top-0 bg-white text-[#1677ff] text-[10px] font-bold px-6 py-0.5 rotate-[35deg] translate-x-6 translate-y-3">{tx(`categories.${i}.sublabel`, cat.sublabel)}</div>}
               <div className="flex-1 py-4 pl-4 pr-2 flex flex-col justify-center">
-                <span className="text-sm font-bold leading-tight" style={{ color: String(p('textColor') || '#ffffff') }}>{cat.name.split(' ')[0]}<br />{cat.name.split(' ').slice(1).join(' ')}</span>
-                <span className="mt-2 inline-block w-fit border border-white/80 rounded px-2 py-0.5 text-[10px] font-semibold text-white">SEE MORE</span>
+                <span className="text-sm font-bold leading-tight" style={{ color: String(p('textColor') || '#ffffff') }}>{tx(`categories.${i}.name`, cat.name).split(' ')[0]}<br />{tx(`categories.${i}.name`, cat.name).split(' ').slice(1).join(' ')}</span>
+                <span className="mt-2 inline-block w-fit border border-white/80 rounded px-2 py-0.5 text-[10px] font-semibold text-white">{tr('ui.sf.seeMore')}</span>
               </div>
               <div className="w-[46%] flex items-end justify-end pb-2 pr-2">
                 <img src={cat.imageUrl || 'https://via.placeholder.com/120x100'} alt={cat.name} className="h-20 w-auto object-contain drop-shadow" />
@@ -536,7 +543,7 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
               {stats.map((stat, i) => (
                 <div key={i}>
                   <p className="text-lg font-bold" style={{ color: String(p('textColor') || '#ffffff') }}>{stat.value}{stat.suffix}</p>
-                  <p className="text-[10px] opacity-90" style={{ color: String(p('textColor') || '#ffffff') }}>{stat.label}</p>
+                  <p className="text-[10px] opacity-90" style={{ color: String(p('textColor') || '#ffffff') }}>{tx(`stats.${i}.label`, stat.label)}</p>
                 </div>
               ))}
             </div>
@@ -552,8 +559,8 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
             {features.map((feat, i) => (
               <div key={i} className="text-center">
                 <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-[#ff9900]/10 flex items-center justify-center"><Building size={24} className="text-[#ff9900]" /></div>
-                <p className="text-sm font-semibold text-gray-900">{feat.title}</p>
-                <p className="text-xs text-gray-500 mt-1">{feat.description}</p>
+                <p className="text-sm font-semibold text-gray-900">{tx(`features.${i}.title`, feat.title)}</p>
+                <p className="text-xs text-gray-500 mt-1">{tx(`features.${i}.description`, feat.description)}</p>
               </div>
             ))}
           </div>
@@ -576,7 +583,7 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
       if (!capability.length) return null;
       return (
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">{String(p('title') || 'Manufacturer Capability')}</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-4">{txOr('title', 'ui.sf.default.company-capacity.title')}</h3>
           <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${capability.length}, minmax(0, 1fr))` }}>
             {capability.map(item => (
               <div key={item.label} className="text-center p-3 bg-gray-50 rounded-lg">
@@ -595,12 +602,12 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
       if (!certs.length) return null;
       return (
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">{String(p('title') || 'Certifications')}</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-4">{txOr('title', 'ui.sf.default.certifications.title')}</h3>
           <div className="flex flex-wrap gap-3">
             {certs.map((cert, i) => (
               <div key={i} className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
                 <ShieldCheck size={20} className="text-green-500" />
-                <div><p className="text-sm font-semibold text-gray-900">{cert.name}</p><p className="text-xs text-gray-500">{cert.description}</p></div>
+                <div><p className="text-sm font-semibold text-gray-900">{tx(`certifications.${i}.name`, cert.name)}</p><p className="text-xs text-gray-500">{tx(`certifications.${i}.description`, cert.description)}</p></div>
               </div>
             ))}
           </div>
@@ -612,14 +619,14 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
       // rendered for any seller who left these blank, so a brand-new store published
       // delivery statistics it had never earned. An unconfigured module shows nothing.
       const performance = [
-        { label: 'Response Time', value: String(p('responseTime') || ''), tile: 'bg-green-50', tone: 'text-green-600' },
-        { label: 'On-time Delivery', value: String(p('onTimeDelivery') || ''), tile: 'bg-blue-50', tone: 'text-blue-600' },
-        { label: 'Transaction Level', value: String(p('transactionLevel') || ''), tile: 'bg-orange-50', tone: 'text-orange-600' },
+        { label: tr('ui.responseTime'), value: String(p('responseTime') || ''), tile: 'bg-green-50', tone: 'text-green-600' },
+        { label: tr('ui.sf.onTimeDelivery'), value: String(p('onTimeDelivery') || ''), tile: 'bg-blue-50', tone: 'text-blue-600' },
+        { label: tr('ui.sf.transactionLevel'), value: String(p('transactionLevel') || ''), tile: 'bg-orange-50', tone: 'text-orange-600' },
       ].filter(metric => metric.value);
       if (!performance.length) return null;
       return (
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">{String(p('title') || 'Company Performance')}</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-4">{txOr('title', 'ui.sf.default.company-performance.title')}</h3>
           <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${performance.length}, minmax(0, 1fr))` }}>
             {performance.map(metric => (
               <div key={metric.label} className={`text-center p-3 rounded-lg ${metric.tile}`}>
@@ -635,7 +642,7 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
     case 'warehouse-info':
       return (
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">{String(p('title') || 'Our Warehouses')}</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-4">{txOr('title', 'ui.sf.ourWarehouses')}</h3>
           <div className="grid grid-cols-2 gap-4">
             <div className="text-center p-3 bg-blue-50 rounded-lg">
               <Building size={24} className="mx-auto text-blue-500 mb-2" />
@@ -668,24 +675,24 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
     case 'shipping-info':
       return (
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">{String(p('title') || 'Shipping Options')}</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-4">{txOr('title', 'ui.sf.shippingOptions')}</h3>
           <div className="space-y-3">
             {(props.shippingMethods as unknown as Array<{ name: string; time: string; price: string }> || [
-              { name: 'Express', time: '3-5 days', price: '$25+' },
-              { name: 'Standard', time: '7-14 days', price: '$15+' },
-              { name: 'Economy', time: '15-30 days', price: '$10+' },
+              { name: tr('ui.sf.shipping.express'), time: `3-5 ${tr('ui.sf.days')}`, price: '$25+' },
+              { name: tr('ui.sf.shipping.standard'), time: `7-14 ${tr('ui.sf.days')}`, price: '$15+' },
+              { name: tr('ui.sf.shipping.economy'), time: `15-30 ${tr('ui.sf.days')}`, price: '$10+' },
             ]).map((method, i) => (
               <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div>
-                  <p className="font-semibold text-gray-900">{method.name}</p>
-                  <p className="text-xs text-gray-500">{method.time}</p>
+                  <p className="font-semibold text-gray-900">{tx(`shippingMethods.${i}.name`, method.name)}</p>
+                  <p className="text-xs text-gray-500">{tx(`shippingMethods.${i}.time`, method.time)}</p>
                 </div>
                 <p className="font-bold text-orange-500">{method.price}</p>
               </div>
             ))}
             {p('freeShippingThreshold') && (
               <div className="mt-3 p-3 bg-green-50 rounded-lg text-center">
-                <p className="text-sm text-green-700">Free shipping on orders over {String(p('freeShippingThreshold'))}</p>
+                <p className="text-sm text-green-700">{tr('ui.sf.freeShippingOver')} {String(p('freeShippingThreshold'))}</p>
               </div>
             )}
           </div>
@@ -695,17 +702,17 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
     case 'trust-badges':
       return (
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">{String(p('title') || 'Trusted By')}</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-4">{txOr('title', 'ui.sf.trustedBy')}</h3>
           <div className="flex flex-wrap gap-3">
             {(props.badges as unknown as Array<{ name: string; icon: string }> || [
-              { name: 'Secure Payment', icon: 'lock' },
-              { name: 'Verified Supplier', icon: 'check-circle' },
-              { name: 'Money Back Guarantee', icon: 'shield' },
-              { name: '24/7 Support', icon: 'headphones' },
+              { name: tr('ui.sf.badge.securePayment'), icon: 'lock' },
+              { name: tr('ui.sf.badge.verifiedSupplier'), icon: 'check-circle' },
+              { name: tr('ui.sf.badge.moneyBack'), icon: 'shield' },
+              { name: tr('ui.sf.badge.support'), icon: 'headphones' },
             ]).map((badge, i) => (
               <div key={i} className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
                 <ShieldCheck size={20} className="text-green-500" />
-                <span className="text-sm font-medium text-gray-700">{badge.name}</span>
+                <span className="text-sm font-medium text-gray-700">{tx(`badges.${i}.name`, badge.name)}</span>
               </div>
             ))}
           </div>
@@ -718,9 +725,9 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
           className="rounded-lg p-6 text-center"
           style={{ backgroundColor: String(p('backgroundColor') || '#ff5a36') }}
         >
-          <h3 className="text-xl font-bold" style={{ color: String(p('textColor') || '#ffffff') }}>{String(p('title') || 'Special Offer')}</h3>
-          {p('subtitle') && <p className="text-sm mt-1" style={{ color: String(p('textColor') || '#ffffff') }}>{String(p('subtitle'))}</p>}
-          {p('buttonText') && <button type="button" onClick={() => onTemplateAction?.(actionTarget('buttonUrl', 'buttonLink', 'ctaLink', 'link'), String(p('buttonText')))} className="mt-3 inline-block rounded-lg bg-white px-6 py-2 text-sm font-semibold hover:bg-gray-100">{String(p('buttonText'))}</button>}
+          <h3 className="text-xl font-bold" style={{ color: String(p('textColor') || '#ffffff') }}>{txOr('title', 'ui.sf.default.marketing.title')}</h3>
+          {p('subtitle') && <p className="text-sm mt-1" style={{ color: String(p('textColor') || '#ffffff') }}>{tx('subtitle')}</p>}
+          {p('buttonText') && <button type="button" onClick={() => onTemplateAction?.(actionTarget('buttonUrl', 'buttonLink', 'ctaLink', 'link'), String(p('buttonText')))} className="mt-3 inline-block rounded-lg bg-white px-6 py-2 text-sm font-semibold hover:bg-gray-100">{tx('buttonText')}</button>}
         </div>
       );
 
@@ -729,7 +736,7 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
       if (productsLoading) {
         return (
           <div className="rounded-lg border border-gray-200 p-4">
-            <h3 className="text-lg font-bold text-gray-900 mb-3">{String(p('title') || 'Products')}</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-3">{txOr('title', 'ui.sf.products')}</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {Array.from({ length: Number(p('limit')) || 4 }).map((_, i) => (
                 <div key={i} className="bg-white rounded-lg border border-gray-100 overflow-hidden animate-pulse"><div className="aspect-square bg-gray-200" /><div className="p-2"><div className="h-3 bg-gray-200 rounded w-3/4 mb-1" /><div className="h-3 bg-gray-200 rounded w-1/2" /></div></div>
@@ -741,7 +748,7 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
       if (productsError) {
         return (
           <div className="rounded-lg border border-gray-200 p-4">
-            <h3 className="text-lg font-bold text-gray-900 mb-3">{String(p('title') || 'Products')}</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-3">{txOr('title', 'ui.sf.products')}</h3>
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center"><p className="text-sm text-red-600">{tr('ui.failedToLoadProducts')}</p></div>
           </div>
         );
@@ -750,8 +757,8 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
         return (
           <div className="bg-white border border-gray-200 p-3">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold">{String(p('title') || (mod.type === 'hot-products' ? 'Hot Products' : 'New Arrivals'))}</h3>
-              <button type="button" onClick={() => onTemplateAction?.('/products', 'View products')} className="text-xs text-[#1677ff] hover:underline">{tr('ui.viewMore')}</button>
+              <h3 className="text-sm font-bold">{tx('title') || (mod.type === 'hot-products' ? tr('ui.sf.hotProducts') : tr('ui.sf.default.new-arrivals.title'))}</h3>
+              <button type="button" onClick={() => onTemplateAction?.('/products', tr('ui.sf.viewProducts'))} className="text-xs text-[#1677ff] hover:underline">{tr('ui.viewMore')}</button>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
               {liveProducts.map((pr: any) => (
@@ -766,7 +773,7 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
       }
       return (
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="text-lg font-bold text-gray-900 mb-3">{String(p('title') || 'Products')}</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-3">{txOr('title', 'ui.sf.products')}</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {Array.from({ length: Number(p('limit')) || 4 }).map((_, i) => (
               <div key={i} className="bg-white rounded-lg border border-gray-100 overflow-hidden">
@@ -781,14 +788,15 @@ function ModuleRenderer({ mod, storeId, sellerId, store, categoryFilter = 'all',
     default:
       return (
         <div className="rounded-lg border border-gray-200 p-4">
-          <p className="text-sm text-gray-600">{String(p('title') || mod.type)}</p>
+          <p className="text-sm text-gray-600">{tx('title') || mod.type}</p>
         </div>
       );
   }
 }
 
 export function StorefrontRenderer({ config, sellerId, store }: { config: StorefrontConfig; sellerId?: number; store?: Record<string, unknown> }) {
-  const { tr } = useLocale();
+  const { tr, locale } = useLocale();
+  const translator = useStorefrontTranslator(config, locale);
   // A transparent store sign lets a full-bleed page background show through the header.
   const signTransparent = config.sections.some(section => section.modules.some(mod => mod.type === 'store-sign' && Boolean(mod.props?.transparent)));
   const [activeTab, setActiveTab] = useState(config.sections[0]?.id || 'home');
@@ -881,7 +889,22 @@ export function StorefrontRenderer({ config, sellerId, store }: { config: Storef
   const activeHasProductModule = activeSection?.modules.some(mod => ['recommended-products', 'product-category', 'double-row-products', 'hot-products', 'new-arrivals', 'trending-now'].includes(mod.type));
 
   return (
+    <StorefrontTranslatorContext.Provider value={translator}>
     <div className="flex min-h-[760px] w-full flex-col bg-[#f5f7fa]">
+      {/* Seller copy is machine-translated automatically; say so, and keep the original one tap away. */}
+      {(translator.machineTranslated || translator.loading) && (
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800">
+          {translator.loading && !translator.machineTranslated
+            ? <span className="inline-flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> {tr('ui.sf.translating')}</span>
+            : <>
+              <span className="inline-flex items-center gap-1 font-semibold"><Languages size={11} /> {tr('translate.machineLabel')}</span>
+              <span className="hidden sm:inline">{tr('ui.sf.machineBar')}</span>
+              <button type="button" onClick={() => translator.setShowOriginal(!translator.showOriginal)} className="inline-flex items-center gap-1 font-bold underline hover:text-amber-950">
+                <RotateCcw size={11} /> {translator.showOriginal ? tr('ui.sf.showTranslation') : tr('translate.showOriginal')}
+              </button>
+            </>}
+        </div>
+      )}
       {/* Alibaba Nav - blue bar */}
       <div className="relative z-20 border-b border-[#075fca] bg-[#1677ff] text-white shadow-sm">
       <div className="mx-auto flex min-h-11 w-full max-w-[1280px] items-center gap-2 px-2">
@@ -893,7 +916,7 @@ export function StorefrontRenderer({ config, sellerId, store }: { config: Storef
               onClick={() => setActiveTab(section.id)}
               className={`flex items-center gap-1 whitespace-nowrap border-b-2 px-4 py-2 text-xs font-medium ${activeTab === section.id ? 'border-white bg-white text-[#1677ff]' : 'border-transparent hover:bg-white/10'}`}
             >
-              {section.name}{isProducts && <ChevronDown size={12} />}
+              {sectionLabel(locale, config, section)}{isProducts && <ChevronDown size={12} />}
             </button>
             {isProducts && (
               <div className="invisible absolute left-0 top-full z-50 w-56 translate-y-1 rounded-b-lg border border-gray-200 bg-white py-2 text-gray-800 opacity-0 shadow-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
@@ -915,7 +938,7 @@ export function StorefrontRenderer({ config, sellerId, store }: { config: Storef
       {/* Shop Sign / Banner */}
       {config.shopSign?.imageUrl && !config.shopSign.hidden && (
         <div className={`relative h-36 overflow-hidden ${signTransparent ? 'bg-transparent' : 'bg-gray-100'}`}>
-          <img src={config.shopSign.imageUrl} alt={config.shopSign.altText || 'Store Banner'} className="w-full h-full object-cover" />
+          <img src={config.shopSign.imageUrl} alt={config.shopSign.altText || tr('ui.sf.storeBanner')} className="w-full h-full object-cover" />
         </div>
       )}
 
@@ -931,7 +954,7 @@ export function StorefrontRenderer({ config, sellerId, store }: { config: Storef
               onClick={() => chooseCategory('all')}
               className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${selectedCategory === 'all' ? 'border-[#ff6a00] bg-[#ff6a00] text-white' : 'border-gray-200 bg-white text-gray-700'}`}
             >
-              All products ({storeProducts.length})
+              {tr('ui.allProducts')} ({storeProducts.length})
             </button>
             {visibleCategories.map(([category, count]) => (
               <button
@@ -959,12 +982,12 @@ export function StorefrontRenderer({ config, sellerId, store }: { config: Storef
               {visibleCategories.length === 0 && <p className="px-2 py-2 text-xs text-gray-400">{tr('ui.noCategoriesYet')}</p>}
             </div>
           </div>
-          {storeProducts.length > 0 && <div className="mt-3 border border-[#cbd8e5] bg-white p-1 shadow-sm">{storeProducts.slice(0, 4).map(product => <Link href={`/products/${product.id}`} key={product.id} className="flex gap-2 border-b border-gray-100 p-1.5 last:border-0 hover:bg-orange-50"><div className="h-12 w-12 shrink-0 overflow-hidden border border-gray-100 bg-gray-100"><ProductThumb src={product.primary_image} name={product.name} /></div><div className="min-w-0"><p className="line-clamp-2 text-[9px] leading-tight text-gray-700">{product.name}</p><p className="mt-1 truncate text-[9px] font-bold text-[#b12704]">{Number(product.base_price).toLocaleString()} BIF</p><p className="truncate text-[8px] text-gray-400">Min. order {product.minimum_order_quantity}</p></div></Link>)}</div>}
+          {storeProducts.length > 0 && <div className="mt-3 border border-[#cbd8e5] bg-white p-1 shadow-sm">{storeProducts.slice(0, 4).map(product => <Link href={`/products/${product.id}`} key={product.id} className="flex gap-2 border-b border-gray-100 p-1.5 last:border-0 hover:bg-orange-50"><div className="h-12 w-12 shrink-0 overflow-hidden border border-gray-100 bg-gray-100"><ProductThumb src={product.primary_image} name={product.name} /></div><div className="min-w-0"><p className="line-clamp-2 text-[9px] leading-tight text-gray-700">{product.name}</p><p className="mt-1 truncate text-[9px] font-bold text-[#b12704]">{Number(product.base_price).toLocaleString()} BIF</p><p className="truncate text-[8px] text-gray-400">{tr('ui.sf.minOrder')} {product.minimum_order_quantity}</p></div></Link>)}</div>}
         </aside>}
         <main className="min-h-[650px] min-w-0 flex-1">
         {storeProducts.length > 0 && (
           <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-[#fafafa] px-4 py-2">
-            <p className="text-xs font-semibold text-gray-700">{appliedSearch ? `Results for “${appliedSearch}” (${matchingProductCount})` : selectedCategory === 'all' ? `All products (${storeProducts.length})` : `${selectedCategory} (${categoryCounts[selectedCategory] || 0})`}</p>
+            <p className="text-xs font-semibold text-gray-700">{appliedSearch ? `${tr('ui.sf.resultsFor')} “${appliedSearch}” (${matchingProductCount})` : selectedCategory === 'all' ? `${tr('ui.allProducts')} (${storeProducts.length})` : `${selectedCategory} (${categoryCounts[selectedCategory] || 0})`}</p>
             <label className="flex items-center gap-2 text-[10px] font-medium text-gray-500"><span className="hidden sm:inline">{tr('ui.sortBy')}</span><select value={productSort} onChange={event => setProductSort(event.target.value)} className="h-8 min-w-36 rounded border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm outline-none focus:border-[#1677ff] focus:ring-1 focus:ring-[#1677ff]" aria-label={tr('ui.sortStoreProducts')}>
               <option value="newest">{tr('ui.newest')}</option>
               <option value="price-low">{tr('ui.priceLowToHigh')}</option>
@@ -984,7 +1007,7 @@ export function StorefrontRenderer({ config, sellerId, store }: { config: Storef
               // `fluid` breaks a module out of the content column; `hideBottom` removes the
               // gap under it so stacked modules read as one continuous design.
               <div key={mod.id} className={`${mod.props?.fluid ? 'relative left-1/2 w-screen -translate-x-1/2' : ''} ${mod.props?.hideBottom ? '' : 'mb-4'}`}>
-                <ModuleRenderer mod={mod} storeId={config.storeId} sellerId={sellerId} store={store} categoryFilter={selectedCategory} productSort={productSort} productSearch={appliedSearch} onStoreSearch={applyStoreSearch} onTemplateAction={handleTemplateAction} />
+                <ModuleRenderer mod={mod} sectionId={activeSection?.id} storeId={config.storeId} sellerId={sellerId} store={store} categoryFilter={selectedCategory} productSort={productSort} productSearch={appliedSearch} onStoreSearch={applyStoreSearch} onTemplateAction={handleTemplateAction} />
               </div>
             ))}
             {activeSection?.id === productSection?.id && !activeHasProductModule && (
@@ -1000,5 +1023,6 @@ export function StorefrontRenderer({ config, sellerId, store }: { config: Storef
       </div>
 
     </div>
+    </StorefrontTranslatorContext.Provider>
   );
 }

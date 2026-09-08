@@ -44,8 +44,8 @@
 @media(prefers-reduced-motion:reduce){.bn-item{transition:none}}
 
 /* Familiar full-height chat workspace. */
-.bc-messenger{height:100%;max-width:none;padding:0;min-height:0}
-.bc-messenger .bc-inbox{height:100%;max-height:none;min-height:0;border:0;border-radius:0;box-shadow:none;grid-template-columns:340px minmax(0,1fr)}
+.bc-messenger{display:flex;flex-direction:column;flex:1 1 0;height:auto;width:100%;max-width:none;margin:0;padding:0;min-height:0}
+.bc-messenger .bc-inbox{flex:1 1 0;height:auto;max-height:none;min-height:0;border:0;border-radius:0;box-shadow:none;grid-template-columns:340px minmax(0,1fr)}
 .bc-messenger .bc-inbox-heading{padding:22px 22px 18px;color:#64748b}
 .bc-messenger .bc-inbox-heading h3{font-size:23px;letter-spacing:-.5px}
 .bc-messenger .bc-count{margin-left:5px;border-radius:20px;background:#eef1f4;color:#64748b;vertical-align:middle;font-size:11px;padding:4px 8px}
@@ -83,12 +83,12 @@
 .bc-messenger .bc-compose-box .primary{height:36px;width:36px;padding:0;border-radius:50%;background:#ed961f;border-color:#ed961f;color:white}
 .bc-messenger .bc-compose-box .primary:disabled{background:#dce1e6;border-color:#dce1e6;color:#99a3ad;opacity:1}
 .bc-messenger .bc-inbox-footer{font-size:10px;color:#8b949f;background:#fafbfc;line-height:1.6}
-.buyer-messenger-frame{height: min(760px, calc(100dvh - 200px));min-height:440px}
+
 .buyer-notifications-dialog{display:block}
 .buyer-notifications-dialog .buyer-notification-center{padding:16px 24px 24px;min-width:0;width:100%}
 .buyer-notifications-dialog .bn-heading{padding-right:12px}
 .buyer-notifications-dialog .bn-heading h2{font-size:26px}
-@media(max-width:800px){.buyer-messenger-frame{height:calc(100dvh - 240px);min-height:400px}.buyer-notifications-dialog .buyer-notification-center{padding:8px 12px 16px}}
+@media(max-width:800px){.buyer-notifications-dialog .buyer-notification-center{padding:8px 12px 16px}}
 @media(max-width:1100px){.bc-messenger .bc-inbox{grid-template-columns:290px minmax(0,1fr)}}
 @media(max-width:800px){.bc-messenger .bc-inbox{height:100%;min-height:0}.bc-messenger .bc-thread-header{padding:12px;gap:8px}.bc-messenger .bc-topic{padding:10px 16px;font-size:11px}.bc-messenger .bc-message-row{max-width:90%}.bc-messenger .bc-bubble{font-size:13px}.bc-messenger .bc-composer{padding:10px 12px}.bc-messenger .bc-quick-replies button{font-size:10px}.bc-messenger .bc-message-history{padding:20px 16px}.bc-messenger .bc-inbox-heading{padding-top:18px}}
  .bc-store-link{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;color:#b15a00!important;font-size:11px}.bc-store-link span{font-weight:700}
@@ -192,3 +192,23 @@
 .bc-messenger .bc-thread-header{border-bottom:1px solid #eceef1}
 
 @media(max-width:800px){.bc-messenger .bc-message-row{max-width:88%}.bc-messenger .bc-bubble{font-size:14px}.bc-messenger .bc-avatar{width:48px;height:48px}}
+
+/* ── Full-height messenger page ──────────────────────────────────────────────
+   Sized off the *visual* viewport (--nz-vv, published by the shell from
+   window.visualViewport) minus the measured fixed header (--nz-header-h). When the
+   on-screen keyboard opens, --nz-vv shrinks and the whole chat shrinks with it, so the
+   composer is always the last thing above the keyboard. 100dvh is the no-JS fallback. */
+.bc-messenger-page{height:calc(var(--nz-vv,100dvh) - var(--nz-header-h,60px));display:flex;flex-direction:column;overflow:hidden;background:#fff}
+.bc-messenger .bc-message-history{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.bc-messenger .bc-composer{padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+@media(max-width:800px){.bc-messenger .bc-composer{padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}}
+/* With the keyboard up the safe-area inset is already consumed by the keyboard itself. */
+html.nzanila-keyboard-open .bc-messenger .bc-composer{padding-bottom:10px}
+/* The chat owns the viewport: nothing behind it should scroll or rubber-band. */
+html.nz-chromeless,html.nz-chromeless body{height:100%;overflow:hidden;overscroll-behavior:none}
+
+/* Narrow screens: the thread header is one line of name, one of subtitle. Nothing in it
+   may wrap and push the message list down — the thread header has a fixed budget. */
+.bc-messenger .bc-thread-header{flex-wrap:nowrap}
+.bc-messenger .bc-thread-person p,.bc-messenger .bc-website-link{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.bc-messenger .bc-thread-header .bc-avatar{flex-shrink:0}

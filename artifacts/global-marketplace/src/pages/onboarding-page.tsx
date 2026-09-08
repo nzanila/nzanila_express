@@ -97,6 +97,7 @@ export function OnboardingPage() {
   const [countryCode, setCountryCode] = useState<CountryCode>('BI');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [preferredLanguage, setPreferredLanguage] = useState<Language>(locale as Language);
   const currentLanguage = locales.find((item) => item.code === locale) ?? locales[0];
 
@@ -131,6 +132,7 @@ export function OnboardingPage() {
     if (!accountType) return;
     setError('');
     if (password !== passwordConfirm) { setError('Passwords do not match.'); return; }
+    if (!agreedToTerms) { setError(tr('auth.mustAgreeToTerms')); return; }
     // The phone is the sign-in identifier and the API rejects a blank one, so require it
     // here rather than sending '' and surfacing a confusing server error.
     if (!phoneNumber.trim()) { setError('Phone number is required — you sign in with it.'); return; }
@@ -418,6 +420,11 @@ export function OnboardingPage() {
               {renderInput('Verify password', passwordConfirm, setPasswordConfirm, 'Repeat your password', 'password')}
               {passwordConfirm && <p className={`-mt-3 text-xs font-semibold ${password === passwordConfirm ? 'text-emerald-600' : 'text-red-600'}`}>{password === passwordConfirm ? `✓ ${tr('auth.passwordsMatch')}` : `✕ ${tr('auth.passwordsDoNotMatch')}`}</p>}
 
+              <label className="flex items-start gap-2.5 text-xs text-gray-600">
+                <input type="checkbox" checked={agreedToTerms} onChange={(e) => setAgreedToTerms(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-[#1a5f4a] focus:ring-[#1a5f4a]" />
+                <span>{tr('auth.agreeToTermsPrefix')} <a href="/terms" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#1a5f4a] underline hover:text-[#154a3a]">{tr('auth.agreeToTermsLink')}</a></span>
+              </label>
+
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-700">{tr('onboarding.preferredLanguage')}</label>
                 <select value={preferredLanguage} onChange={(e) => setPreferredLanguage(e.target.value as Language)}
@@ -437,7 +444,7 @@ export function OnboardingPage() {
 
               <div className="space-y-3">
                 <button onClick={handleCreateAccount}
-                  disabled={!fullName.trim() || password.length < 6 || password !== passwordConfirm || loading}
+                  disabled={!fullName.trim() || password.length < 6 || password !== passwordConfirm || !agreedToTerms || loading}
                   className="h-13 w-full rounded-xl bg-[#1a5f4a] text-base font-bold text-white hover:bg-[#154a3a] disabled:opacity-40">
                   {loading ? (locale === 'fr' ? 'Création…' : locale === 'sw' ? 'Inaunda…' : 'Creating…') : tr('onboarding.continue')}
                 </button>

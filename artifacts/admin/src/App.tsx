@@ -261,16 +261,22 @@ function AlertIcon({ kind }: { kind: AlertItem['kind'] }) {
  * browser tab, cannot be styled or translated, and are silently suppressed in some
  * embedded webviews — which would let a destructive action fire with no prompt at all.
  */
+// The shell's scrolling element. Modal locks this rather than <body>; see the effect below.
+const SCROLLER_ID = 'admin-scroll';
+
 function Modal({ title, description, onClose, children }: {
   title: string; description?: string; onClose: () => void; children: React.ReactNode;
 }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
-    // Stop the page behind scrolling while the dialog owns the screen.
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = previous; };
+    // Stop the content behind scrolling while the dialog owns the screen. The shell is a
+    // fixed-height viewport, so <main> is the real scroller — locking <body> here would be
+    // inert, since an ancestor's overflow can't freeze a descendant's own scroll container.
+    const scroller: HTMLElement = document.getElementById(SCROLLER_ID) || document.body;
+    const previous = scroller.style.overflow;
+    scroller.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', onKey); scroller.style.overflow = previous; };
   }, [onClose]);
 
   return <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
@@ -483,7 +489,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       { href: '/password-resets', label: 'Password resets', icon: KeyRound, count: alerts?.resets.length || 0 },
     ] },
     { title: 'Marketplace', items: [
-      { href: '/orders', label: 'Orders', icon: ShoppingCart, count: 0 },
+      { href: '/orders', label: 'Orders', icon: ShoppingCart, count: alerts?.stats?.activeOrders || 0 },
       { href: '/stores', label: 'Stores', icon: Store, count: 0 },
       { href: '/users', label: 'Users', icon: Users, count: 0 },
     ] },
@@ -534,7 +540,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         </span>
         <NotificationBell />
       </div>
-      <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-7">{children}</main>
+      <main id={SCROLLER_ID} className="min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 md:p-7">{children}</main>
     </div>
   </div>;
 }

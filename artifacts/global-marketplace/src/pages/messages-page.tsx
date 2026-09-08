@@ -1,13 +1,14 @@
 import { AppShell } from '@/components/marketplace-shell';
 import { BuyerMessages } from '@/components/buyer-communications';
-import { useLocale } from '@/lib/i18n/locale-context';
 
+/**
+ * The messenger owns the viewport. No page heading, no card, no footer, no bottom nav:
+ * the header stays, the conversation list and thread fill everything under it, and the
+ * message history is the only scroller — so the composer never disappears under the
+ * keyboard or the site footer.
+ */
 export function MessagesPage() {
-  const { tr } = useLocale();
-  return <AppShell hideSearch hideSidebar hideFooter>
-    <div className="mx-auto max-w-7xl px-3 py-5 sm:px-6">
-      <div className="mb-4"><h1 className="text-2xl font-bold text-gray-900">{tr('ui.messages')}</h1><p className="mt-1 text-sm text-gray-500">{tr('ui.yourSupplierConversationsAllInOne')}</p></div>
-      <div className="buyer-messenger-frame overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"><BuyerMessages /></div>
-    </div>
+  return <AppShell hideSearch hideSidebar hideFooter hideTopBar fullBleed chromeless>
+    <div className="bc-messenger-page"><BuyerMessages /></div>
   </AppShell>;
 }

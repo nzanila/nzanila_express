@@ -42,10 +42,11 @@
 @media(prefers-reduced-motion:reduce){.nc-item{transition:none}}
 
 /* Familiar full-height chat workspace. */
-.sc-messenger{height:calc(100dvh - 112px);max-width:none;padding:0;min-height:420px}
-@media(min-width:1024px){.sc-messenger{height:calc(100dvh - 61px)}}
-.panel-embedded .sc-messenger{height:100%;min-height:0}
-.sc-messenger .sc-inbox{height:100%;max-height:none;min-height:0;border:0;border-radius:0;box-shadow:none;grid-template-columns:340px minmax(0,1fr)}
+/* Fills whatever flex column the layout gives it (AppLayout in chromeless mode, or the
+   notifications side panel); no viewport arithmetic here, so it cannot drift from the
+   real header height. */
+.sc-messenger{display:flex;flex-direction:column;flex:1 1 0;height:auto;width:100%;max-width:none;margin:0;padding:0;min-height:0}
+.sc-messenger .sc-inbox{flex:1 1 0;height:auto;max-height:none;min-height:0;border:0;border-radius:0;box-shadow:none;grid-template-columns:340px minmax(0,1fr)}
 .sc-messenger .sc-inbox-heading{padding:22px 22px 18px;color:#64748b}
 .sc-messenger .sc-inbox-heading h3{font-size:23px;letter-spacing:-.5px}
 .sc-messenger .sc-count{margin-left:5px;border-radius:20px;background:#eef1f4;color:#64748b;vertical-align:middle;font-size:11px;padding:4px 8px}
@@ -84,7 +85,7 @@
 .sc-messenger .sc-compose-box .primary:disabled{background:#dce1e6;border-color:#dce1e6;color:#99a3ad;opacity:1}
 .sc-messenger .sc-inbox-footer{font-size:10px;color:#8b949f;background:#fafbfc;line-height:1.6}
 @media(max-width:1100px){.sc-messenger .sc-inbox{grid-template-columns:290px minmax(0,1fr)}}
-@media(max-width:800px){.sc-messenger .sc-inbox{height:100%;min-height:0}.sc-messenger .sc-thread-header{padding:12px;gap:8px}.sc-messenger .sc-topic{padding:10px 16px;font-size:11px}.sc-messenger .sc-message-row{max-width:90%}.sc-messenger .sc-bubble{font-size:13px}.sc-messenger .sc-composer{padding:10px 12px}.sc-messenger .sc-quick-replies button{font-size:10px}.sc-messenger .sc-message-history{padding:20px 16px}.sc-messenger .sc-inbox-heading{padding-top:18px}}
+@media(max-width:800px){.sc-messenger .sc-inbox{min-height:0}.sc-messenger .sc-thread-header{padding:12px;gap:8px}.sc-messenger .sc-topic{padding:10px 16px;font-size:11px}.sc-messenger .sc-message-row{max-width:90%}.sc-messenger .sc-bubble{font-size:13px}.sc-messenger .sc-composer{padding:10px 12px}.sc-messenger .sc-quick-replies button{font-size:10px}.sc-messenger .sc-message-history{padding:20px 16px}.sc-messenger .sc-inbox-heading{padding-top:18px}}
 .sc-delete-button{margin-left:auto;color:#9a5b5b;border-color:#f0dede;background:#fffafa}.sc-delete-button:hover{color:#b42318;background:#fff1f0;border-color:#efb8b3}.sc-messenger .sc-compose-box textarea::placeholder{color:#a0a8b2}.sc-messenger .sc-compose-box textarea:focus{outline:none}
 .sc-message-row{display:flex;align-items:center;gap:7px;max-width:82%}.sc-message-delete{display:inline-flex;align-items:center;justify-content:center;padding:5px;border:0;border-radius:6px;color:#a4adb7;background:transparent}.sc-message-delete:hover{color:#b42318;background:#fff1f0}
 
@@ -197,3 +198,28 @@ main > div:has(> .sc-messenger){max-width:none}
 .sc-avatar img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
 .sc-thread-person{min-width:0}
 .sc-thread-person h3{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ── Keyboard + safe area ──────────────────────────────────────────────────── */
+.sc-messenger .sc-message-history{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.sc-messenger .sc-composer{padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+@media(max-width:800px){.sc-messenger .sc-composer{padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}}
+/* With the keyboard up the safe-area inset is already consumed by the keyboard itself. */
+html.sc-keyboard-open .sc-messenger .sc-composer{padding-bottom:10px}
+/* The chat owns the viewport: nothing behind it should scroll or rubber-band. */
+html.sc-chromeless,html.sc-chromeless body{height:100%;overflow:hidden;overscroll-behavior:none}
+
+/* Narrow screens: the thread header is one line of name, one of subtitle. Nothing in it
+   may wrap and push the message list down — the thread header has a fixed budget. */
+.sc-messenger .sc-thread-header{flex-wrap:nowrap}
+.sc-messenger .sc-thread-person p,.sc-messenger .sc-website-link{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.sc-messenger .sc-thread-header .sc-avatar{flex-shrink:0}
+
+/* ── Store separation ─────────────────────────────────────────────────────────
+   Shown only once a seller actually has conversations spread across more than one
+   store (see the `stores.length > 1` guard in the component) — a single-store seller
+   never sees any of this. */
+.sc-store-filter{display:flex;align-items:center;gap:7px;margin:0 16px 12px;padding:9px 11px;background:#f6f7f9;border:1px solid #e9ecf0;border-radius:7px;color:#657080}
+.sc-store-filter select{flex:1;min-width:0;background:transparent;border:0;outline:none;color:#232f3e;font-size:12px;font-weight:600}
+.sc-store-tag{display:flex;align-items:center;gap:5px;margin-top:3px;color:#8a919b;font-size:11px}
+.sc-store-tag img{width:14px;height:14px;border-radius:4px;object-fit:cover;flex-shrink:0}
+.sc-thread-store-logo{width:16px;height:16px;border-radius:4px;object-fit:cover;margin-right:5px;vertical-align:-3px}

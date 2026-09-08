@@ -14,7 +14,9 @@ import { CommerceBackground } from './components/commerce-background';
 import { VerificationPage } from './components/verification-page';
 import { VerificationPrompt } from './components/verification-prompt';
 import { ForgotPasswordPage } from './components/forgot-password-page';
+import { LegalPage } from './components/legal-page';
 import { useVerificationStatus, needsVerificationAction, clearVerificationStatusCache, type VerificationStatus } from './lib/verification-status';
+import { useOrdersNeedingAction, clearOrdersBadgeCache } from './lib/orders-badge';
 import { SellerLocationMapModal, type SellerLocation } from './components/seller-location-map-modal';
 import { DEFAULT_STOREFRONT_CONFIG, STOREFRONT_TEMPLATES, loadStorefrontTemplates, type StorefrontTemplate } from './lib/storefront-types';
 import { setNotice } from './components/confirm-dialog';
@@ -42,7 +44,11 @@ function toSellerUser(value: any): User {
     name: value.name || value.businessName || 'Seller',
     phone: value.phone || '',
     role: value.role,
-    profileCompleted: value.profileCompleted ?? (value.role === 'seller' ? true : value.onboardingCompleted ?? true),
+    // A seller who never finished the profile-completion form has no business name on
+    // file — this used to hardcode `true` for every seller, so an account abandoned
+    // mid-onboarding (closed the tab before submitting) was never asked again and its
+    // company name/description stayed blank forever, looking like the data had been lost.
+    profileCompleted: value.profileCompleted ?? (value.role === 'seller' ? Boolean(value.businessName && String(value.businessName).trim()) : value.onboardingCompleted ?? true),
     storeCreated: value.storeCreated ?? false,
     businessName: value.businessName,
     businessDescription: value.businessDescription,
@@ -391,7 +397,7 @@ function useAuth() {
 }
 
 // Sidebar Component
-function Sidebar({ isOpen, mobileOpen = false, onClose, onCloseMobile, onOpenNotifications, verificationStatus = null }: { isOpen: boolean; mobileOpen?: boolean; onClose: () => void; onCloseMobile?: () => void; onOpenNotifications: () => void; verificationStatus?: VerificationStatus | null }) {
+function Sidebar({ isOpen, mobileOpen = false, onClose, onCloseMobile, onOpenNotifications, verificationStatus = null, ordersNeedingAction = 0 }: { isOpen: boolean; mobileOpen?: boolean; onClose: () => void; onCloseMobile?: () => void; onOpenNotifications: () => void; verificationStatus?: VerificationStatus | null; ordersNeedingAction?: number }) {
   const [location] = useLocation();
   const { tr } = useLocale();
   const [expandedItems, setExpandedItems] = useState<string[]>(['dashboard']);
@@ -424,10 +430,11 @@ function Sidebar({ isOpen, mobileOpen = false, onClose, onCloseMobile, onOpenNot
         { label: tr('nav.lowStockAlerts'), href: '/seller-central/inventory/alerts' },
       ]
     },
-    { 
+    {
       key: 'orders',
-      label: tr('nav.orders'), 
+      label: tr('nav.orders'),
       icon: ShoppingCart,
+      count: ordersNeedingAction,
       children: [
         { label: tr('nav.allOrders'), href: '/seller-central/orders' },
         { label: tr('nav.pendingOrders'), href: '/seller-central/orders?status=new' },
@@ -539,15 +546,19 @@ function Sidebar({ isOpen, mobileOpen = false, onClose, onCloseMobile, onOpenNot
                 <button
                   onClick={() => toggleExpanded(itemKey)}
                   className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                    active 
-                      ? 'bg-[#ff9900] text-white' 
+                    active
+                      ? 'bg-[#ff9900] text-white'
                       : 'text-gray-300 hover:bg-gray-700 hover:text-white'
                   }`}
                 >
-                  <Icon size={18} />
+                  <span className="relative shrink-0">
+                    <Icon size={18} />
+                    {!!(item as any).count && !expanded && <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-[16px] place-items-center rounded-full bg-[#ff9900] px-1 text-[9px] font-bold text-white ring-2 ring-[#232f3e]">{(item as any).count}</span>}
+                  </span>
                   {expanded && (
                     <>
                       <span className="flex-1 text-left">{item.label}</span>
+                      {!!(item as any).count && <span className="grid h-5 min-w-[20px] place-items-center rounded-full bg-[#ff9900] px-1.5 text-[11px] font-bold text-white">{(item as any).count}</span>}
                       {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     </>
                   )}
@@ -837,7 +848,7 @@ function OrdersPage() {
   ];
 
   return (
-    <div className="min-h-full bg-[#f5f5f7] p-6 md:p-8">
+    <div className="min-h-full bg-[#f5f5f7] p-4 md:p-8">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-orange-600">{tr('sc.orders')}</p><h2 className="mt-1 text-2xl font-bold text-gray-900">{tr('sc.order-management')}</h2><p className="mt-1 text-sm text-gray-500">{tr('sc.track-fulfillment-delivery-pickup-and-buyer-')}</p></div><div className="relative w-full max-w-xs"><Search size={16} className="absolute left-3 top-3 text-gray-400" /><input value={search} onChange={event => setSearch(event.target.value)} placeholder={tr("sc.search-order-or-buyer")} className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-orange-500" /></div></div>
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">{[{ label: 'All orders', value: orders.length, filter: 'all' }, { label: 'Needs action', value: orders.filter(order => ['new', 'confirmed', 'processing', 'preparing', 'ready'].includes(order.status)).length, filter: 'new' }, { label: 'In transit', value: orders.filter(order => ['out_for_delivery', 'shipped'].includes(order.status)).length, filter: 'out_for_delivery' }, { label: 'Completed', value: orders.filter(order => order.status === 'delivered').length, filter: 'delivered' }].map(card => <button type="button" key={card.label} onClick={() => setStatusFilter(card.filter)} className={`rounded-xl border p-4 text-left transition ${statusFilter === card.filter ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-white hover:border-orange-200'}`}><p className="text-xs text-gray-500">{card.label}</p><p className="mt-1 text-2xl font-bold text-gray-900">{loading ? '…' : card.value}</p></button>)}</div>
       {/* Status Filters */}
@@ -1538,12 +1549,12 @@ function StockManagementPage() {
 
 function PaymentsComingSoonPage() {
   const { tr } = useLocale();
-  return <div className="min-h-full bg-[#f5f5f7] p-6 md:p-8"><div className="mx-auto max-w-2xl rounded-2xl border border-gray-200 bg-white p-5 md:p-8 text-center shadow-sm"><div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-orange-100 text-orange-600"><CreditCard size={26} /></div><h2 className="mt-5 text-2xl font-bold text-gray-900">{tr('sc.payments-are-coming-soon')}</h2><p className="mt-2 text-sm leading-6 text-gray-600">{tr('sc.payment-collection-and-transaction-tools-are-2')}</p></div></div>;
+  return <div className="min-h-full bg-[#f5f5f7] p-4 md:p-8"><div className="mx-auto max-w-2xl rounded-2xl border border-gray-200 bg-white p-5 md:p-8 text-center shadow-sm"><div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-orange-100 text-orange-600"><CreditCard size={26} /></div><h2 className="mt-5 text-2xl font-bold text-gray-900">{tr('sc.payments-are-coming-soon')}</h2><p className="mt-2 text-sm leading-6 text-gray-600">{tr('sc.payment-collection-and-transaction-tools-are-2')}</p></div></div>;
 }
 
 function SectionComingSoonPage({ title }: { title: string }) {
   const { tr } = useLocale();
-  return <div className="min-h-full bg-[#f5f5f7] p-6 md:p-8"><div className="mx-auto max-w-2xl rounded-2xl border border-gray-200 bg-white p-5 md:p-8 text-center shadow-sm"><div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-blue-50 text-blue-600"><BarChart3 size={26} /></div><h2 className="mt-5 text-2xl font-bold text-gray-900">{title}</h2><p className="mt-2 text-sm leading-6 text-gray-600">{tr('sc.this-workspace-is-being-prepared-your-live-p')}</p></div></div>;
+  return <div className="min-h-full bg-[#f5f5f7] p-4 md:p-8"><div className="mx-auto max-w-2xl rounded-2xl border border-gray-200 bg-white p-5 md:p-8 text-center shadow-sm"><div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-blue-50 text-blue-600"><BarChart3 size={26} /></div><h2 className="mt-5 text-2xl font-bold text-gray-900">{title}</h2><p className="mt-2 text-sm leading-6 text-gray-600">{tr('sc.this-workspace-is-being-prepared-your-live-p')}</p></div></div>;
 }
 
 function SalesReportPage() {
@@ -1724,7 +1735,7 @@ function PricingManagementPage() {
     finally { setSaving(null); }
   };
 
-  return <div className="min-h-full bg-[#f5f5f7] p-6 md:p-8"><div className="mb-6 flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-orange-600">{tr('sc.pricing')}</p><h2 className="mt-1 text-2xl font-bold text-gray-900">{tr('sc.price-management')}</h2><p className="mt-1 text-sm text-gray-500">{tr('sc.update-regular-prices-and-discounts-for-your')}</p></div><Link href="/seller-central/inventory" className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50">{tr('sc.manage-stock')}</Link></div>{message && <p className="mb-4 rounded-lg bg-orange-50 px-4 py-3 text-sm font-semibold text-orange-800" role="status">{message}</p>}<div className="space-y-3 md:hidden">{loading ? <div className="rounded-2xl border border-gray-200 bg-white px-5 py-12 text-center text-sm text-gray-500">{tr('sc.loading-prices')}</div> : !products.length ? <div className="rounded-2xl border border-gray-200 bg-white px-5 py-12 text-center text-sm text-gray-500">{tr('sc.no-products-found-2')}</div> : products.map(product => { const draft = drafts[product.id] || { price: String(product.price), mode: product.compareAtPrice ? 'discount' as const : 'regular' as const }; return <div key={product.id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"><div className="flex items-start gap-3"><div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-gray-100">{product.image ? <img src={product.image} alt="" className="h-full w-full object-cover" /> : <Package size={18} className="m-3 text-gray-400" />}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-gray-900">{product.name}</p><p className="mt-0.5 truncate text-xs text-gray-500">{product.storeName} · {product.unit}</p><p className="mt-1 text-sm font-bold text-gray-900">{product.price.toLocaleString()} BIF</p>{product.compareAtPrice && <p className="text-xs text-emerald-600">Discount active · was {product.compareAtPrice.toLocaleString()} BIF</p>}</div></div><div className="mt-3 space-y-2 border-t border-gray-100 pt-3"><select value={draft.mode} onChange={event => setDrafts(old => ({ ...old, [product.id]: { ...draft, mode: event.target.value as 'regular' | 'discount' } }))} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold"><option value="regular">{tr('sc.regular-price')}</option><option value="discount">{tr('sc.discount-price')}</option></select><input type="number" min="1" value={draft.price} onChange={event => setDrafts(old => ({ ...old, [product.id]: { ...draft, price: event.target.value } }))} className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-orange-500" aria-label={`New price for ${product.name}`} placeholder={tr("sc.new-price")} /><div className="flex gap-2"><button type="button" onClick={() => setPreview(product)} className="flex-1 rounded-lg border border-gray-200 px-3 py-2.5 text-xs font-bold text-gray-700"><Eye size={13} className="mr-1 inline" />{tr('sc.view')}</button><button type="button" disabled={saving !== null} onClick={() => void savePrice(product)} className="flex-1 rounded-lg bg-orange-500 px-3 py-2.5 text-xs font-bold text-white disabled:opacity-50">{saving === product.id ? 'Saving…' : 'Save'}</button></div></div></div>; })}</div><div className="hidden rounded-2xl border border-gray-200 bg-white shadow-sm md:block"><table className="w-full text-left"><thead className="border-b border-gray-200 bg-gray-50"><tr><th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-gray-500">{tr('sc.product')}</th><th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-gray-500">{tr('sc.store')}</th><th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-gray-500">{tr('sc.current-price')}</th><th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-gray-500">{tr('sc.price-type')}</th><th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-gray-500">{tr('sc.new-price')}</th><th className="px-5 py-4 text-right text-xs font-bold uppercase tracking-wide text-gray-500">{tr('sc.actions')}</th></tr></thead><tbody className="divide-y divide-gray-100">{loading ? <tr><td colSpan={6} className="px-5 py-14 text-center text-sm text-gray-500">{tr('sc.loading-prices')}</td></tr> : !products.length ? <tr><td colSpan={6} className="px-5 py-14 text-center text-sm text-gray-500">{tr('sc.no-products-found-2')}</td></tr> : products.map(product => { const draft = drafts[product.id] || { price: String(product.price), mode: product.compareAtPrice ? 'discount' as const : 'regular' as const }; return <tr key={product.id} className="hover:bg-gray-50"><td className="px-5 py-4"><div className="flex items-center gap-3"><div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-gray-100">{product.image ? <img src={product.image} alt="" className="h-full w-full object-cover" /> : <Package size={18} className="m-3 text-gray-400" />}</div><div><p className="max-w-[240px] truncate text-sm font-bold text-gray-900">{product.name}</p><p className="mt-1 text-xs text-gray-500">{product.category} · {product.unit}</p></div></div></td><td className="px-5 py-4 text-sm text-gray-600">{product.storeName}</td><td className="px-5 py-4"><p className="text-sm font-bold text-gray-900">{product.price.toLocaleString()} BIF</p>{product.compareAtPrice && <p className="mt-1 text-xs text-emerald-600">Discount active · original {product.compareAtPrice.toLocaleString()} BIF</p>}</td><td className="px-5 py-4"><select value={draft.mode} onChange={event => setDrafts(old => ({ ...old, [product.id]: { ...draft, mode: event.target.value as 'regular' | 'discount' } }))} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold"><option value="regular">{tr('sc.regular-price')}</option><option value="discount">{tr('sc.discount-price')}</option></select></td><td className="px-5 py-4"><input type="number" min="1" value={draft.price} onChange={event => setDrafts(old => ({ ...old, [product.id]: { ...draft, price: event.target.value } }))} className="w-32 rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-orange-500" aria-label={`New price for ${product.name}`} /></td><td className="px-5 py-4"><div className="flex justify-end gap-2"><button type="button" onClick={() => setPreview(product)} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-100"><Eye size={13} className="mr-1 inline" />{tr('sc.view')}</button><button type="button" disabled={saving !== null} onClick={() => void savePrice(product)} className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-50">{saving === product.id ? 'Saving…' : 'Save'}</button></div></td></tr>; })}</tbody></table></div>{preview && <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="pricing-preview-title" onClick={() => setPreview(null)}><div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={event => event.stopPropagation()}><div className="flex items-center justify-between border-b border-gray-100 px-5 py-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-orange-600">{tr('sc.product-preview')}</p><h2 id="pricing-preview-title" className="mt-1 text-lg font-bold text-gray-900">{preview.name}</h2></div><button type="button" onClick={() => setPreview(null)} className="rounded-lg p-1 text-gray-500 hover:bg-gray-100"><X size={18} /></button></div><div className="p-5"><div className="h-52 overflow-hidden rounded-xl bg-gray-100">{preview.image ? <img src={preview.image} alt={preview.name} className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center"><Package size={42} className="text-gray-300" /></div>}</div><p className="mt-4 text-sm leading-6 text-gray-600">{preview.description || 'No description has been added for this product.'}</p><div className="mt-4 grid grid-cols-2 gap-3 text-xs"><div className="rounded-lg bg-gray-50 p-3"><span className="text-gray-500">{tr('sc.store')}</span><strong className="mt-1 block text-gray-900">{preview.storeName}</strong></div><div className="rounded-lg bg-gray-50 p-3"><span className="text-gray-500">{tr('sc.category')}</span><strong className="mt-1 block text-gray-900">{preview.category}</strong></div><div className="rounded-lg bg-gray-50 p-3"><span className="text-gray-500">{tr('sc.current-price')}</span><strong className="mt-1 block text-gray-900">{preview.price.toLocaleString()} BIF</strong></div><div className="rounded-lg bg-gray-50 p-3"><span className="text-gray-500">{tr('sc.stock')}</span><strong className="mt-1 block text-gray-900">{preview.stock} {preview.unit}</strong></div></div></div></div></div>}</div>;
+  return <div className="min-h-full bg-[#f5f5f7] p-4 md:p-8"><div className="mb-6 flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-orange-600">{tr('sc.pricing')}</p><h2 className="mt-1 text-2xl font-bold text-gray-900">{tr('sc.price-management')}</h2><p className="mt-1 text-sm text-gray-500">{tr('sc.update-regular-prices-and-discounts-for-your')}</p></div><Link href="/seller-central/inventory" className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50">{tr('sc.manage-stock')}</Link></div>{message && <p className="mb-4 rounded-lg bg-orange-50 px-4 py-3 text-sm font-semibold text-orange-800" role="status">{message}</p>}<div className="space-y-3 md:hidden">{loading ? <div className="rounded-2xl border border-gray-200 bg-white px-5 py-12 text-center text-sm text-gray-500">{tr('sc.loading-prices')}</div> : !products.length ? <div className="rounded-2xl border border-gray-200 bg-white px-5 py-12 text-center text-sm text-gray-500">{tr('sc.no-products-found-2')}</div> : products.map(product => { const draft = drafts[product.id] || { price: String(product.price), mode: product.compareAtPrice ? 'discount' as const : 'regular' as const }; return <div key={product.id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"><div className="flex items-start gap-3"><div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-gray-100">{product.image ? <img src={product.image} alt="" className="h-full w-full object-cover" /> : <Package size={18} className="m-3 text-gray-400" />}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-gray-900">{product.name}</p><p className="mt-0.5 truncate text-xs text-gray-500">{product.storeName} · {product.unit}</p><p className="mt-1 text-sm font-bold text-gray-900">{product.price.toLocaleString()} BIF</p>{product.compareAtPrice && <p className="text-xs text-emerald-600">Discount active · was {product.compareAtPrice.toLocaleString()} BIF</p>}</div></div><div className="mt-3 space-y-2 border-t border-gray-100 pt-3"><select value={draft.mode} onChange={event => setDrafts(old => ({ ...old, [product.id]: { ...draft, mode: event.target.value as 'regular' | 'discount' } }))} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold"><option value="regular">{tr('sc.regular-price')}</option><option value="discount">{tr('sc.discount-price')}</option></select><input type="number" min="1" value={draft.price} onChange={event => setDrafts(old => ({ ...old, [product.id]: { ...draft, price: event.target.value } }))} className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-orange-500" aria-label={`New price for ${product.name}`} placeholder={tr("sc.new-price")} /><div className="flex gap-2"><button type="button" onClick={() => setPreview(product)} className="flex-1 rounded-lg border border-gray-200 px-3 py-2.5 text-xs font-bold text-gray-700"><Eye size={13} className="mr-1 inline" />{tr('sc.view')}</button><button type="button" disabled={saving !== null} onClick={() => void savePrice(product)} className="flex-1 rounded-lg bg-orange-500 px-3 py-2.5 text-xs font-bold text-white disabled:opacity-50">{saving === product.id ? 'Saving…' : 'Save'}</button></div></div></div>; })}</div><div className="hidden rounded-2xl border border-gray-200 bg-white shadow-sm md:block"><table className="w-full text-left"><thead className="border-b border-gray-200 bg-gray-50"><tr><th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-gray-500">{tr('sc.product')}</th><th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-gray-500">{tr('sc.store')}</th><th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-gray-500">{tr('sc.current-price')}</th><th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-gray-500">{tr('sc.price-type')}</th><th className="px-5 py-4 text-xs font-bold uppercase tracking-wide text-gray-500">{tr('sc.new-price')}</th><th className="px-5 py-4 text-right text-xs font-bold uppercase tracking-wide text-gray-500">{tr('sc.actions')}</th></tr></thead><tbody className="divide-y divide-gray-100">{loading ? <tr><td colSpan={6} className="px-5 py-14 text-center text-sm text-gray-500">{tr('sc.loading-prices')}</td></tr> : !products.length ? <tr><td colSpan={6} className="px-5 py-14 text-center text-sm text-gray-500">{tr('sc.no-products-found-2')}</td></tr> : products.map(product => { const draft = drafts[product.id] || { price: String(product.price), mode: product.compareAtPrice ? 'discount' as const : 'regular' as const }; return <tr key={product.id} className="hover:bg-gray-50"><td className="px-5 py-4"><div className="flex items-center gap-3"><div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-gray-100">{product.image ? <img src={product.image} alt="" className="h-full w-full object-cover" /> : <Package size={18} className="m-3 text-gray-400" />}</div><div><p className="max-w-[240px] truncate text-sm font-bold text-gray-900">{product.name}</p><p className="mt-1 text-xs text-gray-500">{product.category} · {product.unit}</p></div></div></td><td className="px-5 py-4 text-sm text-gray-600">{product.storeName}</td><td className="px-5 py-4"><p className="text-sm font-bold text-gray-900">{product.price.toLocaleString()} BIF</p>{product.compareAtPrice && <p className="mt-1 text-xs text-emerald-600">Discount active · original {product.compareAtPrice.toLocaleString()} BIF</p>}</td><td className="px-5 py-4"><select value={draft.mode} onChange={event => setDrafts(old => ({ ...old, [product.id]: { ...draft, mode: event.target.value as 'regular' | 'discount' } }))} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold"><option value="regular">{tr('sc.regular-price')}</option><option value="discount">{tr('sc.discount-price')}</option></select></td><td className="px-5 py-4"><input type="number" min="1" value={draft.price} onChange={event => setDrafts(old => ({ ...old, [product.id]: { ...draft, price: event.target.value } }))} className="w-32 rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-orange-500" aria-label={`New price for ${product.name}`} /></td><td className="px-5 py-4"><div className="flex justify-end gap-2"><button type="button" onClick={() => setPreview(product)} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-100"><Eye size={13} className="mr-1 inline" />{tr('sc.view')}</button><button type="button" disabled={saving !== null} onClick={() => void savePrice(product)} className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-50">{saving === product.id ? 'Saving…' : 'Save'}</button></div></td></tr>; })}</tbody></table></div>{preview && <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="pricing-preview-title" onClick={() => setPreview(null)}><div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={event => event.stopPropagation()}><div className="flex items-center justify-between border-b border-gray-100 px-5 py-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-orange-600">{tr('sc.product-preview')}</p><h2 id="pricing-preview-title" className="mt-1 text-lg font-bold text-gray-900">{preview.name}</h2></div><button type="button" onClick={() => setPreview(null)} className="rounded-lg p-1 text-gray-500 hover:bg-gray-100"><X size={18} /></button></div><div className="p-5"><div className="h-52 overflow-hidden rounded-xl bg-gray-100">{preview.image ? <img src={preview.image} alt={preview.name} className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center"><Package size={42} className="text-gray-300" /></div>}</div><p className="mt-4 text-sm leading-6 text-gray-600">{preview.description || 'No description has been added for this product.'}</p><div className="mt-4 grid grid-cols-2 gap-3 text-xs"><div className="rounded-lg bg-gray-50 p-3"><span className="text-gray-500">{tr('sc.store')}</span><strong className="mt-1 block text-gray-900">{preview.storeName}</strong></div><div className="rounded-lg bg-gray-50 p-3"><span className="text-gray-500">{tr('sc.category')}</span><strong className="mt-1 block text-gray-900">{preview.category}</strong></div><div className="rounded-lg bg-gray-50 p-3"><span className="text-gray-500">{tr('sc.current-price')}</span><strong className="mt-1 block text-gray-900">{preview.price.toLocaleString()} BIF</strong></div><div className="rounded-lg bg-gray-50 p-3"><span className="text-gray-500">{tr('sc.stock')}</span><strong className="mt-1 block text-gray-900">{preview.stock} {preview.unit}</strong></div></div></div></div></div>}</div>;
 }
 
 // Stores Page
@@ -1786,7 +1797,7 @@ function StoresPage() {
   });
 
   return (
-    <div className="min-h-full bg-[#f6f7f8] p-5 md:p-7">
+    <div className="min-h-full bg-[#f6f7f8] p-4 md:p-8">
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 pb-5">
         <div>
@@ -1868,7 +1879,6 @@ function StoresPage() {
                   <Link href={`/seller-central/stores/${store.id}/storefront`} className="flex min-w-[140px] flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#ff6a00] px-3 py-2.5 text-xs font-bold text-white hover:bg-[#e85f00]">
                     <Palette size={12} />{tr('sc.customize-storefront')}</Link>
                   {store.slug && <a href={`${STORE_BASE_URL}/store/${store.slug}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"><ExternalLink size={13} />{tr('sc.view-store-2')}</a>}
-                  <Link href={`/seller-central/stores/${store.id}`} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"><Edit size={13} />{tr('sc.edit-details')}</Link>
                   <button onClick={() => askDeleteStore(store)} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50"><Trash2 size={13} />{tr('sc.delete')}</button>
                 </div>
               </div>
@@ -1886,6 +1896,8 @@ function LoginPage({ onLogin, onSignup }: { onLogin: (phone: string, password: s
   const [isSignup, setIsSignup] = useState(false);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [name, setName] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [location, setLocation] = useState('');
@@ -1897,14 +1909,16 @@ function LoginPage({ onLogin, onSignup }: { onLogin: (phone: string, password: s
     e.preventDefault();
     setError('');
     if (!isValidPhone(phone)) { setError(PHONE_HINT); return; }
+    if (isSignup && password.length < 6) { setError(tr('auth.passwordTooShort')); return; }
+    if (isSignup && password !== confirmPassword) { setError(tr('auth.passwordsDoNotMatch')); return; }
+    if (isSignup && !agreedToTerms) { setError(tr('auth.mustAgreeToTerms')); return; }
     setLoading(true);
 
     try {
-      if (isSignup) {
-        await onSignup({ name, businessName, phone: countryCode + phone, password, location });
-      } else {
-        await onLogin(countryCode + phone, password);
-      }
+      const result = isSignup
+        ? await onSignup({ name, businessName, phone: countryCode + phone, password, location })
+        : await onLogin(countryCode + phone, password);
+      if (result && result.success === false) setError(result.error || 'An error occurred. Please try again.');
     } catch (err) {
       setError('An error occurred. Please try again.');
     }
@@ -1913,7 +1927,7 @@ function LoginPage({ onLogin, onSignup }: { onLogin: (phone: string, password: s
   };
 
   return (
-    <div className="min-h-screen bg-[#232f3e] flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-[#232f3e] flex items-center justify-center overflow-y-auto p-3 py-4 relative sm:p-4">
       <CommerceBackground tone="dark" />
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-10">
@@ -1927,52 +1941,54 @@ function LoginPage({ onLogin, onSignup }: { onLogin: (phone: string, password: s
       <div className="absolute bottom-20 right-10 w-48 h-48 bg-[#ff9900]/10 rounded-full blur-3xl" />
       <div className="absolute top-1/2 left-1/4 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl" />
       
-      <div className="w-full max-w-md relative z-10">
+      <div className="w-full max-w-md relative z-10 my-auto">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="h-16 w-16 rounded-2xl bg-[#ff9900] flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#ff9900]/30">
-            <Store size={32} className="text-white" />
+        {!isSignup && (
+        <div className="text-center mb-4 sm:mb-8">
+          <div className="h-12 w-12 rounded-2xl bg-[#ff9900] flex items-center justify-center mx-auto mb-2 shadow-lg shadow-[#ff9900]/30 sm:mb-4 sm:h-16 sm:w-16">
+            <Store size={24} className="text-white sm:hidden" /><Store size={32} className="hidden text-white sm:block" />
           </div>
-          <h1 className="text-2xl font-bold text-white sm:text-3xl">{tr('app.name')}</h1>
-          <p className="text-gray-400 mt-2">{tr('app.tagline')}</p>
+          <h1 className="text-xl font-bold text-white sm:text-3xl">{tr('app.name')}</h1>
+          <p className="text-gray-400 mt-1 text-sm sm:mt-2 sm:text-base">{tr('app.tagline')}</p>
         </div>
+        )}
 
-        <div className="bg-white rounded-2xl shadow-2xl p-5 md:p-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">
+        <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-5 md:p-8">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 sm:text-xl sm:mb-6">
             {isSignup ? tr('auth.signUpTitle') : tr('auth.signIn')}
           </h2>
           
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className={`space-y-2.5 sm:space-y-3.5 ${isSignup ? "" : ""}`}>
             {isSignup && (
               <>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">{tr('sc.full-name')}</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">{tr('sc.full-name')}</label>
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="John Doe"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900] focus:border-transparent"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl sm:py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900] focus:border-transparent"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">{tr('sc.business-name')}</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">{tr('sc.business-name')}</label>
                   <input
                     type="text"
                     value={businessName}
                     onChange={(e) => setBusinessName(e.target.value)}
                     placeholder="Kigali Fresh Traders"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900] focus:border-transparent"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl sm:py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900] focus:border-transparent"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">{tr('sc.location')}</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">{tr('sc.location')}</label>
                   <input
                     type="text"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
                     placeholder="Nyarugenge, Kigali"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900] focus:border-transparent"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl sm:py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900] focus:border-transparent"
                   />
                 </div>
               </>
@@ -1984,7 +2000,7 @@ function LoginPage({ onLogin, onSignup }: { onLogin: (phone: string, password: s
                 <select
                   value={countryCode}
                   onChange={(e) => setCountryCode(e.target.value)}
-                  className="px-3 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]"
+                  className="px-3 py-2.5 border border-gray-200 rounded-xl sm:py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]"
                 >
                   <option value="+257">🇧🇮 +257</option>
                   <option value="+250">🇷🇼 +250</option>
@@ -1994,7 +2010,7 @@ function LoginPage({ onLogin, onSignup }: { onLogin: (phone: string, password: s
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="61 23 4567"
-                  className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900] focus:border-transparent"
+                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl sm:py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900] focus:border-transparent"
                 />
               </div>
             </div>
@@ -2006,9 +2022,34 @@ function LoginPage({ onLogin, onSignup }: { onLogin: (phone: string, password: s
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900] focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl sm:py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900] focus:border-transparent"
               />
             </div>
+
+            {isSignup && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">{tr('auth.confirmPassword')}</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl sm:py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900] focus:border-transparent"
+                />
+                {confirmPassword && (
+                  <p className={`mt-1.5 text-xs font-semibold ${password === confirmPassword ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {password === confirmPassword ? `✓ ${tr('auth.passwordsMatch')}` : `✕ ${tr('auth.passwordsDoNotMatch')}`}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {isSignup && (
+              <label className="flex items-start gap-2.5 text-xs text-gray-600">
+                <input type="checkbox" checked={agreedToTerms} onChange={(e) => setAgreedToTerms(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-[#ff9900] focus:ring-[#ff9900]" />
+                <span>{tr('auth.agreeToTermsPrefix')} <a href="/seller-central/terms" target="_blank" rel="noopener noreferrer" className="font-semibold text-[#ff9900] underline hover:text-[#e68a00]">{tr('auth.agreeToTermsLink')}</a></span>
+              </label>
+            )}
 
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
@@ -2018,14 +2059,14 @@ function LoginPage({ onLogin, onSignup }: { onLogin: (phone: string, password: s
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-[#ff9900] text-white rounded-xl font-bold hover:bg-[#e68a00] transition-colors disabled:opacity-50"
+              disabled={loading || (isSignup && (!confirmPassword || password !== confirmPassword || !agreedToTerms))}
+              className="w-full py-2.5 bg-[#ff9900] text-white rounded-xl font-bold sm:py-3 hover:bg-[#e68a00] transition-colors disabled:opacity-50"
             >
               {loading ? tr('common.loading') : (isSignup ? tr('auth.createAccount') : tr('auth.signIn'))}
             </button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-3 text-center sm:mt-6">
             <p className="text-sm text-gray-500">
               {isSignup ? tr('auth.hasAccount') : tr('auth.noAccount')}{' '}
               <button 
@@ -2038,7 +2079,7 @@ function LoginPage({ onLogin, onSignup }: { onLogin: (phone: string, password: s
           </div>
 
           {!isSignup && (
-            <div className="mt-4 pt-4 border-t border-gray-100 text-center">
+            <div className="mt-2 pt-2 border-t border-gray-100 text-center sm:mt-4 sm:pt-4">
               <p className="text-xs text-gray-500">
                 {tr('auth.forgot')} <Link href="/seller-central/forgot-password" className="text-[#ff9900] hover:underline">{tr('auth.reset')}</Link>
               </p>
@@ -2046,9 +2087,9 @@ function LoginPage({ onLogin, onSignup }: { onLogin: (phone: string, password: s
           )}
         </div>
 
-        <div className="mt-6 flex justify-center"><LanguageSwitcher /></div>
+        <div className="mt-3 flex justify-center sm:mt-6"><LanguageSwitcher /></div>
 
-        <p className="text-center text-xs text-gray-500 mt-3">
+        <p className="text-center text-xs text-gray-500 mt-2">
           <a href="https://nzanila.com" className="text-white hover:underline">← {tr('nav.backToMarketplace')}</a>
         </p>
       </div>
@@ -2089,24 +2130,27 @@ function SidePanel({ open, onClose, widthClass, title, scroll = true, full = fal
 
 // App Layout
 // Phone-only bottom navigation: the four screens sellers use most, plus the full menu.
-function MobileBottomNav({ onOpenMenu }: { onOpenMenu: () => void }) {
+function MobileBottomNav({ onOpenMenu, ordersNeedingAction = 0 }: { onOpenMenu: () => void; ordersNeedingAction?: number }) {
   const { tr } = useLocale();
   const [location] = useLocation();
   const currentPath = location.split('?')[0];
   const items = [
     { label: 'Home', icon: Home, href: '/seller-central' },
-    { label: 'Orders', icon: ShoppingCart, href: '/seller-central/orders' },
+    { label: 'Orders', icon: ShoppingCart, href: '/seller-central/orders', count: ordersNeedingAction },
     { label: 'Products', icon: Package, href: '/seller-central/products' },
     { label: 'Stores', icon: Store, href: '/seller-central/stores' },
   ];
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_3px_rgba(0,0,0,0.06)] lg:hidden" aria-label={tr("sc.main")}>
-      {items.map(({ label, icon: Icon, href }) => {
+      {items.map(({ label, icon: Icon, href, count }) => {
         const active = currentPath === href;
         return (
           <Link key={href} href={href} className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-semibold transition-colors ${active ? 'text-[#ff9900]' : 'text-gray-500'}`}>
-            <Icon size={20} />
+            <span className="relative">
+              <Icon size={20} />
+              {!!count && <span className="absolute -right-2 -top-1.5 grid h-4 min-w-[16px] place-items-center rounded-full bg-[#ff9900] px-1 text-[9px] font-bold text-white ring-2 ring-white">{count}</span>}
+            </span>
             {label}
           </Link>
         );
@@ -2117,8 +2161,38 @@ function MobileBottomNav({ onOpenMenu }: { onOpenMenu: () => void }) {
   );
 }
 
-function AppLayout({ children, title, onLogout }: { children: React.ReactNode; title: string; onLogout: () => void }) {
+function AppLayout({ children, title, onLogout, chromeless = false }: { children: React.ReactNode; title: string; onLogout: () => void; chromeless?: boolean }) {
   const { tr } = useLocale();
+
+  // Publish the *visual* viewport height. On iOS the keyboard overlays the page without
+  // shrinking 100dvh, so a chat sized off 100dvh ends up with its composer hidden behind
+  // the keyboard; sized off --sc-vv it shrinks with the keyboard instead.
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const update = () => {
+      document.documentElement.style.setProperty('--sc-vv', `${Math.round(viewport.height)}px`);
+      const keyboardOpen = Math.max(0, window.innerHeight - viewport.height) > 150;
+      document.documentElement.classList.toggle('sc-keyboard-open', keyboardOpen);
+    };
+    update();
+    viewport.addEventListener('resize', update);
+    viewport.addEventListener('scroll', update);
+    return () => {
+      viewport.removeEventListener('resize', update);
+      viewport.removeEventListener('scroll', update);
+      document.documentElement.style.removeProperty('--sc-vv');
+      document.documentElement.classList.remove('sc-keyboard-open');
+    };
+  }, []);
+
+  // Chromeless (the messenger): no bottom nav, no page scroll — the chat owns the
+  // viewport and its message history is the only scroller.
+  useEffect(() => {
+    if (!chromeless) return;
+    document.documentElement.classList.add('sc-chromeless');
+    return () => document.documentElement.classList.remove('sc-chromeless');
+  }, [chromeless]);
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [panel, setPanel] = useState<'notifications' | null>(null);
@@ -2126,19 +2200,22 @@ function AppLayout({ children, title, onLogout }: { children: React.ReactNode; t
   const closePanel = () => setPanel(null);
   // One fetch, shared by the prompt and the sidebar badge.
   const verificationStatus = useVerificationStatus();
+  const ordersNeedingAction = useOrdersNeedingAction();
 
+  // h-dvh, not h-screen, so a phone's collapsing address bar doesn't cut off the bottom;
+  // in chromeless mode the shell follows the visual viewport so it shrinks with the keyboard.
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-dvh overflow-hidden bg-gray-50" style={chromeless ? { height: 'var(--sc-vv, 100dvh)' } : undefined}>
       <VerificationPrompt status={verificationStatus} />
-      <Sidebar isOpen={sidebarOpen} mobileOpen={mobileNavOpen} onClose={() => setSidebarOpen(!sidebarOpen)} onCloseMobile={() => setMobileNavOpen(false)} onOpenNotifications={openNotifications} verificationStatus={verificationStatus} />
+      <Sidebar isOpen={sidebarOpen} mobileOpen={mobileNavOpen} onClose={() => setSidebarOpen(!sidebarOpen)} onCloseMobile={() => setMobileNavOpen(false)} onOpenNotifications={openNotifications} verificationStatus={verificationStatus} ordersNeedingAction={ordersNeedingAction} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <TopBar title={title} onLogout={onLogout} onOpenNotifications={openNotifications} />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">
-          {/* Room for the fixed bottom nav on phones. */}
-          <div className="mx-auto w-full max-w-[1440px] pb-16 lg:pb-0">{children}</div>
+        <main className={chromeless ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : 'flex-1 overflow-y-auto overflow-x-hidden'}>
+          {/* Room for the fixed bottom nav on phones — except in chromeless mode, where there is none. */}
+          <div className={chromeless ? 'flex min-h-0 flex-1 flex-col' : 'mx-auto w-full max-w-[1440px] pb-16 lg:pb-0'}>{children}</div>
         </main>
       </div>
-      <MobileBottomNav onOpenMenu={() => setMobileNavOpen(true)} />
+      {!chromeless && <MobileBottomNav onOpenMenu={() => setMobileNavOpen(true)} ordersNeedingAction={ordersNeedingAction} />}
       <SidePanel open={panel === 'notifications'} onClose={closePanel} widthClass="max-w-[440px]" title={tr("sc.notifications")}>
         <NotificationsPage onNavigate={closePanel} />
       </SidePanel>
@@ -3454,79 +3531,6 @@ function CreateStoreWrapper() {
   }} />;
 }
 
-function EditStorePage() {
-  const { tr } = useLocale();
-  const { id } = useParams<{ id: string }>();
-  const [, setLocation] = useLocation();
-  const [store, setStore] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', phone: '', email: '' });
-  const [msg, setMsg] = useState('');
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/stores/${id}`);
-        if (res.ok) { const data = await res.json(); const s = data.store || data; setStore(s); setForm({ name: s.name || '', description: s.description || '', phone: s.phone || '', email: s.email || '' }); }
-      } catch {}
-      setLoading(false);
-    };
-    load();
-  }, [id]);
-  const handleSave = async () => {
-    setSaving(true); setMsg('');
-    try {
-      const token = localStorage.getItem('sc_token');
-      const res = await fetch(`${API_BASE}/api/stores/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token || ''}` },
-        body: JSON.stringify(form),
-      });
-      if (res.ok) { setMsg('Saved successfully'); setStore((p:any)=>({...p, ...form})); }
-      else { const t=await res.text(); setMsg('Save failed: '+t); }
-    } catch (e:any) { setMsg('Save failed'); }
-    setSaving(false);
-  };
-  if (loading) return <div className="p-12 text-center text-sm text-gray-500">{tr('sc.loading-store')}</div>;
-  if (!store) return <div className="p-12 text-center"><p className="text-sm text-gray-500">{tr('sc.store-not-found')}</p><Link href="/seller-central/stores" className="text-sm text-[#ff9900] underline">{tr('sc.back-to-stores-2')}</Link></div>;
-  return (
-    <div className="p-4 md:p-6 max-w-2xl mx-auto">
-      <div className="flex items-center gap-2 mb-6">
-        <Link href="/seller-central/stores" className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1"><ChevronRight className="rotate-180" size={14}/>{tr('sc.back-to-stores')}</Link>
-        <h2 className="text-lg font-bold">{tr('sc.edit-store')}</h2>
-      </div>
-      <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 space-y-4">
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1">{tr('sc.store-name-2')}</label>
-          <input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]" />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1">{tr('sc.description')}</label>
-          <textarea value={form.description} onChange={e=>setForm({...form, description:e.target.value})} rows={3} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]" />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">{tr('sc.phone')}</label>
-            <div className="flex items-center rounded-lg border border-gray-200 focus-within:border-[#ff9900]"><span className="border-r border-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-600">+257</span><input value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})} className="w-full min-w-0 flex-1 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]" /></div>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">{tr('sc.email')}</label>
-            <input value={form.email} onChange={e=>setForm({...form, email:e.target.value})} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#ff9900]" />
-          </div>
-        </div>
-        {msg && <p className="text-sm text-center py-2 rounded-lg bg-gray-50 text-gray-700">{msg}</p>}
-        <div className="flex gap-2 pt-2">
-          <button onClick={handleSave} disabled={saving || !form.name} className="flex-1 py-2.5 bg-[#ff9900] text-white rounded-lg text-sm font-bold hover:bg-[#e68a00] disabled:opacity-50">{saving?'Saving...':'Save Changes'}</button>
-          <Link href={`/seller-central/stores/${id}/storefront`} className="flex-1 py-2.5 bg-[#232f3e] text-white rounded-lg text-sm font-bold text-center hover:bg-black flex items-center justify-center gap-1.5"><Palette size={14}/>{tr('sc.design-storefront')}</Link>
-          {store?.slug && <a href={`${STORE_BASE_URL}/store/${store.slug}`} target="_blank" rel="noopener noreferrer" className="py-2.5 px-3 border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center justify-center"><ExternalLink size={14} className="text-gray-600"/></a>}
-        </div>
-        <Link href="/seller-central/stores" className="block text-center text-sm text-gray-500 hover:text-gray-700">{tr('sc.back-to-stores-2')}</Link>
-      </div>
-    </div>
-  );
-}
-
-// Router
 function Router() {
   const { tr } = useLocale();
   const [location, setLocation] = useLocation();
@@ -3552,16 +3556,19 @@ function Router() {
     // login page for every path, so the route is checked here rather than in the Switch
     // below (which only runs once a seller is authenticated).
     if (location.split('?')[0] === '/seller-central/forgot-password') return <ForgotPasswordPage />;
+    if (location.split('?')[0] === '/seller-central/terms') return <LegalPage />;
     return <LoginPage onLogin={async (phone, password) => {
       const result = await login(phone, password);
       if (result.success) {
         setLocation('/seller-central');
       }
+      return result;
     }} onSignup={async (data) => {
       const result = await signup(data);
       if (result.success) {
         setLocation('/seller-central/profile/complete');
       }
+      return result;
     }} />;
   }
 
@@ -3598,12 +3605,13 @@ function Router() {
     // Otherwise the next seller to sign in on this device inherits the previous one's
     // verification badge until the page is reloaded.
     clearVerificationStatusCache();
+    clearOrdersBadgeCache();
     logout();
     setLocation('/seller-central/login');
   };
 
   return (
-    <AppLayout title={title} onLogout={handleLogout}>
+    <AppLayout title={title} onLogout={handleLogout} chromeless={location.split('?')[0] === '/seller-central/messages'}>
       <Switch>
         <Route path="/seller-central" component={DashboardPage} />
         <Route path="/seller-central/orders" component={OrdersPage} />
@@ -3616,9 +3624,9 @@ function Router() {
         <Route path="/seller-central/stores/new" component={CreateStoreWrapper} />
         <Route path="/seller-central/profile/complete" component={() => <ProfileCompletionPage onComplete={async (data) => { const result = await completeProfile(data); if (result.success) setLocation('/seller-central/stores/new'); return result; }} />} />
         <Route path="/seller-central/verification" component={VerificationPage} />
+        <Route path="/seller-central/terms" component={LegalPage} />
         <Route path="/seller-central/profile" component={() => <SellerProfilePage user={user} onSave={completeProfile} />} />
         <Route path="/seller-central/stores/:id/storefront" component={StorefrontBuilderPage} />
-        <Route path="/seller-central/stores/:id" component={EditStorePage} />
         <Route path="/seller-central/stores" component={StoresPage} />
         <Route path="/seller-central/pricing/bulk" component={PricingManagementPage} />
         <Route path="/seller-central/pricing" component={PricingManagementPage} />

@@ -28,6 +28,7 @@ import { SellerProfilePage, SellerProfileEditPage } from '@/pages/seller-profile
 import { BuyerProfilePage } from '@/pages/buyer-profile-page';
 import { BuyerOrderDetailPage } from '@/pages/buyer-order-detail-page';
 import { StorefrontBuilderPage, SellerStorefrontRedirect } from '@/pages/storefront-builder-page';
+import { LegalPage } from '@/pages/legal-page';
 import { InventoryDashboardPage } from '@/pages/inventory-page';
 import { StoresPage } from '@/pages/stores-page';
 import { SellerVerificationPage } from '@/pages/seller-verification-page';
@@ -79,14 +80,14 @@ function OnboardingGuard({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (loading) return;
     if (!isAuthenticated || !user) return;
-    if (user.role !== 'seller' && (user as any).onboardingCompleted === false && !location.startsWith('/onboarding') && !location.startsWith('/auth')) {
+    if (user.role !== 'seller' && (user as any).onboardingCompleted === false && !location.startsWith('/onboarding') && !location.startsWith('/auth') && !location.startsWith('/terms')) {
       setLocation('/onboarding');
     }
   }, [loading, isAuthenticated, user, location, setLocation]);
 
   if (loading) return null;
   if (!isAuthenticated || !user) return <>{children}</>;
-  if (user.role !== 'seller' && (user as any).onboardingCompleted === false && !location.startsWith('/onboarding') && !location.startsWith('/auth')) {
+  if (user.role !== 'seller' && (user as any).onboardingCompleted === false && !location.startsWith('/onboarding') && !location.startsWith('/auth') && !location.startsWith('/terms')) {
     return null;
   }
 
@@ -142,6 +143,7 @@ function Router() {
         <Route path="/auth" component={AuthPage} />
         <Route path="/auth/forgot" component={ForgotPasswordPage} />
         <Route path="/onboarding" component={OnboardingPage} />
+        <Route path="/terms" component={LegalPage} />
         <Route path="/ai-research" component={AiResearchPage} />
         <Route path="/ai-search" component={() => <Redirect to="/products" />} />
         <Route path="/categories" component={CategoriesPage} />

@@ -3,7 +3,8 @@ import { ClipboardList } from 'lucide-react';
 import { useListOrders } from '@workspace/api-client-react';
 import { useLocale } from '@/lib/i18n/locale-context';
 
-/** Orders icon with a badge for orders still in flight (not delivered or cancelled). */
+/** Orders icon with a badge for orders still in flight. Delivered and cancelled orders are
+ * excluded — the badge is a to-do count, not a history count. */
 export function BuyerOrdersLink({ href }: { href: string }) {
   const { tr } = useLocale();
   const { data: orders } = useListOrders({ query: { refetchInterval: 30000 } });

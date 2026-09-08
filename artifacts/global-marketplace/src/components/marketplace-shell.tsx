@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useEffect, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useState, useRef } from 'react';
 import { Link, useLocation } from 'wouter';
 import { PwaInstallPrompt } from '@/components/pwa-install-prompt';
 import {
@@ -168,7 +168,7 @@ function isPwaMode() {
   );
 }
 
-export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = false, hideSidebar = false, hideFooter = false, fullBleed = false, hideTopBar = false, sidebarContent, discoveryContent }: { children: ReactNode; mode?: 'buyer' | 'supplier'; activeTab?: NavTab; hideSearch?: boolean; hideSidebar?: boolean; hideFooter?: boolean; fullBleed?: boolean; hideTopBar?: boolean; sidebarContent?: ReactNode; discoveryContent?: ReactNode }) {
+export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = false, hideSidebar = false, hideFooter = false, fullBleed = false, hideTopBar = false, chromeless = false, sidebarContent, discoveryContent }: { children: ReactNode; mode?: 'buyer' | 'supplier'; activeTab?: NavTab; hideSearch?: boolean; hideSidebar?: boolean; hideFooter?: boolean; fullBleed?: boolean; hideTopBar?: boolean; chromeless?: boolean; sidebarContent?: ReactNode; discoveryContent?: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
@@ -176,7 +176,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [location, setLocation] = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
-  const { data: cart } = useGetCart({ query: { queryKey: ['cart', user?.id], enabled: isAuthenticated, retry: false, staleTime: 30_000 } });
+  const { data: cart } = useGetCart({ query: { enabled: isAuthenticated, retry: false, staleTime: 30_000 } });
   const { data: catalogCategories } = useListCategories();
   const isSupplier = mode === 'supplier';
   const { tr, locale } = useLocale();
@@ -197,6 +197,9 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
     const updateKeyboardState = () => {
       const offset = Math.max(0, window.innerHeight - viewport.height);
       document.documentElement.style.setProperty('--nzanila-keyboard-offset', `${offset}px`);
+      // The visible height, not the layout height: on iOS the keyboard overlays the page
+      // without shrinking 100dvh, so a full-height chat sized off this stays above it.
+      document.documentElement.style.setProperty('--nz-vv', `${Math.round(viewport.height)}px`);
       const keyboardVisible = offset > 150;
       if (keyboardVisible) document.documentElement.classList.add('nzanila-keyboard-open');
       else document.documentElement.classList.remove('nzanila-keyboard-open');
@@ -209,6 +212,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
       viewport.removeEventListener('resize', updateKeyboardState);
       viewport.removeEventListener('scroll', updateKeyboardState);
       document.documentElement.style.removeProperty('--nzanila-keyboard-offset');
+      document.documentElement.style.removeProperty('--nz-vv');
     };
   }, []);
 
@@ -236,9 +240,30 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
     };
   }, []);
 
+  // The header is position:fixed and its height changes with the PWA banner and the
+  // sm: top strip, so the messenger measures it instead of hardcoding 60/90px.
+  const headerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const publish = () => document.documentElement.style.setProperty('--nz-header-h', `${el.offsetHeight}px`);
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(el);
+    return () => { observer.disconnect(); document.documentElement.style.removeProperty('--nz-header-h'); };
+  }, []);
+
+  // Chromeless (the messenger): no footer, no bottom nav, no page scroll — the chat owns
+  // the viewport and its message list is the only thing that scrolls.
+  useEffect(() => {
+    if (!chromeless) return;
+    document.documentElement.classList.add('nz-chromeless');
+    return () => document.documentElement.classList.remove('nz-chromeless');
+  }, [chromeless]);
+
   return (
     <div className="nzanila-marketplace-shell min-h-[100dvh] overflow-x-clip bg-[#f5f5f5] text-[#222]">
-      <header className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white shadow-sm">
+      <header ref={headerRef} className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white shadow-sm">
         <div className={`${hideTopBar ? 'hidden' : 'hidden sm:block'} border-b border-gray-200 bg-[#f5f5f5]`}>
           <div className="mx-auto flex max-w-[1231px] items-center justify-between px-4 py-1.5 text-xs text-gray-600 lg:px-8">
             <span>{tr('ui.nzanilaMarketplace')}</span>
@@ -291,7 +316,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
         </div>
       </header>
 
-      <div className={hideTopBar ? 'pt-[60px]' : 'pt-[60px] sm:pt-[90px]'}>
+      <div className={hideTopBar ? 'pt-[60px]' : 'pt-[60px] sm:pt-[90px]'} style={chromeless ? { paddingTop: 'var(--nz-header-h, 60px)' } : undefined}>
       {!isSupplier && !hideSearch && (
         <>
           <div className="bg-white">
@@ -301,8 +326,8 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
         </>
       )}
 
-      <main className={`${fullBleed ? 'w-full' : 'mx-auto max-w-[1368px]'} pb-14 lg:pb-0`}>
-        <div className={`grid grid-cols-1 ${!hideSearch && !hideSidebar && !isSupplier ? discoveryContent ? 'lg:grid-cols-[210px_minmax(0,1fr)] px-3 sm:px-4 lg:px-8 py-4 gap-3' : 'lg:grid-cols-[150px_1fr]' : ''}`}>
+      <main className={`${fullBleed ? 'w-full' : 'mx-auto max-w-[1368px]'} ${chromeless ? '' : 'pb-14 lg:pb-0'}`}>
+        <div className={`grid grid-cols-1 ${!hideSearch && !hideSidebar && !isSupplier ? discoveryContent ? 'lg:grid-cols-[210px_minmax(0,1fr)] px-4 lg:px-8 py-4 gap-3' : 'lg:grid-cols-[150px_1fr]' : ''}`}>
           {/* Categories Sidebar - Desktop */}
 
           {!isSupplier && !hideSearch && !hideSidebar && (
@@ -332,7 +357,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
       </main>
       </div>
 
-      {!isSupplier && !hideFooter && <footer className="mt-5 border-t border-gray-200 bg-white pb-16 lg:mt-8 lg:pb-6">
+      {!isSupplier && !hideFooter && !chromeless && <footer className="mt-5 border-t border-gray-200 bg-white pb-16 lg:mt-8 lg:pb-6">
         <div className="mx-auto grid max-w-[1231px] grid-cols-2 gap-x-4 gap-y-5 px-4 py-5 sm:gap-8 sm:py-8 lg:grid-cols-4 lg:px-8 lg:py-10">
           <div className="col-span-2 sm:col-span-1"><Logo /><p className="mt-2 max-w-xs text-xs leading-relaxed text-gray-500 sm:mt-4 sm:text-sm">{tr('ui.discoverProductsExploreStoresAndConnect')}</p></div>
           <div><h2 className="mb-2 text-xs font-bold sm:mb-4 sm:text-sm">{tr('ui.shopOnNzanila')}</h2><nav aria-label={tr('ui.footerShopping')} className="flex flex-col items-start gap-1.5 text-xs text-gray-600 sm:gap-3 sm:text-sm"><Link href="/products" className="hover:text-orange-500">{tr('ui.browseProducts')}</Link><button onClick={() => { setSelectedCategory(undefined); setCategoriesOpen(true); }} className="hover:text-orange-500">{tr('ui.allCategories')}</button>{isAuthenticated && <Link href="/cart" className="hover:text-orange-500">{tr('ui.yourCart')}</Link>}</nav></div>
@@ -342,7 +367,7 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
         <div className="mx-auto flex max-w-[1231px] flex-wrap justify-between gap-1 border-t border-gray-100 px-4 pt-3 text-[10px] text-gray-500 sm:gap-3 sm:pt-5 sm:text-xs lg:px-8"><span>© {new Date().getFullYear()} Nzanila. All rights reserved.</span><span>{tr('ui.onlinePaymentsComingSoon')}</span></div>
       </footer>}
 
-      {!isSupplier && !keyboardOpen && (
+      {!isSupplier && !keyboardOpen && !chromeless && (
         <div className="fixed bottom-24 right-0 z-40 hidden flex-col gap-1 lg:flex">
           {[
             { icon: MessageSquare, label: 'Messenger' },
@@ -374,8 +399,8 @@ export function AppShell({ children, mode = 'buyer', activeTab, hideSearch = fal
         </div>
       )}
 
-      {/* Mobile Bottom Navigation */}
-      {!isSupplier && (
+      {/* Mobile Bottom Navigation — hidden in chromeless mode so the composer sits on the bottom edge. */}
+      {!isSupplier && !chromeless && (
         <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-white lg:hidden">
           <div className={`grid ${isAuthenticated ? 'grid-cols-6' : 'grid-cols-4'}`}>
             <Link href="/" className="flex flex-col items-center gap-0.5 py-2 text-muted-foreground hover:text-primary">

@@ -1800,9 +1800,36 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
 
   const storeSlugMatch = path.match(/^\/api\/stores\/([^/]+)$/);
   if (storeSlugMatch && method === "GET") {
-    const stores = await supabaseGet(env, "stores", `slug=eq.${encodeURIComponent(storeSlugMatch[1])}&limit=1`);
+    // Public store pages address a store by slug; the seller tools address it by id.
+    const ref = storeSlugMatch[1];
+    const filter = /^\d+$/.test(ref) ? `id=eq.${ref}` : `slug=eq.${encodeURIComponent(ref)}`;
+    const stores = await supabaseGet(env, "stores", `${filter}&limit=1`);
     if (!stores.length) return json({ error: "Store not found" }, 404);
     return json({ store: stores[0] });
+  }
+
+  // PUT /api/stores/:id — the store's own details (name, what it sells, contacts), edited
+  // from the storefront builder. Owner only.
+  if (storeSlugMatch && method === "PUT" && /^\d+$/.test(storeSlugMatch[1])) {
+    const payload = await authPayload(request, env);
+    if (!payload?.id) return json({ error: "Not authenticated" }, 401);
+    const storeId = Number(storeSlugMatch[1]);
+    const stores = await supabaseGet(env, "stores", `id=eq.${storeId}&select=id,seller_id&limit=1`) as Record<string, unknown>[];
+    if (!stores.length) return json({ error: "Store not found" }, 404);
+    if (Number(stores[0].seller_id) !== Number(payload.id)) return json({ error: "You can only edit your own store" }, 403);
+    const body = await readJson<Record<string, unknown>>(request);
+    const update: Record<string, unknown> = {};
+    if (typeof body?.name === "string" && body.name.trim()) update.name = body.name.trim();
+    if (typeof body?.description === "string") update.description = body.description.trim() || null;
+    if (typeof body?.address === "string") update.address = body.address.trim() || null;
+    if (typeof body?.email === "string") update.email = body.email.trim() || null;
+    if (typeof body?.phone === "string") {
+      if (body.phone && !isSupportedPhone(body.phone)) return json({ error: "Enter a valid Burundi (+257) or Rwanda (+250) phone number" }, 400);
+      update.phone = body.phone.trim() || null;
+    }
+    if (!Object.keys(update).length) return json({ error: "Nothing to update" }, 400);
+    const [store] = await supabasePatch(env, "stores", `id=eq.${storeId}`, update) as Record<string, unknown>[];
+    return json({ store: store ?? { id: storeId, ...update } });
   }
 
   // DELETE /api/stores/:id — the seller UI has always called this to remove a store,

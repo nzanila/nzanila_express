@@ -84,9 +84,9 @@ export default function StoreProfilePage() {
   const savedHeader = storefrontConfig?.header || {};
   const displayName = savedHeader.companyName || store.name;
   const profileImage = savedHeader.profileImage || store.logo || store.profile_image || store.profileImage || store.gallery_images?.[0] || store.galleryImages?.[0];
-  const tagline = savedHeader.tagline || store.description || store.business_category || 'Wholesale supplier';
-  const yearsLabel = savedHeader.yearsActive || (store.years_active ? `${store.years_active} years` : 'New supplier');
-  const verificationLabel = savedHeader.verificationLabel || 'Verified Supplier';
+  const tagline = savedHeader.tagline || store.description || store.business_category || tg('ui.sf.wholesaleSupplier');
+  const yearsLabel = savedHeader.yearsActive || (store.years_active ? `${store.years_active} ${tg('ui.sf.yearsSuffix')}` : tg('ui.sf.newSupplier'));
+  const verificationLabel = savedHeader.verificationLabel || tg('ui.verifiedSupplier');
   const mastheadImage = !storefrontConfig?.shopSign?.hidden ? storefrontConfig?.shopSign?.imageUrl : null;
   const locationLabel = [store.commune || store.location_address, store.province].filter(Boolean).join(', ');
   const hasCoordinates = Number.isFinite(Number(store.latitude)) && Number.isFinite(Number(store.longitude)) && (Number(store.latitude) !== 0 || Number(store.longitude) !== 0);
@@ -119,7 +119,7 @@ export default function StoreProfilePage() {
               <span>{yearsLabel}</span>
               {locationLabel && <><span>•</span><span>{locationLabel}</span></>}
             </div>
-            <p className="mt-1 line-clamp-1 text-[10px] text-[#40566d] sm:mt-2 sm:text-xs">Main products: {tagline}</p>
+            <p className="mt-1 line-clamp-1 text-[10px] text-[#40566d] sm:mt-2 sm:text-xs">{tg('ui.sf.mainProducts')} {tagline}</p>
             <a href={directionsUrl} target="_blank" rel="noopener noreferrer" className="mt-2 flex w-fit max-w-full items-center gap-1.5 text-[10px] font-semibold text-[#1268b3] hover:text-[#ff6a00] hover:underline sm:text-xs"><MapPin size={13} className="shrink-0" /><span className="truncate">{store.location_address || store.address || locationLabel || 'View supplier location'}</span><span className="shrink-0">· Directions ↗</span></a>
             <div className="mt-2 hidden flex-wrap gap-1.5 text-[9px] font-medium text-[#40566d] sm:flex sm:text-[10px]">
               <span className="rounded bg-white/85 px-2 py-1">{tg('ui.supplierAssessmentAvailable')}</span>
@@ -178,8 +178,8 @@ export default function StoreProfilePage() {
         <div className="grid lg:grid-cols-2">
           <div className="px-4 py-8 sm:px-6 sm:py-10 lg:py-12 lg:pr-10">
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#ff6a00]">{tg('ui.supplierInformation')}</p>
-            <h2 className="mt-2 text-2xl font-bold text-gray-900">About {store.name}</h2>
-            <p className="mt-2 text-xs font-semibold text-gray-500">Store owner: {store.owner_name || store.ownerName || store.seller_name || store.sellerName || 'Contact this supplier for owner details'}</p>
+            <h2 className="mt-2 text-2xl font-bold text-gray-900">{tg('ui.sf.about')} {store.name}</h2>
+            <p className="mt-2 text-xs font-semibold text-gray-500">{tg('ui.sf.storeOwner')} {store.owner_name || store.ownerName || store.seller_name || store.sellerName || tg('ui.sf.ownerUnknown')}</p>
             {store.description
               ? <TranslatableText as="p" className="mt-3 text-sm leading-6 text-gray-600" text={store.description} />
               : <p className="mt-3 text-sm leading-6 text-gray-600">{tg('ui.contactThisSupplierForCompanyAnd')}</p>}
@@ -188,7 +188,7 @@ export default function StoreProfilePage() {
             </div>
             <dl className="mt-8 grid grid-cols-3 border-t border-gray-200 pt-5"><div><dt className="text-[9px] text-gray-400">{tg('ui.response')}</dt><dd className="mt-1 text-xs font-bold">{store.response_time || '2 hours'}</dd></div><div><dt className="text-[9px] text-gray-400">{tg('ui.ontimeDelivery2')}</dt><dd className="mt-1 text-xs font-bold">{store.on_time_delivery || 95}%</dd></div><div><dt className="text-[9px] text-gray-400">{tg('ui.teamSize2')}</dt><dd className="mt-1 text-xs font-bold">{store.employee_count || '10–50'}</dd></div></dl>
           </div>
-          <div className="relative min-h-[380px] border-t border-gray-200 bg-gray-100 sm:min-h-[440px] lg:min-h-[480px] lg:border-l lg:border-t-0"><iframe src={mapsEmbedUrl} title={`${store.name} location`} loading="lazy" referrerPolicy="no-referrer-when-downgrade" className="absolute inset-0 h-full w-full border-0" /></div>
+          <div className="relative min-h-[380px] border-t border-gray-200 bg-gray-100 sm:min-h-[440px] lg:min-h-[480px] lg:border-l lg:border-t-0"><iframe src={mapsEmbedUrl} title={`${store.name} ${tg('ui.sf.storeLocation')}`} loading="lazy" referrerPolicy="no-referrer-when-downgrade" className="absolute inset-0 h-full w-full border-0" /></div>
         </div>
       </div>
     </section>
@@ -211,7 +211,7 @@ export default function StoreProfilePage() {
         {/* Products grid from DB */}
         {products.length > 0 && (
           <div id="store-products" className="mx-auto max-w-[1280px] scroll-mt-4 px-4 py-6 sm:px-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">All Products ({products.length})</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-4">{tg('ui.sf.allProductsHeading')} ({products.length})</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {products.map((pr: any) => (
                 <Link href={`/products/${pr.id}`} key={pr.id} className="block bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
@@ -236,7 +236,7 @@ export default function StoreProfilePage() {
         {storeAbout}
         <div className="hidden">
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">About {store.name}</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">{tg('ui.sf.about')} {store.name}</h3>
             <p className="text-sm text-gray-600 mb-4">{store.description}</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="text-center p-3 bg-gray-50 rounded-lg">
